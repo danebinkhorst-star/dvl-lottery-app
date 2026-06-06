@@ -1,0 +1,27 @@
+{
+  "name": "dvl-lottery-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:generate": "node scripts/init-db.js",
+    "db:migrate": "node scripts/init-db.js",
+    "db:push": "node scripts/init-db.js",
+    "db:seed": "node scripts/seed.js",
+    "db:ensure-live-draw": "node scripts/ensure-live-draw.js",
+    "register:webhooks": "node scripts/register-webhooks.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "zod": "^3.25.51"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.1"
+  }
+}

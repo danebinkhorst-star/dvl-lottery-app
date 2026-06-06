@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: dvl-lottery-app
+    env: docker
+    plan: starter
+    autoDeploy: true
+    disk:
+      name: dvl-lottery-data
+      mountPath: /app/storage
+      sizeGB: 1
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8787
+      - key: SQLITE_PATH
+        value: /app/storage/dvl-lottery.db
+      - key: SHOPIFY_SHOP
+        value: de-vlees-loterij.myshopify.com
+      - key: SHOPIFY_API_VERSION
+        value: 2026-04
+      - key: LOT_RULE_MODE
+        value: ORDER_MINIMUM
+      - key: LOT_ORDER_MINIMUM_CENTS
+        value: 7000
+      - key: LOT_PER_CENTS
+        value: 7000
+      - key: FREE_ENTRY_ENABLED
+        value: true
+      - key: ADMIN_USERNAME
+        value: dvl
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+      - key: SHOPIFY_WEBHOOK_SECRET
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
