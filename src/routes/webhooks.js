@@ -39,6 +39,11 @@ webhookRouter.post("/orders/create", express.raw({ type: "application/json" }), 
 });
 
 webhookRouter.post("/orders/updated", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
+  if (req.webhookPayload.cancelled_at || req.webhookPayload.cancel_reason) {
+    const orderId = req.webhookPayload.admin_graphql_api_id || req.webhookPayload.id;
+    const result = await voidEntriesForOrder(orderId, "Order cancelled");
+    return res.status(200).json({ ok: true, ...result });
+  }
   if (req.webhookPayload.financial_status !== "paid") {
     return res.status(200).json({ ok: true, skipped: "order_not_paid" });
   }
