@@ -12,6 +12,7 @@
     "db:seed": "node scripts/seed.js",
     "db:ensure-live-draw": "node scripts/ensure-live-draw.js",
     "register:webhooks": "node scripts/register-webhooks.js",
+    "reconcile:orders": "node scripts/reconcile-orders.js",
     "test": "node --test"
   },
   "dependencies": {

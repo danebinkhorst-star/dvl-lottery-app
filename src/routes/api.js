@@ -1,6 +1,8 @@
 import express from "express";
 import { db } from "../db.js";
 import { createDraw } from "../services/lottery.js";
+import { reconcileActiveOrderEntries } from "../services/reconcile.js";
+import { isValidWriteSecret } from "../auth.js";
 
 export const apiRouter = express.Router();
 
@@ -59,10 +61,18 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
 
 apiRouter.post("/draws", async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
-  const requiredSecret = process.env.ADMIN_PASSWORD || "";
-  if (requiredSecret && suppliedSecret !== requiredSecret) {
+  if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   const draw = await createDraw(req.body);
   return res.status(201).json({ draw });
+});
+
+apiRouter.post("/reconcile/orders", async (req, res) => {
+  const suppliedSecret = req.get("x-dvl-admin-secret") || "";
+  if (!isValidWriteSecret(suppliedSecret)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const result = await reconcileActiveOrderEntries();
+  return res.json({ ok: true, ...result });
 });

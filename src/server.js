@@ -1,19 +1,12 @@
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
-import crypto from "node:crypto";
 import { config } from "./config.js";
 import { adminRouter } from "./routes/admin.js";
 import { apiRouter } from "./routes/api.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw } from "./services/lottery.js";
-
-function safeEqual(a, b) {
-  const left = Buffer.from(String(a || ""));
-  const right = Buffer.from(String(b || ""));
-  if (left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
-}
+import { safeEqual } from "./auth.js";
 
 function requireAdminAuth(req, res, next) {
   const password = config.ADMIN_PASSWORD;
