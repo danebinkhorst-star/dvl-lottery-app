@@ -1,6 +1,8 @@
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { config } from "./config.js";
 import { adminRouter } from "./routes/admin.js";
 import { apiRouter } from "./routes/api.js";
@@ -43,7 +45,7 @@ export function createApp() {
   return app;
 }
 
-const isDirectRun = import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`;
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
   await getOrCreateLiveDraw();
