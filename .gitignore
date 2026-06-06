@@ -3,4 +3,6 @@ node_modules/
 data/
 *.log
 .server.pid
+.style-check.pid
+style-check-*.log
 .DS_Store
