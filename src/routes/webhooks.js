@@ -26,6 +26,30 @@ webhookRouter.post("/orders/paid", express.raw({ type: "application/json" }), pa
   });
 });
 
+webhookRouter.post("/orders/create", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
+  if (req.webhookPayload.financial_status !== "paid") {
+    return res.status(200).json({ ok: true, skipped: "order_not_paid" });
+  }
+  const result = await assignEntriesForOrder(req.webhookPayload);
+  return res.status(200).json({
+    ok: true,
+    createdEntries: result.createdEntries.length,
+    skipped: result.skipped || null
+  });
+});
+
+webhookRouter.post("/orders/updated", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
+  if (req.webhookPayload.financial_status !== "paid") {
+    return res.status(200).json({ ok: true, skipped: "order_not_paid" });
+  }
+  const result = await assignEntriesForOrder(req.webhookPayload);
+  return res.status(200).json({
+    ok: true,
+    createdEntries: result.createdEntries.length,
+    skipped: result.skipped || null
+  });
+});
+
 webhookRouter.post("/orders/cancelled", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
   const orderId = req.webhookPayload.admin_graphql_api_id || req.webhookPayload.id;
   const result = await voidEntriesForOrder(orderId, "Order cancelled");
