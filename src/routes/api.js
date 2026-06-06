@@ -58,6 +58,11 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
 });
 
 apiRouter.post("/draws", async (req, res) => {
+  const suppliedSecret = req.get("x-dvl-admin-secret") || "";
+  const requiredSecret = process.env.ADMIN_PASSWORD || "";
+  if (requiredSecret && suppliedSecret !== requiredSecret) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   const draw = await createDraw(req.body);
-  res.status(201).json({ draw });
+  return res.status(201).json({ draw });
 });

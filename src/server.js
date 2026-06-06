@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { adminRouter } from "./routes/admin.js";
 import { apiRouter } from "./routes/api.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { getOrCreateLiveDraw } from "./services/lottery.js";
 
 function safeEqual(a, b) {
   const left = Buffer.from(String(a || ""));
@@ -52,6 +53,7 @@ export function createApp() {
 const isDirectRun = import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`;
 
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
+  await getOrCreateLiveDraw();
   createApp().listen(config.PORT, () => {
     console.log(`DVL lottery app running on http://localhost:${config.PORT}`);
   });
