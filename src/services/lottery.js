@@ -57,6 +57,85 @@ export async function createDraw(input) {
   return draw;
 }
 
+export async function getOrCreateCustomer({ shopifyCustomerId = null, email = null, firstName = null, lastName = null }) {
+  let customer = null;
+  if (shopifyCustomerId || email) {
+    if (shopifyCustomerId && email) {
+      customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ? OR email = ?").get(shopifyCustomerId, email);
+    } else if (shopifyCustomerId) {
+      customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get(shopifyCustomerId);
+    } else {
+      customer = db.prepare("SELECT * FROM customers WHERE email = ?").get(email);
+    }
+  }
+
+  if (!customer) {
+    customer = {
+      id: id(),
+      shopify_customer_id: shopifyCustomerId,
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      total_entries: 0,
+      created_at: nowIso(),
+      updated_at: nowIso()
+    };
+    db.prepare(`INSERT INTO customers
+      (id, shopify_customer_id, email, first_name, last_name, total_entries, created_at, updated_at)
+      VALUES (@id, @shopify_customer_id, @email, @first_name, @last_name, @total_entries, @created_at, @updated_at)`).run(customer);
+    return customer;
+  }
+
+  db.prepare("UPDATE customers SET shopify_customer_id = COALESCE(?, shopify_customer_id), email = COALESCE(?, email), first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE id = ?")
+    .run(shopifyCustomerId, email, firstName, lastName, nowIso(), customer.id);
+  return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
+}
+
+export async function createFreeEntry({ email, firstName = null, lastName = null, drawId = null }) {
+  if (!config.FREE_ENTRY_ENABLED) {
+    throw new Error("Gratis deelname is tijdelijk gesloten.");
+  }
+
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    throw new Error("Vul een geldig e-mailadres in.");
+  }
+
+  const draw = drawId
+    ? db.prepare("SELECT * FROM lottery_draws WHERE id = ? AND status = 'LIVE'").get(drawId)
+    : await getOrCreateLiveDraw();
+  if (!draw) throw new Error("Er is geen actieve trekking gevonden.");
+
+  const customer = await getOrCreateCustomer({ email: cleanEmail, firstName, lastName });
+  const existing = db.prepare(`
+    SELECT e.*
+    FROM lottery_entries e
+    WHERE e.draw_id = ? AND e.customer_id = ? AND e.source = 'FREE_ENTRY' AND e.status = 'ACTIVE'
+    LIMIT 1
+  `).get(draw.id, customer.id);
+  if (existing) {
+    return { entry: existing, customer, draw, skipped: "free_entry_already_exists" };
+  }
+
+  const entry = {
+    id: id(),
+    entry_number: makeEntryNumber("FREE"),
+    draw_id: draw.id,
+    customer_id: customer.id,
+    order_id: null,
+    source: "FREE_ENTRY",
+    status: "ACTIVE",
+    reason: "Gratis deelname zonder aankoop.",
+    created_at: nowIso()
+  };
+  db.prepare(`INSERT INTO lottery_entries
+    (id, entry_number, draw_id, customer_id, order_id, source, status, reason, created_at)
+    VALUES (@id, @entry_number, @draw_id, @customer_id, @order_id, @source, @status, @reason, @created_at)`).run(entry);
+  db.prepare("UPDATE customers SET total_entries = total_entries + 1, updated_at = ? WHERE id = ?").run(nowIso(), customer.id);
+
+  return { entry, customer, draw };
+}
+
 export async function assignEntriesForOrder(orderPayload) {
   const shopifyOrderId = String(orderPayload.id || orderPayload.admin_graphql_api_id);
   const totalCents = centsFromMoney(orderPayload.total_price);
@@ -71,31 +150,14 @@ export async function assignEntriesForOrder(orderPayload) {
   }
 
   const draw = await getOrCreateLiveDraw();
-  let customer = null;
-  if (shopifyCustomerId || email) {
-    customer = shopifyCustomerId
-      ? db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get(shopifyCustomerId)
-      : db.prepare("SELECT * FROM customers WHERE email = ?").get(email);
-
-    if (!customer) {
-      customer = {
-        id: id(),
-        shopify_customer_id: shopifyCustomerId,
+  const customer = (shopifyCustomerId || email)
+    ? await getOrCreateCustomer({
+        shopifyCustomerId,
         email,
-        first_name: orderPayload.customer?.first_name || null,
-        last_name: orderPayload.customer?.last_name || null,
-        total_entries: 0,
-        created_at: nowIso(),
-        updated_at: nowIso()
-      };
-      db.prepare(`INSERT INTO customers
-        (id, shopify_customer_id, email, first_name, last_name, total_entries, created_at, updated_at)
-        VALUES (@id, @shopify_customer_id, @email, @first_name, @last_name, @total_entries, @created_at, @updated_at)`).run(customer);
-    } else {
-      db.prepare("UPDATE customers SET email = ?, first_name = ?, last_name = ?, updated_at = ? WHERE id = ?")
-        .run(email, orderPayload.customer?.first_name || null, orderPayload.customer?.last_name || null, nowIso(), customer.id);
-    }
-  }
+        firstName: orderPayload.customer?.first_name || null,
+        lastName: orderPayload.customer?.last_name || null
+      })
+    : null;
 
   const order = {
     id: id(),

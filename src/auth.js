@@ -14,3 +14,19 @@ export function isValidWriteSecret(secret) {
   if (config.SHOPIFY_WEBHOOK_SECRET && safeEqual(secret, config.SHOPIFY_WEBHOOK_SECRET)) return true;
   return false;
 }
+
+function customerTokenSecret() {
+  return config.SHOPIFY_WEBHOOK_SECRET || config.ADMIN_PASSWORD || "dvl-dev-customer-token";
+}
+
+export function signCustomerToken(shopifyCustomerId) {
+  return crypto
+    .createHmac("sha256", customerTokenSecret())
+    .update(String(shopifyCustomerId || ""))
+    .digest("hex");
+}
+
+export function verifyCustomerToken(shopifyCustomerId, token) {
+  if (!shopifyCustomerId || !token) return false;
+  return safeEqual(signCustomerToken(shopifyCustomerId), token);
+}

@@ -3,6 +3,12 @@ import { z } from "zod";
 
 dotenv.config();
 
+const envBoolean = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}, z.boolean());
+
 const configSchema = z.object({
   NODE_ENV: z.string().default("development"),
   SQLITE_PATH: z.string().default("./data/dvl-lottery.db"),
@@ -19,7 +25,7 @@ const configSchema = z.object({
   LOT_RULE_MODE: z.enum(["ORDER_MINIMUM", "PER_AMOUNT"]).default("ORDER_MINIMUM"),
   LOT_ORDER_MINIMUM_CENTS: z.coerce.number().int().positive().default(7000),
   LOT_PER_CENTS: z.coerce.number().int().positive().default(7000),
-  FREE_ENTRY_ENABLED: z.coerce.boolean().default(true)
+  FREE_ENTRY_ENABLED: envBoolean.default(true)
 });
 
 export const config = configSchema.parse(process.env);

@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { config } from "./config.js";
 import { adminRouter } from "./routes/admin.js";
 import { apiRouter } from "./routes/api.js";
+import { embedRouter } from "./routes/embed.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw } from "./services/lottery.js";
 import { safeEqual } from "./auth.js";
@@ -32,6 +33,16 @@ export function createApp() {
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(morgan("dev"));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/") || req.path.startsWith("/embed/")) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-DVL-Admin-Secret, X-DVL-Customer-Token");
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    return next();
+  });
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, app: "dvl-lottery-app" });
@@ -39,6 +50,7 @@ export function createApp() {
 
   app.use("/webhooks", webhookRouter);
   app.use("/api", apiRouter);
+  app.use("/embed", embedRouter);
   app.use("/admin", requireAdminAuth, adminRouter);
   app.get("/", (_req, res) => res.redirect("/admin"));
 
