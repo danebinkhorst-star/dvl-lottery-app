@@ -1,6 +1,7 @@
 import express from "express";
 import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
+import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
@@ -177,5 +178,14 @@ apiRouter.post("/reconcile/orders", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   const result = await reconcileActiveOrderEntries();
+  return res.json({ ok: true, ...result });
+});
+
+apiRouter.post("/sync/customer-dashboards", async (req, res) => {
+  const suppliedSecret = req.get("x-dvl-admin-secret") || "";
+  if (!isValidWriteSecret(suppliedSecret)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const result = await syncAllCustomerDashboardMetafields();
   return res.json({ ok: true, ...result });
 });

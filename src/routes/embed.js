@@ -217,7 +217,7 @@ function widgetRuntime() {
         <div class="dvl-widget-card"><strong>Next</strong><span>Customer account koppeling</span></div>
       </div>
       <div class="dvl-widget-actions">
-        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/account"))}" target="_top">Naar account</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
         <a class="dvl-widget-button" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
       </div>
     </section>`;

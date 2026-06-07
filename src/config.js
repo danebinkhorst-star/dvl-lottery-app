@@ -25,7 +25,8 @@ const configSchema = z.object({
   LOT_RULE_MODE: z.enum(["ORDER_MINIMUM", "PER_AMOUNT"]).default("ORDER_MINIMUM"),
   LOT_ORDER_MINIMUM_CENTS: z.coerce.number().int().positive().default(7000),
   LOT_PER_CENTS: z.coerce.number().int().positive().default(7000),
-  FREE_ENTRY_ENABLED: envBoolean.default(true)
+  FREE_ENTRY_ENABLED: envBoolean.default(true),
+  SHOPIFY_SYNC_CUSTOMER_METAFIELDS: envBoolean.default(true)
 });
 
 export const config = configSchema.parse(process.env);

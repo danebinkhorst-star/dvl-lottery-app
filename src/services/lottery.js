@@ -1,5 +1,6 @@
 import { db, id, nowIso } from "../db.js";
 import { config } from "../config.js";
+import { syncCustomerDashboardMetafields } from "./customer-dashboard.js";
 import { centsFromMoney, makeEntryNumber, slugify } from "../utils.js";
 
 export function calculateEntryCount(totalCents, rule = config) {
@@ -114,6 +115,7 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
     LIMIT 1
   `).get(draw.id, customer.id);
   if (existing) {
+    await syncCustomerDashboardMetafields(customer);
     return { entry: existing, customer, draw, skipped: "free_entry_already_exists" };
   }
 
@@ -132,6 +134,7 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
     (id, entry_number, draw_id, customer_id, order_id, source, status, reason, created_at)
     VALUES (@id, @entry_number, @draw_id, @customer_id, @order_id, @source, @status, @reason, @created_at)`).run(entry);
   db.prepare("UPDATE customers SET total_entries = total_entries + 1, updated_at = ? WHERE id = ?").run(nowIso(), customer.id);
+  await syncCustomerDashboardMetafields(customer);
 
   return { entry, customer, draw };
 }
@@ -146,6 +149,7 @@ export async function assignEntriesForOrder(orderPayload) {
   const existingOrder = db.prepare("SELECT * FROM orders WHERE shopify_order_id = ?").get(shopifyOrderId);
   if (existingOrder) {
     const existingEntries = db.prepare("SELECT * FROM lottery_entries WHERE order_id = ?").all(existingOrder.id);
+    if (existingOrder.customer_id) await syncCustomerDashboardMetafields(existingOrder.customer_id);
     return { order: existingOrder, createdEntries: existingEntries, skipped: "order_already_processed" };
   }
 
@@ -198,6 +202,7 @@ export async function assignEntriesForOrder(orderPayload) {
   if (customer && entries.length > 0) {
     db.prepare("UPDATE customers SET total_entries = total_entries + ?, updated_at = ? WHERE id = ?").run(entries.length, nowIso(), customer.id);
   }
+  if (customer) await syncCustomerDashboardMetafields(customer);
 
   return { order, createdEntries: entries, draw };
 }
@@ -211,6 +216,7 @@ export async function voidEntriesForOrder(shopifyOrderId, reason = "Order refund
 
   if (order.customer_id && activeEntries.length > 0) {
     db.prepare("UPDATE customers SET total_entries = MAX(0, total_entries - ?), updated_at = ? WHERE id = ?").run(activeEntries.length, nowIso(), order.customer_id);
+    await syncCustomerDashboardMetafields(order.customer_id);
   }
 
   return { voided: activeEntries.length };
@@ -234,5 +240,6 @@ export async function drawWinner(drawId) {
     throw error;
   }
 
+  if (winner.customer_id) await syncCustomerDashboardMetafields(winner.customer_id);
   return winner;
 }

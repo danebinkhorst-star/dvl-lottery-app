@@ -1,6 +1,7 @@
 import express from "express";
 import { db } from "../db.js";
 import { createDraw, drawWinner } from "../services/lottery.js";
+import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { formatEuro } from "../utils.js";
 
@@ -476,7 +477,10 @@ adminRouter.get("/", async (_req, res) => {
     </section>
     <div class="section-head">
       <h2>Winacties</h2>
-      <form class="inline-form" method="post" action="/admin/reconcile"><button class="button--ghost" type="submit">Sync orders</button></form>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        <form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Sync dashboards</button></form>
+        <form class="inline-form" method="post" action="/admin/reconcile"><button class="button--ghost" type="submit">Sync orders</button></form>
+      </div>
     </div>
     <div class="panel">
       <table>
@@ -558,5 +562,10 @@ adminRouter.post("/draws/:id/draw", async (req, res) => {
 
 adminRouter.post("/reconcile", async (_req, res) => {
   await reconcileActiveOrderEntries();
+  res.redirect("/admin");
+});
+
+adminRouter.post("/sync-dashboards", async (_req, res) => {
+  await syncAllCustomerDashboardMetafields();
   res.redirect("/admin");
 });
