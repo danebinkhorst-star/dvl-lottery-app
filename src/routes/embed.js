@@ -3,7 +3,8 @@ import express from "express";
 export const embedRouter = express.Router();
 
 function widgetRuntime() {
-  const API = new URL(document.currentScript.src).origin;
+  const scriptTag = document.currentScript || document.querySelector('script[src*="/embed/dvl-lottery.js"]');
+  const API = scriptTag ? new URL(scriptTag.src, window.location.href).origin : "https://dvl-lottery-app.onrender.com";
   const CSS_ID = "dvl-lottery-widget-css";
 
   function injectStyles() {
@@ -103,7 +104,7 @@ function widgetRuntime() {
       .dvl-widget-error { color:var(--dvl-red); }
       @media (max-width: 720px) {
         .dvl-lottery-widget {
-          width: calc(100vw - 44px);
+          width: 100%;
         }
         .dvl-widget-shell {
           border-width: 2px;
@@ -114,7 +115,7 @@ function widgetRuntime() {
         .dvl-widget-grid { grid-template-columns:1fr; }
         .dvl-widget-title { font-size: clamp(32px, 11vw, 44px); }
         .dvl-widget-card { min-height: 92px; padding: 16px; }
-        .dvl-widget-copy { width: calc(100vw - 80px); font-size: 14px; line-height: 1.35; }
+        .dvl-widget-copy { width: 100%; font-size: 14px; line-height: 1.35; }
         .dvl-widget-actions { gap: 8px; }
         .dvl-widget-button, .dvl-widget-form button { width:100%; }
       }
