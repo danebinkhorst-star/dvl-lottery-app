@@ -1,9 +1,10 @@
 import { config } from "../config.js";
 import { db, nowIso } from "../db.js";
 import { shopifyRest } from "../shopify/admin-api.js";
+import { formatEuro } from "../utils.js";
 
 const NAMESPACE = "dvl_lottery";
-const DASHBOARD_KEYS = new Set(["summary", "entries"]);
+const DASHBOARD_KEYS = new Set(["summary", "entries", "orders", "active_draw"]);
 
 function isTestRun() {
   return Boolean(process.env.NODE_TEST_CONTEXT);
@@ -24,17 +25,49 @@ function customerByLocalId(customerId) {
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customerId);
 }
 
+function sourceLabel(source) {
+  const labels = {
+    ORDER_THRESHOLD: "Bestelling",
+    FREE_ENTRY: "Gratis deelname",
+    SUBSCRIPTION: "Abonnement",
+    ADMIN: "Handmatig"
+  };
+  return labels[source] || "Loterij";
+}
+
 function publicEntry(entry) {
   return {
     entryNumber: entry.entry_number,
     status: entry.status,
     source: entry.source,
+    sourceLabel: sourceLabel(entry.source),
     createdAt: entry.created_at,
     drawTitle: entry.draw_title,
     drawStatus: entry.draw_status,
     prizeName: entry.prize_name,
     prizeValue: entry.prize_value,
-    orderName: entry.order_name || null
+    orderName: entry.order_name || null,
+    reason: entry.reason || ""
+  };
+}
+
+function publicOrder(order) {
+  const totalCents = Number(order.total_cents || 0);
+  const entryCount = Number(order.entry_count || 0);
+  const remainingCents = Math.max(0, config.LOT_ORDER_MINIMUM_CENTS - totalCents);
+  const progress = Math.max(0, Math.min(100, Math.round((totalCents / config.LOT_ORDER_MINIMUM_CENTS) * 100)));
+
+  return {
+    orderName: order.order_name || "",
+    totalCents,
+    totalLabel: formatEuro(totalCents),
+    entryCount,
+    status: order.financial_status || "",
+    createdAt: order.created_at,
+    qualifies: entryCount > 0,
+    nextLotRemainingCents: remainingCents,
+    nextLotRemainingLabel: formatEuro(remainingCents),
+    nextLotProgress: progress
   };
 }
 
@@ -53,7 +86,8 @@ export function buildCustomerDashboardPayload(customer) {
       SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_entries,
       SUM(CASE WHEN status = 'WINNER' THEN 1 ELSE 0 END) AS winning_entries,
       SUM(CASE WHEN source = 'FREE_ENTRY' THEN 1 ELSE 0 END) AS free_entries,
-      SUM(CASE WHEN source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries
+      SUM(CASE WHEN source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries,
+      SUM(CASE WHEN source = 'SUBSCRIPTION' THEN 1 ELSE 0 END) AS subscription_entries
     FROM lottery_entries
     WHERE customer_id = ?
   `).get(customer.id);
@@ -69,30 +103,73 @@ export function buildCustomerDashboardPayload(customer) {
   `).all(customer.id);
 
   const latestOrder = db.prepare(`
-    SELECT order_name, total_cents, created_at
-    FROM orders
-    WHERE customer_id = ?
-    ORDER BY created_at DESC
+    SELECT o.order_name, o.total_cents, o.financial_status, o.created_at, COUNT(e.id) AS entry_count
+    FROM orders o
+    LEFT JOIN lottery_entries e ON e.order_id = o.id
+    WHERE o.customer_id = ?
+    GROUP BY o.id
+    ORDER BY o.created_at DESC
     LIMIT 1
   `).get(customer.id);
+
+  const latestOrders = db.prepare(`
+    SELECT o.order_name, o.total_cents, o.financial_status, o.created_at, COUNT(e.id) AS entry_count
+    FROM orders o
+    LEFT JOIN lottery_entries e ON e.order_id = o.id
+    WHERE o.customer_id = ?
+    GROUP BY o.id
+    ORDER BY o.created_at DESC
+    LIMIT 6
+  `).all(customer.id);
+
+  const activeDrawEntries = liveDraw ? db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries
+    WHERE draw_id = ? AND customer_id = ? AND status = 'ACTIVE'
+  `).get(liveDraw.id, customer.id) : { count: 0 };
+
+  const latestOrderPublic = latestOrder ? publicOrder(latestOrder) : null;
+  const activeDraw = liveDraw ? {
+    id: liveDraw.id,
+    title: liveDraw.title,
+    description: liveDraw.description || "",
+    prizeName: liveDraw.prize_name,
+    prizeValue: liveDraw.prize_value || "",
+    startsAt: liveDraw.starts_at,
+    endsAt: liveDraw.ends_at,
+    drawAt: liveDraw.draw_at,
+    entryCount: Number(liveDraw.entry_count || 0),
+    customerEntryCount: Number(activeDrawEntries?.count || 0)
+  } : null;
 
   return {
     summary: {
       customerEmail: customer.email || "",
+      customerName: [customer.first_name, customer.last_name].filter(Boolean).join(" "),
       totalEntries: Number(stats.total_entries || 0),
       activeEntries: Number(stats.active_entries || 0),
       winningEntries: Number(stats.winning_entries || 0),
       freeEntries: Number(stats.free_entries || 0),
       orderEntries: Number(stats.order_entries || 0),
-      ruleLabel: "1 lot bij elke bestelling vanaf €70",
+      subscriptionEntries: Number(stats.subscription_entries || 0),
+      liveDrawEntries: Number(activeDrawEntries?.count || 0),
+      ruleLabel: "1 lot bij elke bestelling vanaf EUR 70",
       liveDrawTitle: liveDraw?.title || "",
       liveDrawPrizeName: liveDraw?.prize_name || "",
       liveDrawPrizeValue: liveDraw?.prize_value || "",
+      liveDrawDescription: liveDraw?.description || "",
+      liveDrawEndsAt: liveDraw?.ends_at || "",
+      liveDrawAt: liveDraw?.draw_at || "",
       liveDrawEntryCount: Number(liveDraw?.entry_count || 0),
-      latestOrderName: latestOrder?.order_name || "",
-      latestOrderAt: latestOrder?.created_at || "",
+      latestOrderName: latestOrderPublic?.orderName || "",
+      latestOrderAt: latestOrderPublic?.createdAt || "",
+      latestOrderTotalLabel: latestOrderPublic?.totalLabel || "",
+      nextLotRemainingLabel: latestOrderPublic?.nextLotRemainingLabel || formatEuro(config.LOT_ORDER_MINIMUM_CENTS),
+      nextLotProgress: latestOrderPublic?.nextLotProgress || 0,
       updatedAt: nowIso()
     },
+    activeDraw,
+    orders: latestOrders.map(publicOrder),
     entries: entries.map(publicEntry)
   };
 }
@@ -136,6 +213,8 @@ export async function syncCustomerDashboardMetafields(customerOrId) {
 
     await upsertCustomerMetafield(shopifyCustomerId, existing, "summary", payload.summary);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "entries", payload.entries);
+    await upsertCustomerMetafield(shopifyCustomerId, existing, "orders", payload.orders);
+    await upsertCustomerMetafield(shopifyCustomerId, existing, "active_draw", payload.activeDraw);
     return { ok: true, shopifyCustomerId, totalEntries: payload.summary.totalEntries };
   } catch (error) {
     console.warn(`Customer dashboard sync failed for ${shopifyCustomerId}: ${error.message}`);

@@ -1,7 +1,7 @@
 import express from "express";
 import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
-import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
+import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
@@ -126,30 +126,18 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
   }
 
   const customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get(req.params.shopifyCustomerId);
-  if (!customer) return res.json({ totalEntries: 0, entries: [] });
-  const entries = db.prepare(`
-    SELECT e.*, d.title AS draw_title, d.prize_name AS draw_prize_name, d.status AS draw_status, o.order_name
-    FROM lottery_entries e
-    JOIN lottery_draws d ON d.id = e.draw_id
-    LEFT JOIN orders o ON o.id = e.order_id
-    WHERE e.customer_id = ?
-    ORDER BY e.created_at DESC
-  `).all(customer.id);
-  res.json({
-    totalEntries: customer.total_entries,
-    entries: entries.map((entry) => ({
-      entryNumber: entry.entry_number,
-      status: entry.status,
-      source: entry.source,
-      createdAt: entry.created_at,
-      draw: {
-        title: entry.draw_title,
-        prizeName: entry.draw_prize_name,
-        status: entry.draw_status
-      },
-      orderName: entry.order_name || null
-    }))
+  if (!customer) return res.json({
+    summary: {
+      totalEntries: 0,
+      activeEntries: 0,
+      winningEntries: 0,
+      liveDrawEntries: 0
+    },
+    activeDraw: null,
+    orders: [],
+    entries: []
   });
+  res.json(buildCustomerDashboardPayload(customer));
 });
 
 apiRouter.post("/customers/:shopifyCustomerId/token", async (req, res) => {

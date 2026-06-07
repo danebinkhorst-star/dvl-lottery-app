@@ -21,6 +21,10 @@ function statusBadge(status) {
   return `<span class="status status--${escapeHtml(normalized)}">${escapeHtml(status || "-")}</span>`;
 }
 
+function csv(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
 function page(title, body) {
   return `<!doctype html>
   <html lang="nl">
@@ -452,6 +456,10 @@ adminRouter.get("/", async (_req, res) => {
   `).all();
   const entries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'ACTIVE'").get().count;
   const customers = db.prepare("SELECT COUNT(*) AS count FROM customers").get().count;
+  const freeEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'FREE_ENTRY'").get().count;
+  const orderEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'ORDER_THRESHOLD'").get().count;
+  const winners = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'WINNER'").get().count;
+  const voidEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'VOID'").get().count;
   const orders = db.prepare(`
     SELECT o.*, c.email AS customer_email, COUNT(e.id) AS entry_count
     FROM orders o
@@ -459,6 +467,24 @@ adminRouter.get("/", async (_req, res) => {
     LEFT JOIN lottery_entries e ON e.order_id = o.id
     GROUP BY o.id
     ORDER BY o.created_at DESC
+    LIMIT 8
+  `).all();
+  const activity = db.prepare(`
+    SELECT e.entry_number, e.source, e.status, e.created_at, d.title AS draw_title, c.email, o.order_name
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ORDER BY e.created_at DESC
+    LIMIT 10
+  `).all();
+  const topCustomers = db.prepare(`
+    SELECT c.email, c.first_name, c.last_name, COUNT(e.id) AS entry_count,
+      SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_count
+    FROM customers c
+    JOIN lottery_entries e ON e.customer_id = c.id
+    GROUP BY c.id
+    ORDER BY entry_count DESC, c.updated_at DESC
     LIMIT 8
   `).all();
 
@@ -474,6 +500,11 @@ adminRouter.get("/", async (_req, res) => {
       <div class="card"><p class="muted">Actieve loten</p><div class="stat">${entries}</div></div>
       <div class="card"><p class="muted">Klanten met deelname</p><div class="stat">${customers}</div></div>
       <div class="card"><p class="muted">Regel</p><div class="stat">€70</div><p>1 gratis lot bij bestelling vanaf €70.</p></div>
+    </section>
+    <section class="grid">
+      <div class="card"><p class="muted">Order-loten</p><div class="stat">${orderEntries}</div><p>Automatisch uit Shopify orders.</p></div>
+      <div class="card"><p class="muted">Gratis deelnames</p><div class="stat">${freeEntries}</div><p>Compliance-route zonder aankoop.</p></div>
+      <div class="card"><p class="muted">Winnaars / ongeldig</p><div class="stat">${winners}/${voidEntries}</div><p>Getrokken winnaars en geannuleerde loten.</p></div>
     </section>
     <div class="section-head">
       <h2>Winacties</h2>
@@ -492,8 +523,43 @@ adminRouter.get("/", async (_req, res) => {
             <td><strong>${escapeHtml(draw.prize_name)}</strong><br><span class="muted">${escapeHtml(draw.prize_value || "")}</span></td>
             <td>${draw.entry_count}</td>
             <td>${escapeHtml(draw.winner_email || draw.winner_entry_number || "-")}</td>
-            <td>${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek winnaar</button></form>` : ""}</td>
+            <td><div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export</a>
+              ${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek winnaar</button></form>` : ""}
+            </div></td>
           </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen winacties. Maak de eerste live trekking aan.</div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="section-head">
+      <h2>Live activiteit</h2>
+    </div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th></tr></thead>
+        <tbody>
+          ${activity.length ? activity.map((entry) => `<tr>
+            <td><strong>${escapeHtml(entry.entry_number)}</strong><br><span class="muted">${escapeHtml(entry.order_name || entry.created_at)}</span></td>
+            <td>${escapeHtml(entry.source)}</td>
+            <td>${escapeHtml(entry.email || "-")}</td>
+            <td>${escapeHtml(entry.draw_title)}</td>
+            <td>${statusBadge(entry.status)}</td>
+          </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen lotactiviteit.</div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="section-head">
+      <h2>Top deelnemers</h2>
+    </div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Klant</th><th>Totaal loten</th><th>Actieve loten</th></tr></thead>
+        <tbody>
+          ${topCustomers.length ? topCustomers.map((customer) => `<tr>
+            <td><strong>${escapeHtml([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Klant")}</strong><br><span class="muted">${escapeHtml(customer.email || "-")}</span></td>
+            <td>${customer.entry_count}</td>
+            <td>${customer.active_count}</td>
+          </tr>`).join("") : `<tr><td colspan="3"><div class="empty">Nog geen deelnemersranglijst.</div></td></tr>`}
         </tbody>
       </table>
     </div>
@@ -515,6 +581,37 @@ adminRouter.get("/", async (_req, res) => {
       </table>
     </div>
   `));
+});
+
+adminRouter.get("/draws/:id/export.csv", (req, res) => {
+  const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
+  if (!draw) return res.status(404).send("Draw not found");
+
+  const rows = db.prepare(`
+    SELECT e.entry_number, e.source, e.status, e.reason, e.created_at, c.email, c.first_name, c.last_name, o.order_name, o.total_cents
+    FROM lottery_entries e
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    WHERE e.draw_id = ?
+    ORDER BY e.created_at ASC
+  `).all(draw.id);
+  const header = ["entry_number", "status", "source", "email", "first_name", "last_name", "order_name", "order_total", "reason", "created_at"];
+  const body = rows.map((row) => [
+    row.entry_number,
+    row.status,
+    row.source,
+    row.email,
+    row.first_name,
+    row.last_name,
+    row.order_name,
+    formatEuro(row.total_cents || 0),
+    row.reason,
+    row.created_at
+  ].map(csv).join(","));
+
+  res.setHeader("content-type", "text/csv; charset=utf-8");
+  res.setHeader("content-disposition", `attachment; filename="${draw.slug || draw.id}-entries.csv"`);
+  return res.send([header.map(csv).join(","), ...body].join("\n"));
 });
 
 adminRouter.get("/new-draw", (_req, res) => {

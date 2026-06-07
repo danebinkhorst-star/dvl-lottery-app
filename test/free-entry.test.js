@@ -68,6 +68,8 @@ test("customer entries endpoint requires a signed token", async () => {
     .get(`/api/customers/111/entries?token=${signCustomerToken("111")}`)
     .expect(200);
 
-  assert.equal(response.body.totalEntries, 1);
+  assert.equal(response.body.summary.totalEntries, 1);
+  assert.equal(response.body.summary.liveDrawEntries, 1);
   assert.equal(response.body.entries.length, 1);
+  assert.equal(response.body.orders.length, 1);
 });
