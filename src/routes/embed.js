@@ -403,6 +403,7 @@ embedRouter.get("/demo", (_req, res) => {
 embedRouter.get("/frame", (req, res) => {
   const allowedWidgets = new Set(["live", "free-entry", "customer"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
+  const sectionId = String(req.query.section_id || "");
 
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.setHeader("x-frame-options", "ALLOWALL");
@@ -418,17 +419,41 @@ embedRouter.get("/frame", (req, res) => {
         width: 100%;
         min-height: 100%;
         margin: 0;
-        overflow-x: hidden;
+        overflow: hidden;
         background: transparent;
       }
 
       body {
-        padding: 8px;
+        padding: 18px;
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 12px;
+        }
       }
     </style>
   </head>
   <body>
     <div data-dvl-lottery="${widget}"></div>
+    <script>
+      (() => {
+        const sectionId = ${JSON.stringify(sectionId)};
+        const sendHeight = () => {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight,
+            document.documentElement.offsetHeight,
+            document.body.offsetHeight
+          );
+          window.parent.postMessage({ type: "dvl:lottery-frame-height", sectionId, height }, "*");
+        };
+        window.addEventListener("load", sendHeight);
+        window.addEventListener("resize", sendHeight);
+        new ResizeObserver(sendHeight).observe(document.body);
+        window.setInterval(sendHeight, 1200);
+      })();
+    </script>
     <script src="/embed/dvl-lottery.js"></script>
   </body>
 </html>`);
