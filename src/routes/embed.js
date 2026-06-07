@@ -80,6 +80,19 @@ function widgetRuntime() {
       }
       .dvl-widget-copy { margin:14px 0 0; max-width:680px; color:#6f5540; font-size:clamp(15px,1.3vw,18px); font-weight:800; line-height:1.45; }
       .dvl-widget-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:22px; min-width:0; }
+      .dvl-widget-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:14px; }
+      .dvl-widget-step {
+        display:flex; align-items:center; gap:10px;
+        min-height:64px; padding:12px 13px;
+        border:2px solid var(--dvl-line); border-radius:20px 8px 20px 8px;
+        background:rgba(255,250,240,.72);
+        color:var(--dvl-ink); font-size:12px; font-weight:950; line-height:1.15; text-transform:uppercase;
+      }
+      .dvl-widget-step b {
+        width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center;
+        border:2px solid var(--dvl-line); border-radius:50%; background:var(--dvl-red); color:var(--dvl-cream);
+        font-size:12px; line-height:1;
+      }
       .dvl-widget-card {
         width: 100%;
         min-width: 0;
@@ -97,6 +110,17 @@ function widgetRuntime() {
         line-height:.9; text-transform:uppercase;
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
+      .dvl-widget-countdown {
+        display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:12px;
+      }
+      .dvl-widget-time {
+        min-height:64px; display:grid; place-items:center; gap:2px;
+        border:2px solid var(--dvl-line); border-radius:16px 6px 16px 6px;
+        background:var(--dvl-dark); color:var(--dvl-cream);
+        text-align:center;
+      }
+      .dvl-widget-time strong { display:block; font-family:Impact,"Arial Black",sans-serif; font-size:26px; line-height:.9; }
+      .dvl-widget-time span { color:rgba(255,244,221,.72); font-size:9px; font-weight:950; text-transform:uppercase; }
       .dvl-widget-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
       .dvl-widget-button, .dvl-widget-form button {
         min-height:46px; display:inline-flex; align-items:center; justify-content:center;
@@ -123,7 +147,8 @@ function widgetRuntime() {
           box-shadow: none;
           padding: 16px;
         }
-        .dvl-widget-grid { grid-template-columns:1fr; }
+        .dvl-widget-grid, .dvl-widget-steps { grid-template-columns:1fr; }
+        .dvl-widget-countdown { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .dvl-widget-title { font-size: clamp(32px, 11vw, 44px); }
         .dvl-widget-card { min-height: 92px; padding: 16px; }
         .dvl-widget-copy { width: 100%; font-size: 14px; line-height: 1.35; }
@@ -144,6 +169,40 @@ function widgetRuntime() {
     return SHOP_ORIGIN ? `${SHOP_ORIGIN}${path}` : path;
   }
 
+  function nextDrawTimestamp(draw) {
+    const explicit = Date.parse(draw?.drawAt || draw?.endsAt || "");
+    if (Number.isFinite(explicit)) return explicit;
+    return Date.now() + 6 * 86400000 + 20 * 3600000;
+  }
+
+  function initCountdowns(root) {
+    root.querySelectorAll("[data-dvl-countdown]").forEach((countdown) => {
+      if (countdown.dataset.bound === "true") return;
+      countdown.dataset.bound = "true";
+      const target = Number(countdown.dataset.dvlCountdown || 0);
+      const parts = {
+        days: countdown.querySelector('[data-time="days"]'),
+        hours: countdown.querySelector('[data-time="hours"]'),
+        minutes: countdown.querySelector('[data-time="minutes"]'),
+        seconds: countdown.querySelector('[data-time="seconds"]')
+      };
+      const pad = (value) => String(value).padStart(2, "0");
+      const render = () => {
+        const diff = Math.max(0, target - Date.now());
+        const days = Math.floor(diff / 86400000);
+        const hours = Math.floor((diff % 86400000) / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        if (parts.days) parts.days.textContent = pad(days);
+        if (parts.hours) parts.hours.textContent = pad(hours);
+        if (parts.minutes) parts.minutes.textContent = pad(minutes);
+        if (parts.seconds) parts.seconds.textContent = pad(seconds);
+      };
+      render();
+      window.setInterval(render, 1000);
+    });
+  }
+
   async function fetchJson(path, options) {
     const response = await fetch(API + path, options);
     const data = await response.json().catch(() => ({}));
@@ -153,20 +212,34 @@ function widgetRuntime() {
 
   function liveWidget(el, data) {
     const draw = data.liveDraw;
+    const countdownTarget = nextDrawTimestamp(draw);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Live winacties</p>
-      <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Actieve trekking")}</h2>
-      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Bestel vanaf EUR 70 = automatisch 1 lot. Geen aankoop? Gebruik gratis deelname.")}</p>
+      <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
+      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Alle loterij-info staat hier: bestel vanaf EUR 70 voor 1 automatisch lot, volg de live trekking en gebruik gratis deelname als je zonder aankoop mee wilt doen.")}</p>
+      <div class="dvl-widget-steps" aria-label="Zo werkt De Vlees Loterij">
+        <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf EUR 70</span></div>
+        <div class="dvl-widget-step"><b>2</b><span>Krijg automatisch 1 lot</span></div>
+        <div class="dvl-widget-step"><b>3</b><span>Volg je kansen in je dashboard</span></div>
+      </div>
       <div class="dvl-widget-grid">
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Actieve loten</span></div>
-        <div class="dvl-widget-card"><strong>EUR 70</strong><span>1 lot vanaf bestelling</span></div>
+        <div class="dvl-widget-card"><strong>EUR 70</strong><span>1 automatisch lot</span></div>
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.prizeName || "Premium prijs")}</strong><span>${escapeHtml(draw?.prizeValue || "Live hoofdprijs")}</span></div>
+      </div>
+      <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
+        <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
+        <div class="dvl-widget-time"><strong data-time="hours">00</strong><span>Uur</span></div>
+        <div class="dvl-widget-time"><strong data-time="minutes">00</strong><span>Min</span></div>
+        <div class="dvl-widget-time"><strong data-time="seconds">00</strong><span>Sec</span></div>
       </div>
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Bekijk winacties</a>
         <a class="dvl-widget-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Shop vlees</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
       </div>
     </section>`;
+    initCountdowns(el);
   }
 
   function freeEntryWidget(el, data) {
