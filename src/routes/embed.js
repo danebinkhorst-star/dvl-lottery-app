@@ -6,9 +6,10 @@ function widgetRuntime() {
   const scriptTag = document.currentScript || document.querySelector('script[src*="/embed/dvl-lottery.js"]');
   const API = scriptTag ? new URL(scriptTag.src, window.location.href).origin : "https://dvl-lottery-app.onrender.com";
   const frameParams = new URL(window.location.href).searchParams;
-  const EMBED_IMAGES = ["image_1", "image_2", "image_3"]
-    .map((key) => frameParams.get(key))
-    .filter(Boolean);
+  const CARD_IMAGE = frameParams.get("card_image") || "";
+  const CARD_IMAGE_CSS = CARD_IMAGE ? `url("${CARD_IMAGE.replace(/["\\]/g, "")}")` : "none";
+  const CARD_OVERLAY = Math.min(96, Math.max(20, Number(frameParams.get("card_overlay") || 72))) / 100;
+  const CARD_POSITION = frameParams.get("card_position") || "center center";
   const SHOP_ORIGIN = (() => {
     const explicitShop = frameParams.get("shop");
     try {
@@ -31,6 +32,9 @@ function widgetRuntime() {
         --dvl-cream:#fff4dd; --dvl-paper:#fffaf0; --dvl-ink:#21150f; --dvl-red:#a33127;
         --dvl-gold:#c99522; --dvl-mustard:#f0b124; --dvl-line:#24170f; --dvl-dark:#120d09;
         --dvl-muted:#6f5540; --dvl-soft:#f5e3bd;
+        --dvl-card-bg-image:${CARD_IMAGE_CSS};
+        --dvl-card-overlay:${CARD_OVERLAY};
+        --dvl-card-bg-position:${CARD_POSITION};
         width: 100%;
         max-width: 100%;
         min-width: 0;
@@ -135,6 +139,8 @@ function widgetRuntime() {
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
       .dvl-widget-hero-card {
+        position:relative;
+        overflow:hidden;
         min-height:208px;
         display:grid;
         align-content:end;
@@ -142,9 +148,26 @@ function widgetRuntime() {
         padding:clamp(22px, 3vw, 34px);
         border:3px solid var(--dvl-line);
         border-radius:32px 10px 32px 10px;
-        background:linear-gradient(135deg, rgba(18,13,9,.96), rgba(36,23,15,.96)), var(--dvl-dark);
+        background:var(--dvl-dark);
         color:var(--dvl-cream);
         box-shadow:7px 7px 0 rgba(36,23,15,.22);
+      }
+      .dvl-widget-hero-card::before {
+        content:"";
+        position:absolute;
+        inset:0;
+        z-index:0;
+        background-image:
+          linear-gradient(135deg, rgba(18,13,9,.98) 0%, rgba(18,13,9,var(--dvl-card-overlay)) 55%, rgba(18,13,9,.54) 100%),
+          var(--dvl-card-bg-image);
+        background-size:cover;
+        background-position:var(--dvl-card-bg-position);
+        background-repeat:no-repeat;
+        pointer-events:none;
+      }
+      .dvl-widget-hero-card > * {
+        position:relative;
+        z-index:1;
       }
       .dvl-widget-hero-card small,
       .dvl-widget-side-label {
@@ -173,30 +196,6 @@ function widgetRuntime() {
         font-size:14px;
         font-weight:900;
         line-height:1.35;
-      }
-      .dvl-widget-image-rail {
-        display:flex;
-        align-items:flex-end;
-        justify-content:center;
-        gap:clamp(14px, 3vw, 34px);
-        margin:18px auto 2px;
-        padding:0 clamp(10px, 3vw, 28px);
-        min-height:clamp(86px, 13vw, 150px);
-        overflow:hidden;
-      }
-      .dvl-widget-image {
-        flex:0 1 190px;
-        width:min(30vw, 190px);
-        min-width:82px;
-        display:grid;
-        place-items:end center;
-      }
-      .dvl-widget-image img {
-        width:100%;
-        height:auto;
-        display:block;
-        object-fit:contain;
-        filter:drop-shadow(0 8px 0 rgba(17,13,10,.36)) drop-shadow(0 16px 18px rgba(0,0,0,.24));
       }
       .dvl-widget-side { display:grid; gap:12px; min-width:0; }
       .dvl-widget-side-card {
@@ -387,8 +386,6 @@ function widgetRuntime() {
         .dvl-widget-hero-card strong { font-size:clamp(38px, 13vw, 54px); }
         .dvl-widget-side { gap:10px; }
         .dvl-widget-side-card { padding:15px; border-width:2px; }
-        .dvl-widget-image-rail { gap:14px; min-height:92px; margin-top:14px; padding-inline:4px; }
-        .dvl-widget-image { width:31%; min-width:72px; }
         .dvl-widget-prize-strip { grid-template-columns: 1fr; }
         .dvl-widget-countdown { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .dvl-widget-title { font-size: clamp(32px, 11vw, 44px); }
@@ -409,15 +406,6 @@ function widgetRuntime() {
 
   function storeHref(path) {
     return SHOP_ORIGIN ? `${SHOP_ORIGIN}${path}` : path;
-  }
-
-  function imageRail() {
-    if (!EMBED_IMAGES.length) return "";
-    const items = EMBED_IMAGES.map((src, index) => `
-      <div class="dvl-widget-image">
-        <img src="${escapeHtml(src)}" alt="De Vlees Loterij prijs ${index + 1}" loading="lazy">
-      </div>`).join("");
-    return `<div class="dvl-widget-image-rail" aria-label="Uitgelichte prijzen">${items}</div>`;
   }
 
   function nextDrawTimestamp(draw) {
@@ -468,7 +456,6 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Live winacties</p>
       <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
       <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Elke bestelling vanaf €70 speelt automatisch mee. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking live en transparant.")}</p>
-      ${imageRail()}
       <div class="dvl-widget-steps" aria-label="Zo werkt De Vlees Loterij">
         <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf €70</span></div>
         <div class="dvl-widget-step"><b>2</b><span>Ontvang je lot automatisch</span></div>
@@ -500,7 +487,6 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Gratis deelname</p>
       <h2 class="dvl-widget-title">Doe mee zonder aankoop.</h2>
       <p class="dvl-widget-copy">Geen aankoop gedaan? Vraag 1 deelname aan voor de actieve trekking. We registreren deze op dezelfde manier als een regulier lot.</p>
-      ${imageRail()}
       <form class="dvl-widget-form">
         <input name="firstName" autocomplete="given-name" placeholder="Voornaam">
         <input name="lastName" autocomplete="family-name" placeholder="Achternaam">
@@ -537,7 +523,6 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Mijn DVL</p>
       <h2 class="dvl-widget-title">Je loten. Je trekkingen.</h2>
       <p class="dvl-widget-copy">Log in met hetzelfde account waarmee je bestelt. In je dashboard zie je je actieve loten, recente deelnames en de winactie waar je nu voor meespeelt.</p>
-      ${imageRail()}
       <div class="dvl-widget-grid">
         <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.entryCount ?? 0)}</strong><span>Loten in de live trekking</span></div>
         <div class="dvl-widget-card"><strong>€70</strong><span>Bestelling = 1 lot</span></div>
@@ -559,7 +544,6 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Live trekking</p>
       <h2 class="dvl-widget-title">Bestel. Pak je lot.</h2>
       <p class="dvl-widget-copy">Vanaf EUR 70 krijgt je bestelling automatisch 1 lot voor de actieve winactie.</p>
-      ${imageRail()}
       <div class="dvl-widget-compact">
         <div class="dvl-widget-hero-card">
           <small>Hoofdprijs nu</small>
@@ -601,7 +585,6 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Mijn DVL</p>
       <h2 class="dvl-widget-title">Je loten op een plek.</h2>
       <p class="dvl-widget-copy">Log in en zie direct je loten, de actieve trekking en welke bestelling deelname heeft verdiend.</p>
-      ${imageRail()}
       <div class="dvl-widget-compact">
         <div class="dvl-widget-hero-card">
           <small>Na login zichtbaar</small>
