@@ -53,37 +53,14 @@ function widgetRuntime() {
         padding: clamp(22px, 3.6vw, 42px);
       }
       .dvl-widget-shell::before {
-        content:"";
-        position:absolute;
-        inset: 0 0 auto 0;
-        height: 14px;
-        background:
-          linear-gradient(90deg, var(--dvl-red), var(--dvl-mustard), var(--dvl-red)),
-          var(--dvl-mustard);
-        border-bottom: 3px solid var(--dvl-line);
-        pointer-events:none;
+        display:none;
       }
       .dvl-widget-shell::after {
-        content:"";
-        position:absolute;
-        right:18px; bottom:18px;
-        width:74px; height:74px;
-        border:3px solid rgba(36,23,15,.12);
-        border-radius:50%;
-        background: radial-gradient(circle, rgba(201,149,34,.22), transparent 62%);
-        pointer-events:none;
+        display:none;
       }
       .dvl-widget-shell > * { position: relative; z-index: 1; }
       .dvl-widget-eyebrow {
-        width: fit-content;
-        display:inline-flex; align-items:center; gap:8px;
-        margin:10px 0 14px;
-        padding:9px 13px;
-        border:2px solid var(--dvl-line);
-        border-radius:999px;
-        background:var(--dvl-mustard);
-        box-shadow:4px 4px 0 var(--dvl-line);
-        font-size:11px; font-weight:950; letter-spacing:.08em; text-transform:uppercase;
+        display:none;
       }
       .dvl-widget-eyebrow::before {
         content:"";
