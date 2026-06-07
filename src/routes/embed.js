@@ -298,3 +298,37 @@ embedRouter.get("/demo", (_req, res) => {
   </body>
 </html>`);
 });
+
+embedRouter.get("/frame", (req, res) => {
+  const allowedWidgets = new Set(["live", "free-entry", "customer"]);
+  const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
+
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.setHeader("x-frame-options", "ALLOWALL");
+  res.send(`<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DVL Lottery ${widget}</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow-x: hidden;
+        background: transparent;
+      }
+
+      body {
+        padding: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-dvl-lottery="${widget}"></div>
+    <script src="/embed/dvl-lottery.js"></script>
+  </body>
+</html>`);
+});
