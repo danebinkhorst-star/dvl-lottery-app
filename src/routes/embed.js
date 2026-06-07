@@ -94,9 +94,12 @@ function widgetRuntime() {
       .dvl-widget-title {
         margin:0;
         max-width: 900px;
+        color:var(--dvl-cream);
         font-family: Impact, "Arial Black", sans-serif;
         font-size: clamp(34px, 5vw, 76px);
         line-height:.88; letter-spacing:-.03em; text-transform:uppercase;
+        -webkit-text-stroke: 1px var(--dvl-line);
+        text-shadow:2px 2px 0 var(--dvl-line), 4px 5px 0 var(--dvl-line);
       }
       .dvl-widget-copy { margin:14px 0 0; max-width:720px; color:var(--dvl-muted); font-size:clamp(15px,1.3vw,18px); font-weight:850; line-height:1.45; }
       .dvl-widget-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:24px; min-width:0; }
@@ -138,9 +141,12 @@ function widgetRuntime() {
       }
       .dvl-widget-card strong {
         display:block;
+        color:var(--dvl-cream);
         font-family: Impact, "Arial Black", sans-serif;
         font-size: clamp(24px, 3vw, 42px);
         line-height:.9; text-transform:uppercase;
+        -webkit-text-stroke: 1px var(--dvl-line);
+        text-shadow:1px 1px 0 var(--dvl-line), 2px 3px 0 var(--dvl-line);
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
       .dvl-widget-hero-card {
@@ -191,10 +197,13 @@ function widgetRuntime() {
       .dvl-widget-side-card strong {
         display:block;
         margin-top:6px;
+        color:var(--dvl-cream);
         font-family:Impact, "Arial Black", sans-serif;
         font-size:clamp(34px, 4.6vw, 56px);
         line-height:.85;
         text-transform:uppercase;
+        -webkit-text-stroke: 1px var(--dvl-line);
+        text-shadow:1px 1px 0 var(--dvl-line), 2px 3px 0 var(--dvl-line);
       }
       .dvl-widget-side-card span {
         display:block;
@@ -290,9 +299,12 @@ function widgetRuntime() {
       .dvl-widget-meter strong {
         display:block;
         margin-top: 8px;
+        color:var(--dvl-cream);
         font-family: Impact, "Arial Black", sans-serif;
         font-size: clamp(32px, 5vw, 64px);
         line-height: .82;
+        -webkit-text-stroke: 1px var(--dvl-line);
+        text-shadow:1px 1px 0 var(--dvl-line), 2px 3px 0 var(--dvl-line);
       }
       .dvl-widget-progress {
         height: 13px;
