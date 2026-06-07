@@ -6,8 +6,19 @@ function widgetRuntime() {
   const scriptTag = document.currentScript || document.querySelector('script[src*="/embed/dvl-lottery.js"]');
   const API = scriptTag ? new URL(scriptTag.src, window.location.href).origin : "https://dvl-lottery-app.onrender.com";
   const frameParams = new URL(window.location.href).searchParams;
-  const CARD_IMAGE = frameParams.get("card_image") || "";
-  const CARD_IMAGE_CSS = CARD_IMAGE ? `url("${CARD_IMAGE.replace(/["\\]/g, "")}")` : "none";
+  const CARD_IMAGE = (() => {
+    const raw = (frameParams.get("card_image") || "").trim();
+    if (!raw) return "";
+    try {
+      const normalized = raw.startsWith("//") ? `https:${raw}` : raw;
+      const parsed = new URL(normalized, window.location.origin);
+      if (!["https:", "http:"].includes(parsed.protocol)) return "";
+      return parsed.href;
+    } catch (_error) {
+      return "";
+    }
+  })();
+  const CARD_IMAGE_CSS = CARD_IMAGE ? `url(${JSON.stringify(CARD_IMAGE)})` : "none";
   const CARD_OVERLAY = Math.min(96, Math.max(20, Number(frameParams.get("card_overlay") || 72))) / 100;
   const CARD_POSITION = frameParams.get("card_position") || "center center";
   const SHOP_ORIGIN = (() => {
