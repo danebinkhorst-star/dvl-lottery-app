@@ -5,6 +5,17 @@ export const embedRouter = express.Router();
 function widgetRuntime() {
   const scriptTag = document.currentScript || document.querySelector('script[src*="/embed/dvl-lottery.js"]');
   const API = scriptTag ? new URL(scriptTag.src, window.location.href).origin : "https://dvl-lottery-app.onrender.com";
+  const frameParams = new URL(window.location.href).searchParams;
+  const SHOP_ORIGIN = (() => {
+    const explicitShop = frameParams.get("shop");
+    try {
+      if (explicitShop) return new URL(explicitShop).origin;
+      if (document.referrer) return new URL(document.referrer).origin;
+    } catch (_error) {
+      return "";
+    }
+    return "";
+  })();
   const CSS_ID = "dvl-lottery-widget-css";
 
   function injectStyles() {
@@ -129,6 +140,10 @@ function widgetRuntime() {
       .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   }
 
+  function storeHref(path) {
+    return SHOP_ORIGIN ? `${SHOP_ORIGIN}${path}` : path;
+  }
+
   async function fetchJson(path, options) {
     const response = await fetch(API + path, options);
     const data = await response.json().catch(() => ({}));
@@ -148,8 +163,8 @@ function widgetRuntime() {
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.prizeName || "Premium prijs")}</strong><span>${escapeHtml(draw?.prizeValue || "Live hoofdprijs")}</span></div>
       </div>
       <div class="dvl-widget-actions">
-        <a class="dvl-widget-button dvl-widget-button--gold" href="/pages/actieve-loterijen">Bekijk winacties</a>
-        <a class="dvl-widget-button" href="/collections/all">Shop vlees</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Bekijk winacties</a>
+        <a class="dvl-widget-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Shop vlees</a>
       </div>
     </section>`;
   }
@@ -202,8 +217,8 @@ function widgetRuntime() {
         <div class="dvl-widget-card"><strong>Next</strong><span>Customer account koppeling</span></div>
       </div>
       <div class="dvl-widget-actions">
-        <a class="dvl-widget-button dvl-widget-button--gold" href="/account">Naar account</a>
-        <a class="dvl-widget-button" href="/pages/actieve-loterijen">Winacties</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/account"))}" target="_top">Naar account</a>
+        <a class="dvl-widget-button" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
       </div>
     </section>`;
   }
