@@ -422,7 +422,7 @@ function page(title, body) {
       </style>
     </head>
     <body>
-      <div class="announce">DVL control room · loten bij EUR 70 · live trekkingen · eerlijke winnaars</div>
+      <div class="announce">DVL control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
       <header>
         <a class="brand" href="/admin" aria-label="De Vlees Loterij dashboard">
           <span class="brand-mark">DVL</span>
@@ -473,7 +473,7 @@ adminRouter.get("/", async (_req, res) => {
     <section class="grid">
       <div class="card"><p class="muted">Actieve loten</p><div class="stat">${entries}</div></div>
       <div class="card"><p class="muted">Klanten met deelname</p><div class="stat">${customers}</div></div>
-      <div class="card"><p class="muted">Regel</p><div class="stat">EUR 70</div><p>1 gratis lot bij bestelling vanaf EUR 70.</p></div>
+      <div class="card"><p class="muted">Regel</p><div class="stat">€70</div><p>1 gratis lot bij bestelling vanaf €70.</p></div>
     </section>
     <div class="section-head">
       <h2>Winacties</h2>
@@ -510,7 +510,7 @@ adminRouter.get("/", async (_req, res) => {
             <td>${formatEuro(order.total_cents)}</td>
             <td>${order.entry_count}</td>
             <td>${statusBadge(order.financial_status || "-")}</td>
-          </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen orders met loten. Plaats een testorder vanaf EUR 70 om de flow te zien.</div></td></tr>`}
+          </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen orders met loten. Plaats een testorder vanaf €70 om de flow te zien.</div></td></tr>`}
         </tbody>
       </table>
     </div>

@@ -62,7 +62,7 @@ apiRouter.get("/site/summary", async (_req, res) => {
   `).all();
   res.json({
     rule: {
-      label: "1 gratis lot bij bestelling vanaf EUR 70",
+      label: "1 gratis lot bij bestelling vanaf €70",
       minimumCents: 7000
     },
     liveDraw: draw ? {

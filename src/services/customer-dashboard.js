@@ -84,7 +84,7 @@ export function buildCustomerDashboardPayload(customer) {
       winningEntries: Number(stats.winning_entries || 0),
       freeEntries: Number(stats.free_entries || 0),
       orderEntries: Number(stats.order_entries || 0),
-      ruleLabel: "1 lot bij elke bestelling vanaf EUR 70",
+      ruleLabel: "1 lot bij elke bestelling vanaf €70",
       liveDrawTitle: liveDraw?.title || "",
       liveDrawPrizeName: liveDraw?.prize_name || "",
       liveDrawPrizeValue: liveDraw?.prize_value || "",

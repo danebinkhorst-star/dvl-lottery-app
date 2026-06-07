@@ -26,7 +26,8 @@ function widgetRuntime() {
       .dvl-lottery-widget, .dvl-lottery-widget * { box-sizing: border-box; }
       .dvl-lottery-widget {
         --dvl-cream:#fff4dd; --dvl-paper:#fffaf0; --dvl-ink:#21150f; --dvl-red:#a33127;
-        --dvl-gold:#d2a947; --dvl-mustard:#f0bf39; --dvl-line:#24170f; --dvl-dark:#120d09;
+        --dvl-gold:#c99522; --dvl-mustard:#f0b124; --dvl-line:#24170f; --dvl-dark:#120d09;
+        --dvl-muted:#6f5540; --dvl-soft:#f5e3bd;
         width: 100%;
         max-width: 100%;
         min-width: 0;
@@ -45,15 +46,17 @@ function widgetRuntime() {
         min-width: 0;
         border: 3px solid var(--dvl-line);
         border-radius: 34px 12px 34px 12px;
-        background: linear-gradient(135deg, var(--dvl-cream), var(--dvl-paper));
-        box-shadow: 8px 8px 0 rgba(33,21,15,.16);
-        padding: clamp(18px, 3vw, 34px);
+        background:
+          linear-gradient(135deg, rgba(255,250,240,.98), rgba(255,244,221,.98)),
+          var(--dvl-cream);
+        box-shadow: 10px 10px 0 rgba(0,0,0,.34);
+        padding: clamp(22px, 3.6vw, 42px);
       }
       .dvl-widget-shell::after {
         content:"DVL";
         position:absolute;
         right:-8px; bottom:-10px;
-        color: rgba(163,49,39,.08);
+        color: rgba(163,49,39,.07);
         font-family: Impact, "Arial Black", sans-serif;
         font-size: clamp(72px, 14vw, 180px);
         line-height:.75;
@@ -62,7 +65,7 @@ function widgetRuntime() {
       .dvl-widget-eyebrow {
         width: fit-content;
         display:inline-flex; align-items:center; gap:8px;
-        margin:0 0 12px;
+        margin:0 0 14px;
         padding:9px 13px;
         border:2px solid var(--dvl-line);
         border-radius:999px;
@@ -78,14 +81,14 @@ function widgetRuntime() {
         font-size: clamp(34px, 5vw, 76px);
         line-height:.88; letter-spacing:-.03em; text-transform:uppercase;
       }
-      .dvl-widget-copy { margin:14px 0 0; max-width:680px; color:#6f5540; font-size:clamp(15px,1.3vw,18px); font-weight:800; line-height:1.45; }
-      .dvl-widget-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:22px; min-width:0; }
-      .dvl-widget-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:14px; }
+      .dvl-widget-copy { margin:14px 0 0; max-width:720px; color:var(--dvl-muted); font-size:clamp(15px,1.3vw,18px); font-weight:850; line-height:1.45; }
+      .dvl-widget-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:24px; min-width:0; }
+      .dvl-widget-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
       .dvl-widget-step {
         display:flex; align-items:center; gap:10px;
         min-height:64px; padding:12px 13px;
         border:2px solid var(--dvl-line); border-radius:20px 8px 20px 8px;
-        background:rgba(255,250,240,.72);
+        background:rgba(255,250,240,.78);
         color:var(--dvl-ink); font-size:12px; font-weight:950; line-height:1.15; text-transform:uppercase;
       }
       .dvl-widget-step b {
@@ -96,7 +99,7 @@ function widgetRuntime() {
       .dvl-widget-card {
         width: 100%;
         min-width: 0;
-        min-height:112px;
+        min-height:118px;
         padding:18px;
         border:2px solid var(--dvl-line);
         border-radius:24px 10px 24px 10px;
@@ -110,6 +113,14 @@ function widgetRuntime() {
         line-height:.9; text-transform:uppercase;
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
+      .dvl-widget-note {
+        margin-top: 16px;
+        max-width: 760px;
+        color: var(--dvl-muted);
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1.35;
+      }
       .dvl-widget-countdown {
         display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:12px;
       }
@@ -124,11 +135,12 @@ function widgetRuntime() {
       .dvl-widget-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
       .dvl-widget-button, .dvl-widget-form button {
         min-height:46px; display:inline-flex; align-items:center; justify-content:center;
-        border:3px solid var(--dvl-line); border-radius:999px; padding:0 20px;
+        border:3px solid var(--dvl-line); border-radius:18px 8px 18px 8px; padding:0 20px;
         background:var(--dvl-red); color:var(--dvl-cream); box-shadow:5px 5px 0 var(--dvl-line);
         font:inherit; font-size:12px; font-weight:950; line-height:1; text-transform:uppercase; text-decoration:none; cursor:pointer;
       }
       .dvl-widget-button--gold { background:var(--dvl-mustard); color:var(--dvl-ink); }
+      .dvl-widget-button--ghost { background:var(--dvl-cream); color:var(--dvl-ink); }
       .dvl-widget-form { display:grid; gap:11px; margin-top:22px; max-width:680px; }
       .dvl-widget-form input {
         min-height:48px; border:3px solid var(--dvl-line); border-radius:18px; padding:12px 14px;
@@ -143,8 +155,8 @@ function widgetRuntime() {
         }
         .dvl-widget-shell {
           border-width: 2px;
-          border-radius: 24px 9px 24px 9px;
-          box-shadow: none;
+          border-radius: 26px 9px 26px 9px;
+          box-shadow: 5px 5px 0 rgba(0,0,0,.28);
           padding: 16px;
         }
         .dvl-widget-grid, .dvl-widget-steps { grid-template-columns:1fr; }
@@ -216,15 +228,15 @@ function widgetRuntime() {
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Live winacties</p>
       <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
-      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Alle loterij-info staat hier: bestel vanaf EUR 70 voor 1 automatisch lot, volg de live trekking en gebruik gratis deelname als je zonder aankoop mee wilt doen.")}</p>
+      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Elke bestelling vanaf €70 speelt automatisch mee. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking live en transparant.")}</p>
       <div class="dvl-widget-steps" aria-label="Zo werkt De Vlees Loterij">
-        <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf EUR 70</span></div>
-        <div class="dvl-widget-step"><b>2</b><span>Krijg automatisch 1 lot</span></div>
+        <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf €70</span></div>
+        <div class="dvl-widget-step"><b>2</b><span>Ontvang je lot automatisch</span></div>
         <div class="dvl-widget-step"><b>3</b><span>Volg je kansen in je dashboard</span></div>
       </div>
       <div class="dvl-widget-grid">
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Actieve loten</span></div>
-        <div class="dvl-widget-card"><strong>EUR 70</strong><span>1 automatisch lot</span></div>
+        <div class="dvl-widget-card"><strong>€70</strong><span>1 automatisch lot</span></div>
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.prizeName || "Premium prijs")}</strong><span>${escapeHtml(draw?.prizeValue || "Live hoofdprijs")}</span></div>
       </div>
       <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
@@ -247,7 +259,7 @@ function widgetRuntime() {
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Gratis deelname</p>
       <h2 class="dvl-widget-title">Doe mee zonder aankoop.</h2>
-      <p class="dvl-widget-copy">Vraag 1 gratis deelname aan voor de actieve trekking. Zonder bestelling, wel transparant geregistreerd.</p>
+      <p class="dvl-widget-copy">Geen aankoop gedaan? Vraag 1 deelname aan voor de actieve trekking. We registreren deze op dezelfde manier als een regulier lot.</p>
       <form class="dvl-widget-form">
         <input name="firstName" autocomplete="given-name" placeholder="Voornaam">
         <input name="lastName" autocomplete="family-name" placeholder="Achternaam">
@@ -281,17 +293,18 @@ function widgetRuntime() {
 
   function customerWidget(el, data) {
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
-      <p class="dvl-widget-eyebrow">Mijn DVL dashboard</p>
-      <h2 class="dvl-widget-title">Je loten op een plek.</h2>
-      <p class="dvl-widget-copy">Het klantdashboard is voorbereid voor een veilige Shopify app-proxy of signed token. Tot die route actief is tonen we hier live winacties en de uitleg, maar geen persoonlijke lotnummers openbaar.</p>
+      <p class="dvl-widget-eyebrow">Mijn DVL</p>
+      <h2 class="dvl-widget-title">Je loten. Je trekkingen.</h2>
+      <p class="dvl-widget-copy">Log in met hetzelfde account waarmee je bestelt. In je dashboard zie je je actieve loten, recente deelnames en de winactie waar je nu voor meespeelt.</p>
       <div class="dvl-widget-grid">
-        <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.entryCount ?? 0)}</strong><span>Actieve loten live</span></div>
-        <div class="dvl-widget-card"><strong>Veilig</strong><span>Geen publieke klantdata</span></div>
-        <div class="dvl-widget-card"><strong>Next</strong><span>Customer account koppeling</span></div>
+        <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.entryCount ?? 0)}</strong><span>Loten in de live trekking</span></div>
+        <div class="dvl-widget-card"><strong>€70</strong><span>Bestelling = 1 lot</span></div>
+        <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.prizeName || "Prijs live")}</strong><span>${escapeHtml(data.liveDraw?.prizeValue || "Huidige winactie")}</span></div>
       </div>
+      <p class="dvl-widget-note">Je persoonlijke lotnummers staan alleen achter je login. Zo blijft de trekking zichtbaar, maar klantdata afgeschermd.</p>
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
-        <a class="dvl-widget-button" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
+        <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
       </div>
     </section>`;
   }
