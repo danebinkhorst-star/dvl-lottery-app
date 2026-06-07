@@ -75,11 +75,14 @@ function widgetRuntime() {
         margin:0;
         max-width: 900px;
         color:#fffaf0;
-        font-family: Impact, "Arial Black", sans-serif;
-        font-size: clamp(34px, 5vw, 76px);
-        line-height:.88; letter-spacing:-.03em; text-transform:uppercase;
-        -webkit-text-stroke: clamp(1px, .12vw, 2px) var(--dvl-line);
-        text-shadow:2px 2px 0 var(--dvl-line), 4px 5px 0 var(--dvl-line), 0 10px 18px rgba(0,0,0,.18);
+        font-family: Manrope, "Arial Black", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(34px, 4.5vw, 66px);
+        font-weight: 950;
+        line-height:.94;
+        letter-spacing:-.015em;
+        text-transform:uppercase;
+        -webkit-text-stroke: .6px var(--dvl-line);
+        text-shadow:2px 2px 0 var(--dvl-line), 0 8px 16px rgba(0,0,0,.18);
         paint-order: stroke fill;
       }
       .dvl-widget-copy { margin:14px 0 0; max-width:720px; color:var(--dvl-muted); font-size:clamp(15px,1.3vw,18px); font-weight:850; line-height:1.45; }
@@ -123,11 +126,12 @@ function widgetRuntime() {
       .dvl-widget-card strong {
         display:block;
         color:var(--dvl-cream);
-        font-family: Impact, "Arial Black", sans-serif;
-        font-size: clamp(24px, 3vw, 42px);
-        line-height:.9; text-transform:uppercase;
-        -webkit-text-stroke: 1px var(--dvl-line);
-        text-shadow:1px 1px 0 var(--dvl-line), 2px 3px 0 var(--dvl-line);
+        font-family: Manrope, "Arial Black", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(24px, 2.8vw, 40px);
+        font-weight:950;
+        line-height:.98; text-transform:uppercase;
+        -webkit-text-stroke: .45px var(--dvl-line);
+        text-shadow:1px 1px 0 var(--dvl-line);
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
       .dvl-widget-hero-card {
@@ -153,11 +157,15 @@ function widgetRuntime() {
       .dvl-widget-hero-card strong {
         display:block;
         color:var(--dvl-cream);
-        font-family:Impact, "Arial Black", sans-serif;
-        font-size:clamp(42px, 6.4vw, 86px);
-        line-height:.82;
+        font-family:Manrope, "Arial Black", ui-sans-serif, system-ui, sans-serif;
+        font-size:clamp(34px, 5.2vw, 66px);
+        font-weight:950;
+        line-height:.92;
+        letter-spacing:-.018em;
         text-transform:uppercase;
-        text-shadow:2px 2px 0 #000, 4px 5px 0 #000;
+        -webkit-text-stroke:.55px #000;
+        text-shadow:2px 2px 0 #000, 0 10px 18px rgba(0,0,0,.28);
+        paint-order:stroke fill;
       }
       .dvl-widget-hero-card span {
         max-width:560px;
