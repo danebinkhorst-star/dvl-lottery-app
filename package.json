@@ -23,6 +23,7 @@
     "zod": "^3.25.51"
   },
   "devDependencies": {
+    "playwright": "^1.60.0",
     "supertest": "^7.1.1"
   }
 }

@@ -40,7 +40,7 @@ function widgetRuntime() {
       }
       .dvl-widget-shell {
         position: relative;
-        overflow: hidden;
+        overflow: visible;
         width: 100%;
         max-width: 100%;
         min-width: 0;
@@ -64,13 +64,13 @@ function widgetRuntime() {
         pointer-events:none;
       }
       .dvl-widget-shell::after {
-        content:"DVL";
+        content:"";
         position:absolute;
-        right:-8px; bottom:-10px;
-        color: rgba(163,49,39,.07);
-        font-family: Impact, "Arial Black", sans-serif;
-        font-size: clamp(72px, 14vw, 180px);
-        line-height:.75;
+        right:18px; bottom:18px;
+        width:74px; height:74px;
+        border:3px solid rgba(36,23,15,.12);
+        border-radius:50%;
+        background: radial-gradient(circle, rgba(201,149,34,.22), transparent 62%);
         pointer-events:none;
       }
       .dvl-widget-shell > * { position: relative; z-index: 1; }
@@ -100,6 +100,13 @@ function widgetRuntime() {
       }
       .dvl-widget-copy { margin:14px 0 0; max-width:720px; color:var(--dvl-muted); font-size:clamp(15px,1.3vw,18px); font-weight:850; line-height:1.45; }
       .dvl-widget-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:24px; min-width:0; }
+      .dvl-widget-compact {
+        display:grid;
+        grid-template-columns:minmax(0, 1.35fr) minmax(280px, .65fr);
+        gap:16px;
+        margin-top:24px;
+        align-items:stretch;
+      }
       .dvl-widget-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
       .dvl-widget-step {
         display:flex; align-items:center; gap:10px;
@@ -136,6 +143,68 @@ function widgetRuntime() {
         line-height:.9; text-transform:uppercase;
       }
       .dvl-widget-card span { display:block; margin-top:8px; color:#5f4938; font-size:12px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; }
+      .dvl-widget-hero-card {
+        min-height:208px;
+        display:grid;
+        align-content:end;
+        gap:14px;
+        padding:clamp(22px, 3vw, 34px);
+        border:3px solid var(--dvl-line);
+        border-radius:32px 10px 32px 10px;
+        background:linear-gradient(135deg, rgba(18,13,9,.96), rgba(36,23,15,.96)), var(--dvl-dark);
+        color:var(--dvl-cream);
+        box-shadow:7px 7px 0 rgba(36,23,15,.22);
+      }
+      .dvl-widget-hero-card small,
+      .dvl-widget-side-label {
+        color:var(--dvl-mustard);
+        font-size:11px;
+        font-weight:950;
+        letter-spacing:.1em;
+        text-transform:uppercase;
+      }
+      .dvl-widget-hero-card strong {
+        display:block;
+        color:var(--dvl-cream);
+        font-family:Impact, "Arial Black", sans-serif;
+        font-size:clamp(42px, 6.4vw, 86px);
+        line-height:.82;
+        text-transform:uppercase;
+        text-shadow:2px 2px 0 #000, 4px 5px 0 #000;
+      }
+      .dvl-widget-hero-card span {
+        max-width:560px;
+        color:rgba(255,244,221,.82);
+        font-size:14px;
+        font-weight:900;
+        line-height:1.35;
+      }
+      .dvl-widget-side { display:grid; gap:12px; min-width:0; }
+      .dvl-widget-side-card {
+        min-width:0;
+        padding:18px;
+        border:3px solid var(--dvl-line);
+        border-radius:24px 8px 24px 8px;
+        background:var(--dvl-mustard);
+        color:var(--dvl-ink);
+      }
+      .dvl-widget-side-card strong {
+        display:block;
+        margin-top:6px;
+        font-family:Impact, "Arial Black", sans-serif;
+        font-size:clamp(34px, 4.6vw, 56px);
+        line-height:.85;
+        text-transform:uppercase;
+      }
+      .dvl-widget-side-card span {
+        display:block;
+        margin-top:8px;
+        color:rgba(33,21,15,.72);
+        font-size:12px;
+        font-weight:950;
+        line-height:1.25;
+        text-transform:uppercase;
+      }
       .dvl-widget-note {
         margin-top: 16px;
         max-width: 760px;
@@ -147,6 +216,7 @@ function widgetRuntime() {
       .dvl-widget-countdown {
         display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:12px;
       }
+      .dvl-widget-side .dvl-widget-countdown { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:0; }
       .dvl-widget-time {
         min-height:64px; display:grid; place-items:center; gap:2px;
         border:2px solid var(--dvl-line); border-radius:16px 6px 16px 6px;
@@ -282,10 +352,16 @@ function widgetRuntime() {
         .dvl-widget-shell {
           border-width: 2px;
           border-radius: 26px 9px 26px 9px;
-          box-shadow: 5px 5px 0 rgba(0,0,0,.28);
-          padding: 16px;
+          box-shadow: 4px 4px 0 rgba(0,0,0,.28);
+          padding: 16px 14px;
         }
+        .dvl-widget-shell::after { display:none; }
         .dvl-widget-grid, .dvl-widget-steps { grid-template-columns:1fr; }
+        .dvl-widget-compact { grid-template-columns:1fr; gap:12px; margin-top:18px; }
+        .dvl-widget-hero-card { min-height:172px; padding:20px; box-shadow:4px 4px 0 rgba(36,23,15,.22); }
+        .dvl-widget-hero-card strong { font-size:clamp(38px, 13vw, 54px); }
+        .dvl-widget-side { gap:10px; }
+        .dvl-widget-side-card { padding:15px; border-width:2px; }
         .dvl-widget-prize-strip { grid-template-columns: 1fr; }
         .dvl-widget-countdown { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .dvl-widget-title { font-size: clamp(32px, 11vw, 44px); }
@@ -439,25 +515,35 @@ function widgetRuntime() {
   function liveWidget(el, data) {
     const draw = data.liveDraw;
     const countdownTarget = nextDrawTimestamp(draw);
-    const participantProgress = Math.min(100, Math.max(8, Math.round(Number(draw?.entryCount || 0) / 4)));
+    const entryCount = Number(draw?.entryCount || 0);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
-      <p class="dvl-widget-eyebrow">Live winacties</p>
-      <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
-      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Elke bestelling vanaf EUR 70 speelt automatisch mee. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking transparant.")}</p>
-      <div class="dvl-widget-steps" aria-label="Zo werkt De Vlees Loterij">
-        <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf EUR 70</span></div>
-        <div class="dvl-widget-step"><b>2</b><span>Je lot wordt gekoppeld</span></div>
-        <div class="dvl-widget-step"><b>3</b><span>Volg alles in je dashboard</span></div>
-      </div>
-      <div class="dvl-widget-prize-strip">
-        <div class="dvl-widget-ticket"><small>Hoofdprijs live</small><strong>${escapeHtml(draw?.prizeName || "Premium vleespakket")}</strong></div>
-        <div class="dvl-widget-meter"><span>Deelnemers live</span><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><div class="dvl-widget-progress" style="--progress:${participantProgress}%"><i></i></div></div>
-      </div>
-      <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
-        <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
-        <div class="dvl-widget-time"><strong data-time="hours">00</strong><span>Uur</span></div>
-        <div class="dvl-widget-time"><strong data-time="minutes">00</strong><span>Min</span></div>
-        <div class="dvl-widget-time"><strong data-time="seconds">00</strong><span>Sec</span></div>
+      <p class="dvl-widget-eyebrow">Live trekking</p>
+      <h2 class="dvl-widget-title">Bestel. Pak je lot.</h2>
+      <p class="dvl-widget-copy">Vanaf EUR 70 krijgt je bestelling automatisch 1 lot voor de actieve winactie.</p>
+      <div class="dvl-widget-compact">
+        <div class="dvl-widget-hero-card">
+          <small>Hoofdprijs nu</small>
+          <strong>${escapeHtml(draw?.prizeName || "Premium vleespakket")}</strong>
+          <span>${escapeHtml(draw?.prizeValue || "Actieve hoofdprijs")} · trekking transparant zichtbaar in Mijn DVL.</span>
+        </div>
+        <div class="dvl-widget-side">
+          <div class="dvl-widget-side-card">
+            <span class="dvl-widget-side-label">Deelnemers live</span>
+            <strong>${escapeHtml(entryCount)}</strong>
+            <span>Alle gekoppelde loten voor deze trekking.</span>
+          </div>
+          <div class="dvl-widget-side-card">
+            <span class="dvl-widget-side-label">Lot regel</span>
+            <strong>EUR 70</strong>
+            <span>Bestelling vanaf dit bedrag = 1 lot.</span>
+          </div>
+          <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
+            <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
+            <div class="dvl-widget-time"><strong data-time="hours">00</strong><span>Uur</span></div>
+            <div class="dvl-widget-time"><strong data-time="minutes">00</strong><span>Min</span></div>
+            <div class="dvl-widget-time"><strong data-time="seconds">00</strong><span>Sec</span></div>
+          </div>
+        </div>
       </div>
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Bekijk winacties</a>
@@ -473,23 +559,30 @@ function widgetRuntime() {
     const countdownTarget = nextDrawTimestamp(draw);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Mijn DVL</p>
-      <h2 class="dvl-widget-title">Dashboard voor je loten.</h2>
-      <p class="dvl-widget-copy">Log in met je Shopify account en zie welke loten aan jouw bestellingen gekoppeld zijn, welke trekking live staat en hoe je dichter bij je volgende lot komt.</p>
-      <div class="dvl-widget-grid">
-        <div class="dvl-widget-card"><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Loten in de live trekking</span></div>
-        <div class="dvl-widget-card"><strong>EUR 70</strong><span>Bestelling = 1 lot</span></div>
-        <div class="dvl-widget-card"><strong>${escapeHtml(draw?.prizeName || "Prijs live")}</strong><span>${escapeHtml(draw?.prizeValue || "Huidige winactie")}</span></div>
-      </div>
-      <div class="dvl-widget-prize-strip">
-        <div class="dvl-widget-ticket"><small>Na login zichtbaar</small><strong>Jouw lotnummers</strong></div>
-        <div class="dvl-widget-meter"><span>Volgende trekking</span><strong data-dvl-countdown="${escapeHtml(countdownTarget)}"><span data-time="days">00</span>D</strong><div class="dvl-widget-progress" style="--progress:70%"><i></i></div></div>
+      <h2 class="dvl-widget-title">Je loten op een plek.</h2>
+      <p class="dvl-widget-copy">Log in en zie direct je loten, de actieve trekking en welke bestelling deelname heeft verdiend.</p>
+      <div class="dvl-widget-compact">
+        <div class="dvl-widget-hero-card">
+          <small>Na login zichtbaar</small>
+          <strong>Jouw lotnummers</strong>
+          <span>Persoonlijke data blijft achter je account. De live winactie blijft openbaar controleerbaar.</span>
+        </div>
+        <div class="dvl-widget-side">
+          <div class="dvl-widget-side-card"><span class="dvl-widget-side-label">Live trekking</span><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Totaal gekoppelde loten.</span></div>
+          <div class="dvl-widget-side-card"><span class="dvl-widget-side-label">Meedoen</span><strong>EUR 70</strong><span>Elke qualifying order = 1 lot.</span></div>
+          <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
+            <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
+            <div class="dvl-widget-time"><strong data-time="hours">00</strong><span>Uur</span></div>
+            <div class="dvl-widget-time"><strong data-time="minutes">00</strong><span>Min</span></div>
+            <div class="dvl-widget-time"><strong data-time="seconds">00</strong><span>Sec</span></div>
+          </div>
+        </div>
       </div>
       <div class="dvl-widget-list" aria-label="Dashboard inhoud">
-        <div class="dvl-widget-row"><span>Actieve loten per trekking</span><b>Live</b></div>
-        <div class="dvl-widget-row"><span>Orders en verdiende loten</span><b>Account</b></div>
-        <div class="dvl-widget-row"><span>Winnaars en status historie</span><b>Transparant</b></div>
+        <div class="dvl-widget-row"><span>Actieve loten</span><b>Live</b></div>
+        <div class="dvl-widget-row"><span>Orders met deelname</span><b>Account</b></div>
+        <div class="dvl-widget-row"><span>Winnaars historie</span><b>Open</b></div>
       </div>
-      <p class="dvl-widget-note">Je persoonlijke lotnummers staan alleen achter je login. Zo blijft de trekking zichtbaar, maar klantdata afgeschermd.</p>
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
         <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
@@ -605,20 +698,26 @@ embedRouter.get("/frame", (req, res) => {
     <style>
       html,
       body {
-        width: 100%;
         min-height: 100%;
         margin: 0;
         overflow: hidden;
         background: transparent;
       }
 
+      html {
+        width: 100%;
+      }
+
       body {
-        padding: 18px;
+        width: auto;
+        max-width: 100vw;
+        box-sizing: border-box;
+        padding: 6px 12px 18px 6px;
       }
 
       @media (max-width: 720px) {
         body {
-          padding: 12px;
+          padding: 4px 10px 14px 4px;
         }
       }
     </style>
