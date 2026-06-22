@@ -5,7 +5,7 @@ import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboa
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, updateLotteryRule } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
-import { brandMarkSvg, brandPalette, brandWordmarkSvg } from "../services/admin-brand.js";
+import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
 import { formatEuro } from "../utils.js";
 
@@ -134,6 +134,13 @@ function page(title, active, body) {
     ["nieuw", "/admin/new-draw", "Plus", "Nieuwe winactie"],
     ["embed", "/admin/embed", "ExternalLink", "Embed voorbeeld"]
   ];
+  const mobileTabs = [
+    ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
+    ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
+    ["winacties", "/admin/winacties", "Gift", "Winacties"],
+    ["orders", "/admin/orders", "ShoppingCart", "Orders"],
+    ["meer", "/admin/menu", "Menu", "Meer"]
+  ];
 
   return `<!doctype html>
   <html lang="nl">
@@ -168,11 +175,10 @@ function page(title, active, body) {
         a { color:inherit; }
         .app-shell { min-height:100vh; display:grid; grid-template-columns:260px minmax(0,1fr); }
         .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 14px; background:var(--forest); color:#f9fbf6; border-right:1px solid rgba(255,255,255,.08); }
-        .sidebar-brand { display:grid; gap:14px; padding:2px 6px 18px; color:inherit; text-decoration:none; }
-        .sidebar-brand small { color:rgba(249,251,246,.64); font-size:11px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
-        .brand-mark { width:44px; height:50px; display:block; }
+        .sidebar-brand { display:flex; justify-content:center; padding:4px 6px 22px; color:inherit; text-decoration:none; }
+        .brand-mark { width:62px; height:70px; display:block; }
         .brand-wordmark { width:168px; max-width:100%; height:auto; display:block; }
-        .brand { display:flex; align-items:center; gap:12px; text-decoration:none; min-width:0; }
+        .brand { display:flex; align-items:center; text-decoration:none; min-width:0; }
         .brand-lockup { display:grid; gap:5px; min-width:0; }
         .brand-lockup small { color:var(--muted); font-size:10px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
         .sidebar .brand-lockup small { color:rgba(249,251,246,.64); }
@@ -188,7 +194,7 @@ function page(title, active, body) {
         .content { min-width:0; }
         header { position:sticky; top:0; z-index:5; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,252,247,.94); backdrop-filter:blur(14px); }
         .top-tools { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
-        .mobile-chip-nav, .mobile-tabbar { display:none; }
+        .mobile-tabbar { display:none; }
         main { width:min(100%,1440px); margin:0 auto; padding:26px clamp(18px,3vw,34px) 56px; }
         h1, h2, h3, p { margin:0; }
         h1 { max-width:800px; font-size:clamp(32px,4vw,48px); line-height:1.05; font-weight:950; }
@@ -263,25 +269,21 @@ function page(title, active, body) {
         .ops-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:8px; background:#eff4e5; color:var(--forest); }
         .ops-icon svg { width:16px; height:16px; }
         .helper { margin-top:8px; color:var(--muted); font-size:12px; font-weight:650; text-transform:none; letter-spacing:0; }
+        .more-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .more-link { min-height:86px; display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-decoration:none; }
+        .more-link:hover, .more-link:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
+        .more-link strong { display:block; font-size:14px; font-weight:900; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:900px) {
           html, body { background:#f4f1e8; }
           .app-shell { grid-template-columns:1fr; }
           .sidebar { display:none; }
           header { top:0; min-height:64px; align-items:center; flex-direction:row; gap:10px; padding:10px 12px; padding-top:max(10px, env(safe-area-inset-top)); background:rgba(255,252,247,.82); border-bottom:1px solid rgba(217,212,199,.78); box-shadow:0 8px 22px rgba(20,18,13,.06); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
-          header .brand { gap:8px; }
-          header .brand-mark { width:34px; height:38px; }
-          header .brand-wordmark { width:92px; }
-          header .brand-lockup { gap:2px; }
-          header .brand-lockup small { display:none; }
+          header .brand-mark { width:48px; height:54px; }
           .top-tools { flex:1 1 auto; flex-wrap:nowrap; justify-content:flex-end; gap:7px; overflow-x:auto; padding:2px 0; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-          .top-tools::-webkit-scrollbar, .mobile-chip-nav::-webkit-scrollbar { display:none; }
+          .top-tools::-webkit-scrollbar { display:none; }
           .top-tools .button { min-height:36px; padding:0 11px; border-radius:999px; white-space:nowrap; box-shadow:0 1px 0 rgba(255,255,255,.75) inset; }
           .top-tools .button--ghost:first-child { display:none; }
-          .mobile-chip-nav { position:sticky; top:63px; z-index:4; display:flex; gap:8px; overflow-x:auto; padding:9px 12px; border-bottom:1px solid rgba(217,212,199,.74); background:rgba(244,241,232,.88); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-          .mobile-chip-link { min-height:36px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; padding:0 12px; border:1px solid rgba(217,212,199,.9); border-radius:999px; background:rgba(255,255,255,.74); color:var(--muted); font-size:12px; font-weight:850; text-decoration:none; box-shadow:0 1px 0 rgba(255,255,255,.78) inset; }
-          .mobile-chip-link svg { width:15px; height:15px; }
-          .mobile-chip-link--active { background:var(--forest); border-color:var(--forest); color:#fffdf7; box-shadow:0 8px 18px rgba(20,35,20,.18); }
           .mobile-tabbar { position:fixed; left:10px; right:10px; bottom:10px; bottom:max(10px, env(safe-area-inset-bottom)); z-index:20; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; min-height:64px; padding:7px; border:1px solid rgba(217,212,199,.88); border-radius:24px; background:rgba(255,252,247,.86); box-shadow:0 18px 46px rgba(20,18,13,.18); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
           .mobile-tab-link { min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border-radius:18px; color:#686159; text-decoration:none; font-size:10px; line-height:1; font-weight:850; }
           .mobile-tab-link svg { width:20px; height:20px; }
@@ -304,6 +306,8 @@ function page(title, active, body) {
           .chart-wrap { border-radius:16px; padding:10px 8px 8px; }
           .filter-grid { grid-template-columns:1fr; }
           .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+          .more-list { grid-template-columns:1fr; gap:10px; }
+          .more-link { min-height:74px; border-radius:18px; }
           table { min-width:760px; }
         }
         @media (max-width:560px) {
@@ -321,7 +325,7 @@ function page(title, active, body) {
         }
         @media (max-width:390px) {
           .grid { grid-template-columns:1fr; }
-          header .brand-wordmark { width:82px; }
+          header .brand-mark { width:44px; height:50px; }
           .top-tools .button { padding:0 9px; }
         }
       </style>
@@ -329,12 +333,8 @@ function page(title, active, body) {
     <body>
       <div class="app-shell">
         <aside class="sidebar" aria-label="Admin menu">
-          <a class="sidebar-brand" href="/admin">
+          <a class="sidebar-brand" href="/admin" aria-label="Meat For Free admin">
             ${brandMarkSvg("brand-mark")}
-            <span class="brand-lockup">
-              ${brandWordmarkSvg("brand-wordmark")}
-              <small>Beheeromgeving</small>
-            </span>
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
@@ -347,12 +347,8 @@ function page(title, active, body) {
         </aside>
         <div class="content">
           <header>
-            <a class="brand" href="/admin">
+            <a class="brand" href="/admin" aria-label="Meat For Free admin">
               ${brandMarkSvg("brand-mark")}
-              <span class="brand-lockup">
-                ${brandWordmarkSvg("brand-wordmark")}
-                <small>Beheerdashboard</small>
-              </span>
             </a>
             <div class="top-tools">
               <a class="button button--ghost" href="/api/draws/live">${icon("FileJson")}Live API</a>
@@ -360,13 +356,10 @@ function page(title, active, body) {
               <a class="button button--gold" href="/admin/new-draw">${icon("Plus")}Nieuwe winactie</a>
             </div>
           </header>
-          <nav class="mobile-chip-nav" aria-label="Mobiele admin navigatie">
-            ${menu.map(([key, href, iconName, label]) => mobileChipLink(active, key, href, iconName, label)).join("")}
-          </nav>
           <main>${body}</main>
         </div>
         <nav class="mobile-tabbar" aria-label="Snelle mobiele navigatie">
-          ${menu.slice(0, 5).map(([key, href, iconName, label]) => mobileTabLink(active, key, href, iconName, label)).join("")}
+          ${mobileTabs.map(([key, href, iconName, label]) => mobileTabLink(active, key, href, iconName, label)).join("")}
         </nav>
       </div>
     </body>
@@ -379,14 +372,10 @@ function menuLink(active, key, href, iconName, label) {
   </a>`;
 }
 
-function mobileChipLink(active, key, href, iconName, label) {
-  return `<a class="mobile-chip-link${active === key ? " mobile-chip-link--active" : ""}" href="${href}">
-    ${icon(iconName)}<span>${escapeHtml(label)}</span>
-  </a>`;
-}
-
 function mobileTabLink(active, key, href, iconName, label) {
-  return `<a class="mobile-tab-link${active === key ? " mobile-tab-link--active" : ""}" href="${href}">
+  const primaryKeys = new Set(["overzicht", "analyse", "winacties", "orders"]);
+  const isActive = active === key || (key === "meer" && !primaryKeys.has(active));
+  return `<a class="mobile-tab-link${isActive ? " mobile-tab-link--active" : ""}" href="${href}">
     ${icon(iconName)}<span class="mobile-tab-label">${escapeHtml(label)}</span>
   </a>`;
 }
@@ -1045,6 +1034,43 @@ adminRouter.get("/analyse", (_req, res) => {
         </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen opvallende IP-hashes.</div></td></tr>`}</tbody>
       </table>
     </div>
+  `));
+});
+
+adminRouter.get("/menu", (_req, res) => {
+  const groups = [
+    ["Beheer", [
+      ["Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
+      ["Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
+      ["Deelnemers", "/admin/deelnemers", "Users", "Klanten, winnaars en deelnamewaarde."]
+    ]],
+    ["Controle", [
+      ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
+      ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
+      ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."]
+    ]],
+    ["Acties", [
+      ["Nieuwe winactie", "/admin/new-draw", "Plus", "Maak een actie aan of zet hem live."],
+      ["Embed voorbeeld", "/admin/embed", "ExternalLink", "Controleer de Shopify embed."],
+      ["Live API", "/api/draws/live", "FileJson", "Bekijk de live winactie JSON."]
+    ]]
+  ];
+
+  res.send(page("Meer | Meat For Free", "meer", `
+    ${topbar("Navigatie", "Meer beheeropties.", "Alle secundaire pagina's zonder dubbele mobiele menu's.", "")}
+    ${groups.map(([title, rows]) => `
+      <div class="section-head"><h2>${escapeHtml(title)}</h2></div>
+      <section class="more-list">
+        ${rows.map(([label, href, iconName, copy]) => `<a class="more-link" href="${href}">
+          <span class="ops-icon">${icon(iconName)}</span>
+          <span><strong>${escapeHtml(label)}</strong><span class="muted">${escapeHtml(copy)}</span></span>
+        </a>`).join("")}
+      </section>
+    `).join("")}
+    <div class="section-head"><h2>Sessie</h2></div>
+    <section class="panel panel-pad">
+      <form method="post" action="/admin/logout" class="inline-form"><button type="submit">${icon("LogOut")}Uitloggen</button></form>
+    </section>
   `));
 });
 
