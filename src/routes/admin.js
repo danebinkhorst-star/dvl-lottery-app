@@ -389,6 +389,54 @@ function getMetrics() {
   };
 }
 
+function funnelMetrics() {
+  const rule = getLotteryRule();
+  const summary = db.prepare(`
+    SELECT
+      COUNT(*) AS total_orders,
+      SUM(CASE WHEN total_cents >= ? THEN 1 ELSE 0 END) AS eligible_orders
+    FROM orders
+  `).get(rule.LOT_ORDER_MINIMUM_CENTS);
+  const ordersWithEntries = db.prepare(`
+    SELECT COUNT(DISTINCT order_id) AS count
+    FROM lottery_entries
+    WHERE order_id IS NOT NULL
+  `).get().count;
+  const winningOrders = db.prepare(`
+    SELECT COUNT(DISTINCT order_id) AS count
+    FROM lottery_entries
+    WHERE order_id IS NOT NULL AND status = 'WINNER'
+  `).get().count;
+  const freeEntries = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries
+    WHERE source = 'FREE_ENTRY'
+  `).get().count;
+  return {
+    totalOrders: Number(summary.total_orders || 0),
+    eligibleOrders: Number(summary.eligible_orders || 0),
+    ordersWithEntries: Number(ordersWithEntries || 0),
+    winningOrders: Number(winningOrders || 0),
+    freeEntries: Number(freeEntries || 0)
+  };
+}
+
+function suspiciousIpRows(limit = 8) {
+  return db.prepare(`
+    SELECT
+      fc.ip_hash,
+      COUNT(*) AS claim_count,
+      COUNT(DISTINCT fc.draw_id) AS draw_count,
+      COUNT(DISTINCT fc.email) AS email_count,
+      MAX(fc.created_at) AS last_seen
+    FROM free_entry_claims fc
+    GROUP BY fc.ip_hash
+    HAVING COUNT(DISTINCT fc.draw_id) >= 2 OR COUNT(DISTINCT fc.email) >= 2
+    ORDER BY draw_count DESC, email_count DESC, claim_count DESC, last_seen DESC
+    LIMIT ?
+  `).all(limit);
+}
+
 function kpiGrid(items) {
   const tints = ["card--tint-0", "card--tint-1", "card--tint-2", "card--tint-3"];
   return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => `<div class="card ${tints[index % tints.length]}">
@@ -477,6 +525,25 @@ function trendChart() {
       </div>
       <p class="chart-note">Vandaag: ${latest.entries} loten en ${latest.orders} geschikte orders.</p>
     </div>
+  </div>`;
+}
+
+function funnelPanel(metrics) {
+  const rows = [
+    ["Orders totaal", metrics.totalOrders, 100],
+    ["Kwalificerende orders", metrics.eligibleOrders, ratio(metrics.eligibleOrders, metrics.totalOrders || 1)],
+    ["Orders met lot", metrics.ordersWithEntries, ratio(metrics.ordersWithEntries, metrics.eligibleOrders || 1)],
+    ["Winnende orders", metrics.winningOrders, ratio(metrics.winningOrders, metrics.ordersWithEntries || 1)]
+  ];
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Funnel</p><h2>Van order naar winnaar</h2></div></div>
+    <div class="stack">
+      ${rows.map(([label, value, width]) => `<div class="metric-row">
+        <div><span>${escapeHtml(label)}</span><strong>${value}</strong></div>
+        <div class="bar"><span style="width:${width}%"></span></div>
+      </div>`).join("")}
+    </div>
+    <p class="helper">Gratis deelnames lopen apart en staan nu op ${metrics.freeEntries} loten.</p>
   </div>`;
 }
 
@@ -673,6 +740,7 @@ function customerFilter(req) {
 
 adminRouter.get("/", (_req, res) => {
   const metrics = getMetrics();
+  const funnel = funnelMetrics();
   const rule = getLotteryRule();
   const { totals, orderTotals } = metrics;
   const sourceRows = db.prepare("SELECT source, COUNT(*) AS count FROM lottery_entries GROUP BY source ORDER BY count DESC").all();
@@ -712,8 +780,19 @@ adminRouter.get("/", (_req, res) => {
       </div>
     </section>
     <section class="grid grid-2">
+      ${funnelPanel(funnel)}
       ${breakdownPanel("Loten per bron", sourceRows, totals.total_entries || 0, "source")}
+    </section>
+    <section class="grid grid-2">
       ${breakdownPanel("Loten per status", statusRows, totals.total_entries || 0)}
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Controle</p><h2>Belangrijkste coverage</h2></div></div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">${icon("Target")}</span><span><strong>${funnel.eligibleOrders} orders kwalificeren</strong><br><span class="muted">Op basis van ${escapeHtml(ruleLabel(rule))}.</span></span><span class="status">Basis</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("Tickets")}</span><span><strong>${funnel.ordersWithEntries} orders hebben loten</strong><br><span class="muted">Coverage binnen ordergebonden deelname.</span></span><span class="status">${funnel.ordersWithEntries === funnel.eligibleOrders ? "Goed" : "Check"}</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("Gift")}</span><span><strong>${funnel.freeEntries} gratis loten actief</strong><br><span class="muted">Gebruik dit om verhouding aankoop versus gratis te monitoren.</span></span><span class="status">Monitor</span></div>
+        </div>
+      </div>
     </section>
     <div class="section-head"><h2>Laatste winacties</h2><a class="button button--ghost" href="/admin/winacties">Alle winacties</a></div>
     <div class="panel">${drawTable(latestDraws)}</div>
@@ -1051,6 +1130,7 @@ adminRouter.get("/deelnemers", (req, res) => {
 
 adminRouter.get("/compliance", (_req, res) => {
   const metrics = getMetrics();
+  const suspiciousIps = suspiciousIpRows(10);
   const rule = getLotteryRule();
   const { totals, orderTotals } = metrics;
   const alerts = complianceAlerts(metrics);
@@ -1079,6 +1159,19 @@ adminRouter.get("/compliance", (_req, res) => {
         <div class="stack">${checks.map(([label, value, part, total]) => `<div class="metric-row"><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div><div class="bar"><span style="width:${ratio(part, total)}%"></span></div></div>`).join("")}</div>
       </div>
     </section>
+    <div class="section-head"><h2>Verdachte IP-hashes</h2><span class="muted">Alleen hashes, geen rauwe IP-adressen.</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>IP-hash</th><th>Claims</th><th>Winacties</th><th>Emails</th><th>Laatst gezien</th></tr></thead>
+        <tbody>${suspiciousIps.length ? suspiciousIps.map((row) => `<tr>
+          <td><strong>${escapeHtml(String(row.ip_hash).slice(0, 12))}...</strong><span class="muted">Afgekapt voor leesbaarheid</span></td>
+          <td>${row.claim_count}</td>
+          <td>${row.draw_count}</td>
+          <td>${row.email_count}</td>
+          <td>${escapeHtml(row.last_seen)}</td>
+        </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Geen IP-hashes met opvallend patroon.</div></td></tr>`}</tbody>
+      </table>
+    </div>
     <div class="section-head"><h2>Auditlog</h2><a class="button button--ghost" href="/admin/regels">Lotregels beheren</a></div>
     <div class="panel">
       <table>

@@ -54,6 +54,7 @@ export function createApp() {
     referrerPolicy: { policy: "no-referrer" }
   }));
   app.use(morgan("dev"));
+  app.use("/assets", express.static(resolve("public"), { maxAge: "1d" }));
   app.use((req, res, next) => {
     if (req.path.startsWith("/admin")) {
       res.setHeader("Cache-Control", "no-store");
