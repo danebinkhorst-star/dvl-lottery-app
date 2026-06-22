@@ -1,11 +1,16 @@
 import express from "express";
-import { db } from "../db.js";
+import { db, nowIso } from "../db.js";
 import { createDraw, drawWinner } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { formatEuro } from "../utils.js";
 
 export const adminRouter = express.Router();
+
+const urlencoded = express.urlencoded({ extended: false });
+const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
+const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
+const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -16,17 +21,66 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function statusBadge(status) {
-  const normalized = String(status || "").toLowerCase();
-  return `<span class="status status--${escapeHtml(normalized)}">${escapeHtml(status || "-")}</span>`;
+function textParam(value) {
+  return String(value || "").trim();
 }
 
 function csv(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function textParam(value) {
-  return String(value || "").trim();
+function option(value, current, label) {
+  return `<option value="${escapeHtml(value)}"${String(current || "") === String(value) ? " selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function statusLabel(status) {
+  const labels = {
+    DRAFT: "Concept",
+    LIVE: "Live",
+    DRAWN: "Getrokken",
+    ARCHIVED: "Gearchiveerd",
+    ACTIVE: "Actief",
+    WINNER: "Winnaar",
+    VOID: "Ongeldig",
+    ORDER_THRESHOLD: "Orderlot",
+    FREE_ENTRY: "Gratis deelname",
+    MANUAL: "Handmatig",
+    SUBSCRIPTION: "Abonnement",
+    paid: "Betaald",
+    pending: "In afwachting",
+    refunded: "Terugbetaald",
+    cancelled: "Geannuleerd"
+  };
+  return labels[status] || status || "-";
+}
+
+function statusBadge(status) {
+  const normalized = String(status || "").toLowerCase().replaceAll("_", "-");
+  return `<span class="status status--${escapeHtml(normalized)}">${escapeHtml(statusLabel(status))}</span>`;
+}
+
+function percent(part, total) {
+  if (!Number(total || 0)) return "0%";
+  return `${Math.round((Number(part || 0) / Number(total || 0)) * 100)}%`;
+}
+
+function ratio(part, total) {
+  if (!Number(total || 0)) return 0;
+  return Math.max(3, Math.min(100, Math.round((Number(part || 0) / Number(total || 0)) * 100)));
+}
+
+function dateInput(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function isoDateParam(value) {
+  const raw = textParam(value);
+  if (!raw) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  return raw;
 }
 
 function moneyParamToCents(value) {
@@ -37,32 +91,292 @@ function moneyParamToCents(value) {
   return Math.round(parsed * 100);
 }
 
-function isoDateParam(value) {
-  const raw = textParam(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
-  return raw;
+function maybeIsoDate(value) {
+  const raw = isoDateParam(value);
+  return raw ? new Date(`${raw}T00:00:00.000Z`).toISOString() : null;
 }
 
-function option(value, current, label) {
-  return `<option value="${escapeHtml(value)}"${String(current || "") === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+function page(title, active, body) {
+  const menu = [
+    ["overzicht", "/admin", "OV", "Overzicht"],
+    ["winacties", "/admin/winacties", "WA", "Winacties"],
+    ["loten", "/admin/loten", "LT", "Loten"],
+    ["orders", "/admin/orders", "OR", "Orders"],
+    ["deelnemers", "/admin/deelnemers", "KL", "Deelnemers"],
+    ["compliance", "/admin/compliance", "CP", "Compliance"],
+    ["sync", "/admin/sync", "SY", "Synchronisatie"],
+    ["api", "/admin/api", "API", "API"],
+    ["nieuw", "/admin/new-draw", "+", "Nieuwe winactie"],
+    ["embed", "/admin/embed", "EM", "Embed voorbeeld"]
+  ];
+
+  return `<!doctype html>
+  <html lang="nl">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${escapeHtml(title)}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+      <style>
+        :root {
+          --bg:#f3f5f8;
+          --panel:#fff;
+          --ink:#111827;
+          --muted:#6b7280;
+          --line:#d8dee8;
+          --line-soft:#edf0f4;
+          --red:#b42318;
+          --red-dark:#8a1c13;
+          --gold:#d39a17;
+          --green:#157347;
+          --blue:#2563eb;
+          --cyan:#0e9aa7;
+          --shadow:0 10px 26px rgba(17,24,39,.07);
+        }
+        * { box-sizing:border-box; }
+        html, body { margin:0; min-height:100%; background:var(--bg); color:var(--ink); font-family:Manrope, ui-sans-serif, system-ui, sans-serif; }
+        body { font-weight:650; }
+        a { color:inherit; }
+        .app-shell { min-height:100vh; display:grid; grid-template-columns:260px minmax(0,1fr); }
+        .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 14px; background:#111827; color:#f9fafb; }
+        .sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 6px 20px; color:inherit; text-decoration:none; }
+        .mark { width:38px; height:38px; display:grid; place-items:center; border-radius:8px; background:var(--red); color:#fff; font-weight:950; font-size:13px; }
+        .sidebar-brand strong, .brand strong { display:block; font-size:17px; line-height:1.02; font-weight:950; }
+        .sidebar-brand span span, .brand span span { display:block; margin-top:4px; color:rgba(249,250,251,.58); font-size:10px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+        .brand span span { color:var(--muted); }
+        .menu-title { margin:18px 8px 8px; color:rgba(249,250,251,.48); font-size:10px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+        .menu-link { min-height:38px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:8px; color:rgba(249,250,251,.74); text-decoration:none; font-size:13px; font-weight:800; }
+        .menu-link:hover, .menu-link:focus-visible, .menu-link--active { background:rgba(255,255,255,.08); color:#fff; outline:none; }
+        .menu-left { display:flex; align-items:center; gap:10px; min-width:0; }
+        .menu-icon { width:24px; height:24px; display:grid; place-items:center; flex:0 0 auto; border-radius:7px; background:rgba(255,255,255,.08); color:#f5c451; font-size:9px; font-weight:950; }
+        .content { min-width:0; }
+        header { position:sticky; top:0; z-index:5; min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.94); backdrop-filter:blur(14px); }
+        .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
+        .top-tools { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+        main { width:min(100%,1440px); margin:0 auto; padding:26px clamp(18px,3vw,34px) 56px; }
+        h1, h2, h3, p { margin:0; }
+        h1 { max-width:800px; font-size:clamp(32px,4vw,48px); line-height:1.05; font-weight:950; }
+        h2 { font-size:clamp(20px,2vw,28px); line-height:1.1; font-weight:950; }
+        h3 { font-size:16px; line-height:1.25; font-weight:900; }
+        .eyebrow { margin-bottom:8px; color:var(--red); font-size:11px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
+        .muted { color:var(--muted); font-weight:650; }
+        .topbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:16px; margin-bottom:20px; }
+        .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
+        .button, button { min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; border:1px solid var(--red); border-radius:8px; background:var(--red); color:#fff; font:inherit; font-size:12px; font-weight:850; text-decoration:none; cursor:pointer; }
+        .button:hover, button:hover, .button:focus-visible, button:focus-visible { background:var(--red-dark); border-color:var(--red-dark); outline:none; }
+        .button--ghost { background:#fff; border-color:var(--line); color:var(--ink); }
+        .button--ghost:hover, .button--ghost:focus-visible { background:#f8fafc; border-color:#c9d1dd; color:var(--ink); }
+        .button--gold { background:#fff7db; border-color:#e7c76f; color:#5b3b00; }
+        .button--gold:hover, .button--gold:focus-visible { background:#ffefb6; border-color:var(--gold); color:#5b3b00; }
+        .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+        .grid-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .card, .panel, .filters { min-width:0; border:1px solid var(--line); border-radius:10px; background:var(--panel); box-shadow:none; }
+        .card { min-height:126px; padding:18px; border-top:3px solid var(--red); }
+        .card--blue { border-top-color:var(--blue); }
+        .card--green { border-top-color:var(--green); }
+        .card--cyan { border-top-color:var(--cyan); }
+        .stat { margin-top:10px; color:var(--ink); font-size:clamp(28px,3.5vw,42px); line-height:1; font-weight:950; letter-spacing:0; }
+        .card p:last-child { margin-top:8px; color:var(--muted); font-size:13px; }
+        .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:30px 0 12px; }
+        .panel { overflow:hidden; }
+        .panel-pad { padding:18px; }
+        .panel-title { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; }
+        table { width:100%; border-collapse:collapse; background:transparent; }
+        th, td { padding:12px 14px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:middle; font-size:13px; }
+        th { background:#f8fafc; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+        td strong { display:block; font-size:14px; font-weight:900; }
+        tbody tr:hover { background:#faf7f2; }
+        .status { display:inline-flex; align-items:center; justify-content:center; min-width:0; padding:5px 9px; border:1px solid var(--line); border-radius:999px; background:#f8fafc; color:#374151; font-size:11px; font-weight:850; }
+        .status--live, .status--active, .status--paid { background:#ecfdf3; border-color:#bbf7d0; color:#166534; }
+        .status--drawn, .status--winner { background:#fff7db; border-color:#fde68a; color:#7a4b00; }
+        .status--void, .status--cancelled, .status--refunded, .status--archived { background:#fef3f2; border-color:#fecaca; color:#991b1b; }
+        .filters { padding:18px; margin-bottom:22px; }
+        .filter-grid, .form-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:end; }
+        .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+        label { display:block; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+        input, textarea, select { width:100%; min-height:40px; margin-top:6px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:13px; font-weight:650; }
+        textarea { min-height:108px; resize:vertical; }
+        input:focus, textarea:focus, select:focus { outline:3px solid rgba(180,35,24,.12); border-color:var(--red); }
+        .wide { grid-column:span 2; }
+        form.inline-form { display:inline; margin:0; }
+        .empty { padding:26px; color:var(--muted); font-size:14px; }
+        .bar { height:8px; overflow:hidden; border-radius:999px; background:#e5e7eb; }
+        .bar span { display:block; height:100%; border-radius:999px; background:var(--red); }
+        .chart { height:220px; display:grid; grid-template-columns:repeat(12,minmax(10px,1fr)); align-items:end; gap:9px; padding:18px; border:1px solid var(--line); border-radius:10px; background:linear-gradient(180deg,#f8fafc,#fff); }
+        .chart-bar { position:relative; min-height:5px; border-radius:6px 6px 2px 2px; background:var(--red); }
+        .chart-bar:nth-child(3n) { background:var(--blue); }
+        .chart-bar:nth-child(3n + 1) { background:var(--cyan); }
+        .chart-labels { display:grid; grid-template-columns:repeat(12,minmax(10px,1fr)); gap:9px; margin:8px 18px 0; color:var(--muted); font-size:10px; text-align:center; }
+        .stack { display:grid; gap:12px; }
+        .metric-row { display:grid; gap:7px; }
+        .metric-row > div:first-child { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:12px; font-weight:850; }
+        .ops-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+        .ops-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:8px; background:#fff4d6; color:#704900; font-size:11px; font-weight:950; }
+        .helper { margin-top:8px; color:var(--muted); font-size:12px; font-weight:650; text-transform:none; letter-spacing:0; }
+        @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:900px) {
+          .app-shell { grid-template-columns:1fr; }
+          .sidebar { position:relative; height:auto; padding:16px; }
+          .menu { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+          .menu-title { grid-column:1 / -1; }
+          header { position:relative; align-items:flex-start; flex-direction:column; }
+          .topbar { grid-template-columns:1fr; align-items:start; }
+          .grid, .grid-3, .grid-2 { grid-template-columns:1fr; }
+          .form-grid { grid-template-columns:1fr; }
+          .wide { grid-column:auto; }
+          .panel { overflow-x:auto; }
+          table { min-width:760px; }
+        }
+        @media (max-width:560px) {
+          main { padding-inline:10px; }
+          .filter-grid { grid-template-columns:1fr; }
+          .top-tools, .actions { justify-content:flex-start; }
+          h1 { font-size:34px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="app-shell">
+        <aside class="sidebar" aria-label="Admin menu">
+          <a class="sidebar-brand" href="/admin">
+            <span class="mark">MFF</span>
+            <span><strong>Meat For<br>Free</strong><span>Beheer</span></span>
+          </a>
+          <nav class="menu">
+            <p class="menu-title">Beheer</p>
+            ${menu.slice(0, 4).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            <p class="menu-title">Controle</p>
+            ${menu.slice(4, 8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            <p class="menu-title">Acties</p>
+            ${menu.slice(8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+          </nav>
+        </aside>
+        <div class="content">
+          <header>
+            <a class="brand" href="/admin">
+              <span class="mark">MFF</span>
+              <span><strong>Meat For<br>Free</strong><span>Beheerdashboard</span></span>
+            </a>
+            <div class="top-tools">
+              <a class="button button--ghost" href="/api/draws/live">Live API</a>
+              <a class="button button--ghost" href="/admin/embed">Embed</a>
+              <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
+            </div>
+          </header>
+          <main>${body}</main>
+        </div>
+      </div>
+    </body>
+  </html>`;
 }
 
-function percent(part, total) {
-  if (!total) return "0%";
-  return `${Math.round((Number(part || 0) / Number(total || 0)) * 100)}%`;
+function menuLink(active, key, href, icon, label) {
+  return `<a class="menu-link${active === key ? " menu-link--active" : ""}" href="${href}">
+    <span class="menu-left"><span class="menu-icon">${escapeHtml(icon)}</span>${escapeHtml(label)}</span>
+  </a>`;
 }
 
-function safeDivide(part, total, decimals = 1) {
-  if (!total) return "0";
-  return (Number(part || 0) / Number(total || 0)).toFixed(decimals);
+function titleBlock(eyebrow, title, copy = "") {
+  return `<div><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1>${copy ? `<p class="muted" style="margin-top:8px">${escapeHtml(copy)}</p>` : ""}</div>`;
 }
 
-function barWidth(part, total) {
-  if (!total) return 0;
-  return Math.max(4, Math.min(100, Math.round((Number(part || 0) / Number(total || 0)) * 100)));
+function topbar(eyebrow, title, copy, actions = "") {
+  return `<div class="topbar">${titleBlock(eyebrow, title, copy)}<div class="actions">${actions}</div></div>`;
 }
 
-function buildEntryFilter(req) {
+function getMetrics() {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total_entries,
+      SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_entries,
+      SUM(CASE WHEN status = 'WINNER' THEN 1 ELSE 0 END) AS winners,
+      SUM(CASE WHEN status = 'VOID' THEN 1 ELSE 0 END) AS void_entries,
+      SUM(CASE WHEN source = 'FREE_ENTRY' THEN 1 ELSE 0 END) AS free_entries,
+      SUM(CASE WHEN source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries,
+      COUNT(DISTINCT customer_id) AS participating_customers
+    FROM lottery_entries
+  `).get();
+  const orderTotals = db.prepare(`
+    SELECT
+      COUNT(*) AS total_orders,
+      SUM(total_cents) AS gross_cents,
+      AVG(total_cents) AS avg_cents,
+      SUM(CASE WHEN total_cents >= 7000 THEN 1 ELSE 0 END) AS eligible_orders
+    FROM orders
+  `).get();
+  const liveDraws = db.prepare("SELECT COUNT(*) AS count FROM lottery_draws WHERE status = 'LIVE'").get().count;
+  const recentEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE datetime(created_at) >= datetime('now', '-7 days')").get().count;
+  const todayOrders = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE date(created_at) = date('now')").get().count;
+  const activeLiveEntries = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    WHERE e.status = 'ACTIVE' AND d.status = 'LIVE'
+  `).get().count;
+  const eligibleWithoutEntry = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM orders o
+    LEFT JOIN lottery_entries e ON e.order_id = o.id
+    WHERE o.total_cents >= 7000 AND e.id IS NULL
+  `).get().count;
+  const liveDrawsWithoutEntries = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_draws d
+    WHERE d.status = 'LIVE'
+      AND NOT EXISTS (SELECT 1 FROM lottery_entries e WHERE e.draw_id = d.id)
+  `).get().count;
+  return {
+    totals,
+    orderTotals,
+    liveDraws,
+    recentEntries,
+    todayOrders,
+    activeLiveEntries,
+    eligibleWithoutEntry,
+    liveDrawsWithoutEntries
+  };
+}
+
+function kpiGrid(items) {
+  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => `<div class="card ${["", "card--cyan", "card--green", "card--blue"][index % 4]}">
+    <p class="muted">${escapeHtml(item.label)}</p>
+    <div class="stat">${item.value}</div>
+    <p>${escapeHtml(item.help)}</p>
+  </div>`).join("")}</section>`;
+}
+
+function monthChart() {
+  const rows = db.prepare(`
+    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count
+    FROM lottery_entries
+    GROUP BY month
+    ORDER BY month DESC
+    LIMIT 12
+  `).all().reverse();
+  const chartRows = rows.length ? rows : Array.from({ length: 12 }, (_, index) => ({ month: `M${index + 1}`, count: 0 }));
+  const max = Math.max(1, ...chartRows.map((row) => row.count));
+  return `<div class="chart" aria-label="Lotvolume per maand">
+    ${chartRows.map((row) => `<span class="chart-bar" title="${escapeHtml(row.month)}: ${row.count}" style="height:${ratio(row.count, max)}%"></span>`).join("")}
+  </div>
+  <div class="chart-labels">${chartRows.map((row) => `<span>${escapeHtml(String(row.month).slice(5) || row.month)}</span>`).join("")}</div>`;
+}
+
+function breakdownPanel(title, rows, total, keyName = "status") {
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><h2>${escapeHtml(title)}</h2></div>
+    <div class="stack">
+      ${rows.length ? rows.map((row) => `<div class="metric-row">
+        <div><span>${escapeHtml(statusLabel(row[keyName]))}</span><strong>${row.count}</strong></div>
+        <div class="bar"><span style="width:${ratio(row.count, total)}%"></span></div>
+      </div>`).join("") : `<p class="empty">Nog geen data.</p>`}
+    </div>
+  </div>`;
+}
+
+function entryFilter(req) {
   const filter = {
     q: textParam(req.query.q),
     drawStatus: textParam(req.query.drawStatus),
@@ -73,9 +387,8 @@ function buildEntryFilter(req) {
   };
   const where = [];
   const params = [];
-
   if (filter.q) {
-    where.push(`(e.entry_number LIKE ? OR c.email LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR o.order_name LIKE ? OR d.title LIKE ?)`);
+    where.push("(e.entry_number LIKE ? OR c.email LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR o.order_name LIKE ? OR d.title LIKE ?)");
     const like = `%${filter.q}%`;
     params.push(like, like, like, like, like, like);
   }
@@ -99,11 +412,10 @@ function buildEntryFilter(req) {
     where.push("date(e.created_at) <= date(?)");
     params.push(filter.to);
   }
-
   return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
 }
 
-function buildOrderFilter(req) {
+function orderFilter(req) {
   const filter = {
     orderQ: textParam(req.query.orderQ),
     orderStatus: textParam(req.query.orderStatus),
@@ -114,7 +426,6 @@ function buildOrderFilter(req) {
   const maxCents = moneyParamToCents(filter.maxTotal);
   const where = [];
   const params = [];
-
   if (filter.orderQ) {
     where.push("(o.order_name LIKE ? OR o.email LIKE ? OR c.email LIKE ?)");
     const like = `%${filter.orderQ}%`;
@@ -132,1685 +443,337 @@ function buildOrderFilter(req) {
     where.push("o.total_cents <= ?");
     params.push(maxCents);
   }
-
   return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
 }
 
-function page(title, body) {
-  return `<!doctype html>
-  <html lang="nl">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>${escapeHtml(title)}</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@500;700;800;900&display=swap" rel="stylesheet">
-      <style>
-        :root {
-          --cream:#fff4dd;
-          --cream-2:#f6dfb7;
-          --paper:#fffaf0;
-          --ink:#21150f;
-          --red:#a33127;
-          --red-deep:#792119;
-          --gold:#d2a947;
-          --mustard:#f0bf39;
-          --sage:#3d4a2c;
-          --line:#24170f;
-          --dark:#120d09;
-          --shadow: 0 18px 0 rgba(33, 21, 15, .16);
-        }
-        * { box-sizing: border-box; }
-        html { background: var(--dark); }
-        body {
-          min-height: 100vh;
-          margin: 0;
-          color: var(--ink);
-          background: #f2eadc;
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-weight: 700;
-        }
-        body::before {
-          content:"";
-          position: fixed;
-          inset: 0;
-          pointer-events: none;
-          opacity: .12;
-          background-image: linear-gradient(45deg, var(--line) 1px, transparent 1px);
-          background-size: 18px 18px;
-          mix-blend-mode: multiply;
-        }
-        .app-shell {
-          position: relative;
-          z-index: 1;
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: 278px minmax(0, 1fr);
-        }
-        .sidebar {
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          overflow-y: auto;
-          padding: 24px 18px;
-          border-right: 3px solid var(--line);
-          background:
-            linear-gradient(180deg, #18261e 0%, #10140f 100%);
-          color: var(--cream);
-        }
-        .sidebar-brand {
-          display:flex;
-          align-items:center;
-          gap:12px;
-          margin-bottom: 28px;
-          color: inherit;
-          text-decoration:none;
-        }
-        .sidebar-mark {
-          width:44px;
-          height:44px;
-          display:grid;
-          place-items:center;
-          border:2px solid rgba(255, 244, 221, .36);
-          border-radius: 14px 6px 14px 6px;
-          background: var(--red);
-          color: var(--cream);
-          box-shadow: 4px 4px 0 var(--gold);
-          font-family:"Archivo Black", Impact, sans-serif;
-          font-size: 16px;
-        }
-        .sidebar-brand strong {
-          display:block;
-          font-family:"Archivo Black", Impact, sans-serif;
-          font-size: 20px;
-          line-height:.88;
-          text-transform: uppercase;
-        }
-        .sidebar-brand span span {
-          display:block;
-          margin-top:5px;
-          color: rgba(255, 244, 221, .62);
-          font-size:10px;
-          font-weight:950;
-          letter-spacing:.12em;
-          text-transform: uppercase;
-        }
-        .menu-group {
-          margin: 22px 0 0;
-        }
-        .menu-title {
-          margin: 0 0 8px;
-          color: rgba(255, 244, 221, .54);
-          font-size: 10px;
-          font-weight: 950;
-          letter-spacing: .14em;
-          text-transform: uppercase;
-        }
-        .menu-link {
-          min-height: 42px;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 12px;
-          padding: 9px 10px;
-          border: 2px solid transparent;
-          border-radius: 14px 6px 14px 6px;
-          color: rgba(255, 244, 221, .82);
-          text-decoration:none;
-          font-size: 13px;
-          font-weight: 900;
-        }
-        .menu-link:hover,
-        .menu-link:focus-visible,
-        .menu-link--active {
-          border-color: rgba(255, 244, 221, .24);
-          background: rgba(255, 244, 221, .09);
-          color: var(--cream);
-          outline: none;
-        }
-        .menu-left {
-          display:flex;
-          align-items:center;
-          gap: 10px;
-        }
-        .menu-icon {
-          width: 25px;
-          height: 25px;
-          display:grid;
-          place-items:center;
-          border: 2px solid rgba(255, 244, 221, .22);
-          border-radius: 9px 4px 9px 4px;
-          color: var(--mustard);
-          font-size: 10px;
-          font-weight: 950;
-        }
-        .menu-count {
-          min-width: 24px;
-          height: 24px;
-          display:grid;
-          place-items:center;
-          border-radius: 999px;
-          background: var(--mustard);
-          color: var(--ink);
-          font-size: 11px;
-          font-weight: 950;
-        }
-        .content-shell {
-          min-width: 0;
-          display:flex;
-          flex-direction:column;
-        }
-        .announce {
-          min-height: 38px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 9px 18px;
-          border-bottom: 3px solid var(--line);
-          background: var(--red);
-          color: var(--cream);
-          font-size: 12px;
-          font-weight: 950;
-          letter-spacing: .09em;
-          text-align: center;
-          text-transform: uppercase;
-        }
-        header {
-          position: sticky;
-          top: 0;
-          z-index: 10;
-          min-height: 74px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          padding: 14px clamp(16px, 3vw, 32px);
-          border-bottom: 3px solid var(--line);
-          background: rgba(255, 250, 240, .94);
-          backdrop-filter: blur(16px);
-        }
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 13px;
-          color: inherit;
-          text-decoration: none;
-        }
-        .brand-mark {
-          width: 52px;
-          height: 52px;
-          display: grid;
-          place-items: center;
-          border: 3px solid var(--line);
-          border-radius: 18px 8px 18px 8px;
-          background: var(--red);
-          color: var(--cream);
-          box-shadow: 5px 5px 0 var(--gold);
-          font-family: "Archivo Black", Impact, sans-serif;
-          font-size: 19px;
-        }
-        .brand strong {
-          display: block;
-          font-family: "Archivo Black", Impact, sans-serif;
-          font-size: clamp(20px, 2.2vw, 34px);
-          line-height: .85;
-          letter-spacing: -.02em;
-          text-transform: uppercase;
-        }
-        .brand span span {
-          display: block;
-          margin-top: 5px;
-          color: #6f5540;
-          font-size: 11px;
-          font-weight: 950;
-          letter-spacing: .12em;
-          text-transform: uppercase;
-        }
-        nav {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        .top-tools {
-          display:flex;
-          align-items:center;
-          justify-content:flex-end;
-          flex-wrap:wrap;
-          gap: 10px;
-        }
-        .search-pill {
-          min-width: min(360px, 32vw);
-          min-height: 44px;
-          display:flex;
-          align-items:center;
-          gap: 10px;
-          padding: 0 16px;
-          border: 3px solid var(--line);
-          border-radius: 999px;
-          background: #fffdf6;
-          color: #6f5540;
-          font-size: 13px;
-          font-weight: 900;
-        }
-        .tool-chip {
-          min-height: 44px;
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
-          padding: 0 14px;
-          border: 3px solid var(--line);
-          border-radius: 999px;
-          background: var(--paper);
-          color: var(--ink);
-          font-size: 12px;
-          font-weight: 950;
-          text-transform: uppercase;
-          text-decoration:none;
-        }
-        main {
-          position: relative;
-          width: min(100%, 1480px);
-          margin: 0 auto;
-          padding: clamp(24px, 4vw, 58px) clamp(14px, 3vw, 34px) 72px;
-        }
-        h1, h2, h3 {
-          margin: 0;
-          font-family: "Archivo Black", Impact, sans-serif;
-          line-height: .86;
-          letter-spacing: -.03em;
-          text-transform: uppercase;
-        }
-        h1 {
-          max-width: 920px;
-          font-size: clamp(48px, 7.8vw, 128px);
-          overflow-wrap: break-word;
-          text-wrap: balance;
-        }
-        h2 { font-size: clamp(30px, 4vw, 62px); }
-        .eyebrow {
-          width: fit-content;
-          display: inline-flex;
-          align-items: center;
-          gap: 9px;
-          margin: 0 0 14px;
-          padding: 10px 15px;
-          border: 3px solid var(--line);
-          border-radius: 999px;
-          background: var(--mustard);
-          box-shadow: 5px 5px 0 var(--line);
-          font-size: 12px;
-          font-weight: 950;
-          line-height: 1;
-          letter-spacing: .08em;
-          text-transform: uppercase;
-        }
-        .eyebrow::before {
-          content:"";
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          background: var(--red);
-          box-shadow: 0 0 0 4px rgba(163, 49, 39, .16);
-        }
-        .topbar {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          align-items: end;
-          gap: 22px;
-          margin-bottom: clamp(24px, 4vw, 46px);
-        }
-        .hero-copy {
-          position: relative;
-          padding: clamp(20px, 3vw, 36px);
-          overflow: hidden;
-          border: 3px solid var(--line);
-          border-radius: 44px 18px 44px 18px;
-          background: rgba(255, 250, 240, .82);
-          box-shadow: var(--shadow);
-        }
-        .hero-copy::after {
-          content:"FREE";
-          position:absolute;
-          right: -10px;
-          bottom: -10px;
-          color: rgba(163, 49, 39, .08);
-          font-family: "Archivo Black", Impact, sans-serif;
-          font-size: clamp(76px, 12vw, 180px);
-          line-height: .7;
-          pointer-events:none;
-        }
-        .muted {
-          color: #6f5540;
-          font-weight: 800;
-        }
-        .button, button {
-          min-height: 48px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 0 22px;
-          border: 3px solid var(--line);
-          border-radius: 999px;
-          background: var(--red);
-          color: var(--cream);
-          box-shadow: 5px 5px 0 var(--line);
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-size: 13px;
-          font-weight: 950;
-          line-height: 1;
-          text-transform: uppercase;
-          text-decoration: none;
-          cursor: pointer;
-          transform: translate(0, 0);
-          transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
-        }
-        .button:hover, button:hover,
-        .button:focus-visible, button:focus-visible {
-          background: var(--red-deep);
-          transform: translate(3px, 3px);
-          box-shadow: 2px 2px 0 var(--line);
-          outline: none;
-        }
-        .button--gold { background: var(--mustard); color: var(--ink); }
-        .button--gold:hover, .button--gold:focus-visible { background: var(--gold); }
-        .button--ghost { background: var(--paper); color: var(--ink); }
-        .grid {
-          display:grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: clamp(12px, 1.8vw, 20px);
-          margin-bottom: clamp(34px, 5vw, 62px);
-        }
-        .grid > *,
-        .insight-grid > *,
-        .split-panels > * {
-          min-width: 0;
-        }
-        .card {
-          position: relative;
-          min-height: 174px;
-          padding: 25px;
-          overflow: hidden;
-          border: 3px solid var(--line);
-          border-radius: 30px 12px 30px 12px;
-          background: var(--paper);
-          box-shadow: 8px 8px 0 rgba(33, 21, 15, .18);
-        }
-        .card:nth-child(2) { background: var(--mustard); }
-        .card:nth-child(3) { background: #f7dca7; }
-        .card--blue { background:#3f7df2; color:#fffdf6; }
-        .card--teal { background:#0fb5bf; color:#fffdf6; }
-        .card--green { background:#4aaf50; color:#fffdf6; }
-        .card--dark { background:#172019; color:#fffdf6; }
-        .card--blue .muted,
-        .card--teal .muted,
-        .card--green .muted,
-        .card--dark .muted,
-        .card--blue .stat,
-        .card--teal .stat,
-        .card--green .stat,
-        .card--dark .stat {
-          color: inherit;
-        }
-        .card p { margin: 0; }
-        .card .muted {
-          color: var(--ink);
-          font-size: 12px;
-          letter-spacing: .1em;
-          text-transform: uppercase;
-        }
-        .stat {
-          margin-top: 18px;
-          color: var(--red);
-          font-family: "Archivo Black", Impact, sans-serif;
-          font-size: clamp(46px, 6vw, 82px);
-          line-height: .78;
-          letter-spacing: -.05em;
-        }
-        .card:nth-child(2) .stat { color: var(--ink); }
-        .card::after {
-          content:"";
-          position:absolute;
-          right: -28px;
-          bottom: -28px;
-          width: 94px;
-          height: 94px;
-          border: 16px solid rgba(33, 21, 15, .08);
-          border-radius: 50%;
-        }
-        .section-head {
-          display:flex;
-          justify-content:space-between;
-          align-items:flex-end;
-          gap:18px;
-          margin: clamp(26px, 5vw, 54px) 0 16px;
-        }
-        .panel {
-          max-width: 100%;
-          overflow: hidden;
-          border: 3px solid var(--line);
-          border-radius: 34px 14px 34px 14px;
-          background: rgba(255, 250, 240, .9);
-          box-shadow: 10px 10px 0 rgba(33, 21, 15, .14);
-        }
-        .filters {
-          margin: 0 0 clamp(28px, 4vw, 46px);
-          padding: clamp(16px, 2.6vw, 28px);
-          border: 3px solid var(--line);
-          border-radius: 30px 12px 30px 12px;
-          background: rgba(255, 250, 240, .92);
-          box-shadow: 8px 8px 0 rgba(33, 21, 15, .14);
-        }
-        .filters h2 {
-          margin-bottom: 18px;
-          font-size: clamp(24px, 3vw, 42px);
-        }
-        .filter-grid {
-          display:grid;
-          grid-template-columns: repeat(6, minmax(0, 1fr));
-          gap: 12px;
-          align-items:end;
-        }
-        .filter-grid label {
-          margin: 0;
-        }
-        .filter-grid .wide {
-          grid-column: span 2;
-        }
-        .filter-actions {
-          display:flex;
-          flex-wrap:wrap;
-          gap:10px;
-          align-items:center;
-        }
-        .insight-grid {
-          display:grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 14px;
-          margin-bottom: clamp(34px, 5vw, 62px);
-        }
-        .insight {
-          padding: 18px;
-          border: 2px solid rgba(36, 23, 15, .22);
-          border-radius: 22px 10px 22px 10px;
-          background: rgba(255, 250, 240, .74);
-        }
-        .insight span {
-          display:block;
-          color:#6f5540;
-          font-size: 11px;
-          font-weight: 950;
-          letter-spacing:.08em;
-          text-transform:uppercase;
-        }
-        .insight strong {
-          display:block;
-          margin-top: 10px;
-          color: var(--red);
-          font-family: "Archivo Black", Impact, sans-serif;
-          font-size: clamp(24px, 3vw, 42px);
-          line-height: .9;
-          letter-spacing: -.03em;
-        }
-        .split-panels {
-          display:grid;
-          grid-template-columns: 1fr 1fr;
-          gap: clamp(14px, 2vw, 22px);
-          margin-bottom: clamp(30px, 5vw, 58px);
-        }
-        .compact-table td,
-        .compact-table th {
-          padding: 13px 14px;
-        }
-        .bar {
-          height: 12px;
-          overflow:hidden;
-          border: 2px solid var(--line);
-          border-radius: 999px;
-          background: #fffdf6;
-        }
-        .bar span {
-          display:block;
-          height:100%;
-          background: var(--red);
-        }
-        .ops-grid {
-          display:grid;
-          grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr);
-          gap: clamp(14px, 2vw, 22px);
-          margin-bottom: clamp(30px, 5vw, 58px);
-        }
-        .panel-pad {
-          padding: clamp(16px, 2.4vw, 26px);
-        }
-        .panel-title {
-          display:flex;
-          align-items:flex-start;
-          justify-content:space-between;
-          gap:16px;
-          margin-bottom: 18px;
-        }
-        .panel-title h2 {
-          font-size: clamp(24px, 3vw, 42px);
-        }
-        .ops-list {
-          display:grid;
-          gap: 12px;
-        }
-        .ops-item {
-          display:grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
-          align-items:center;
-          gap: 14px;
-          padding: 14px;
-          border: 2px solid rgba(36, 23, 15, .18);
-          border-radius: 18px 8px 18px 8px;
-          background: rgba(255, 253, 246, .78);
-        }
-        .ops-icon {
-          width: 42px;
-          height: 42px;
-          display:grid;
-          place-items:center;
-          border: 3px solid var(--line);
-          border-radius: 14px 6px 14px 6px;
-          background: var(--mustard);
-          font-weight: 950;
-        }
-        .ops-item strong {
-          display:block;
-          font-size: 15px;
-          font-weight: 950;
-          text-transform: uppercase;
-        }
-        .ops-item span {
-          display:block;
-          margin-top: 3px;
-          color:#6f5540;
-          font-size: 12px;
-          font-weight: 850;
-        }
-        .mini-chart {
-          display:grid;
-          grid-template-columns: repeat(12, minmax(10px, 1fr));
-          align-items:end;
-          gap: 8px;
-          height: 176px;
-          padding: 18px;
-          border: 2px solid rgba(36, 23, 15, .18);
-          border-radius: 22px 10px 22px 10px;
-          background: linear-gradient(180deg, rgba(240, 191, 57, .12), rgba(255, 253, 246, .7));
-        }
-        .mini-chart span {
-          min-height: 6px;
-          border: 2px solid var(--line);
-          border-radius: 999px 999px 4px 4px;
-          background: var(--red);
-        }
-        .ratio-stack {
-          display:grid;
-          gap: 14px;
-        }
-        .ratio-row {
-          display:grid;
-          gap: 7px;
-        }
-        .ratio-row > div:first-child {
-          display:flex;
-          justify-content:space-between;
-          gap: 12px;
-          color:#5c4534;
-          font-size: 12px;
-          font-weight: 950;
-          letter-spacing:.06em;
-          text-transform: uppercase;
-        }
-        table {
-          width:100%;
-          border-collapse: collapse;
-          background: transparent;
-        }
-        th, td {
-          padding: 17px 18px;
-          border-bottom: 2px solid rgba(36, 23, 15, .12);
-          text-align:left;
-          vertical-align:middle;
-        }
-        th {
-          background: var(--dark);
-          color: var(--cream);
-          font-size: 11px;
-          font-weight: 950;
-          letter-spacing: .12em;
-          text-transform: uppercase;
-        }
-        td strong {
-          display:block;
-          font-size: 17px;
-          font-weight: 950;
-          text-transform: uppercase;
-        }
-        tbody tr:hover { background: rgba(240, 191, 57, .12); }
-        .status {
-          min-width: 78px;
-          display:inline-flex;
-          justify-content:center;
-          padding: 9px 12px;
-          border: 2px solid var(--line);
-          border-radius: 999px;
-          background: var(--paper);
-          color: var(--ink);
-          font-size: 11px;
-          font-weight: 950;
-          letter-spacing: .06em;
-          text-transform: uppercase;
-        }
-        .status--live, .status--active, .status--paid { background: var(--sage); color: var(--cream); }
-        .status--drawn, .status--winner { background: var(--mustard); color: var(--ink); }
-        .status--void, .status--cancelled, .status--refunded { background: var(--red); color: var(--cream); }
-        form:not(.inline-form) {
-          max-width: 760px;
-          padding: clamp(18px, 3vw, 34px);
-          border: 3px solid var(--line);
-          border-radius: 38px 14px 38px 14px;
-          background: var(--paper);
-          box-shadow: var(--shadow);
-        }
-        .inline-form {
-          padding: 0;
-          margin: 0;
-          border: 0;
-          background: transparent;
-        }
-        label {
-          display:block;
-          margin-bottom: 14px;
-          color:#5c4534;
-          font-size: 12px;
-          font-weight: 950;
-          letter-spacing: .08em;
-          text-transform: uppercase;
-        }
-        input, textarea, select {
-          width:100%;
-          min-height: 50px;
-          margin: 8px 0 0;
-          padding: 13px 15px;
-          border: 3px solid var(--line);
-          border-radius: 18px;
-          background: #fffdf6;
-          color: var(--ink);
-          font: inherit;
-          font-weight: 800;
-        }
-        input:focus, textarea:focus, select:focus {
-          outline: 4px solid rgba(210, 169, 71, .38);
-        }
-        .form-actions {
-          display:flex;
-          flex-wrap:wrap;
-          gap:12px;
-          margin-top: 22px;
-        }
-        .empty {
-          padding: 28px;
-          color:#6f5540;
-          font-weight: 850;
-        }
+adminRouter.get("/", (_req, res) => {
+  const metrics = getMetrics();
+  const { totals, orderTotals } = metrics;
+  const sourceRows = db.prepare("SELECT source, COUNT(*) AS count FROM lottery_entries GROUP BY source ORDER BY count DESC").all();
+  const statusRows = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_entries GROUP BY status ORDER BY count DESC").all();
+  const latestDraws = db.prepare(`
+    SELECT d.*, COUNT(e.id) AS entry_count
+    FROM lottery_draws d
+    LEFT JOIN lottery_entries e ON e.draw_id = d.id
+    GROUP BY d.id
+    ORDER BY d.created_at DESC
+    LIMIT 5
+  `).all();
+  const opsItems = [
+    ["OR", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, metrics.eligibleWithoutEntry ? "Ordersynchronisatie controleren" : "Geen actie nodig", metrics.eligibleWithoutEntry ? "Controle" : "Goed"],
+    ["WA", `${metrics.liveDraws} live winactie(s)`, metrics.liveDrawsWithoutEntries ? `${metrics.liveDrawsWithoutEntries} zonder loten` : `${metrics.activeLiveEntries} actieve loten`, metrics.liveDraws ? "Live" : "Maak"],
+    ["CP", `${percent(totals.free_entries || 0, totals.total_entries || 0)} gratis deelname`, "Gratis route zichtbaar houden voor compliance", "Monitoren"]
+  ];
 
-        /* Admin clarity pass: keep brand accents, prioritize scan speed and scale. */
-        :root {
-          --cream:#f9fafb;
-          --cream-2:#eef2f7;
-          --paper:#ffffff;
-          --ink:#111827;
-          --red:#b42318;
-          --red-deep:#8a1c13;
-          --gold:#d39a17;
-          --mustard:#f5c451;
-          --sage:#157347;
-          --line:#d8dee8;
-          --dark:#111827;
-          --muted:#6b7280;
-          --soft:#f3f5f8;
-          --shadow: 0 10px 26px rgba(17, 24, 39, .08);
-        }
-        html { background: var(--soft); }
-        body {
-          color: var(--ink);
-          background: var(--soft);
-          font-weight: 600;
-        }
-        body::before { display:none; }
-        .app-shell {
-          grid-template-columns: 260px minmax(0, 1fr);
-        }
-        .sidebar {
-          padding: 20px 14px;
-          border-right: 1px solid #1f2937;
-          background: #111827;
-          color: #f9fafb;
-        }
-        .sidebar-brand {
-          gap: 10px;
-          margin-bottom: 24px;
-          padding: 0 6px;
-        }
-        .sidebar-mark,
-        .brand-mark {
-          width: 38px;
-          height: 38px;
-          border: 0;
-          border-radius: 8px;
-          background: var(--red);
-          box-shadow: none;
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-size: 13px;
-          font-weight: 900;
-        }
-        .sidebar-brand strong,
-        .brand strong {
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-size: 17px;
-          line-height: 1.02;
-          letter-spacing: 0;
-        }
-        .sidebar-brand span span,
-        .brand span span {
-          color: rgba(249, 250, 251, .58);
-          font-size: 10px;
-          letter-spacing: .08em;
-        }
-        .brand span span { color: var(--muted); }
-        .menu-group { margin: 22px 0 0; }
-        .menu-title {
-          margin-left: 8px;
-          color: rgba(249, 250, 251, .48);
-          font-size: 10px;
-          letter-spacing: .1em;
-        }
-        .menu-link {
-          min-height: 38px;
-          padding: 8px 10px;
-          border: 0;
-          border-radius: 8px;
-          color: rgba(249, 250, 251, .74);
-          font-size: 13px;
-          font-weight: 750;
-        }
-        .menu-link:hover,
-        .menu-link:focus-visible,
-        .menu-link--active {
-          background: rgba(255, 255, 255, .08);
-          color: #fff;
-        }
-        .menu-icon {
-          width: 24px;
-          height: 24px;
-          border: 0;
-          border-radius: 7px;
-          background: rgba(255, 255, 255, .08);
-          color: #f5c451;
-          font-size: 9px;
-        }
-        .menu-count {
-          background: var(--gold);
-          font-size: 10px;
-        }
-        .announce { display:none; }
-        header {
-          min-height: 64px;
-          padding: 12px 24px;
-          border-bottom: 1px solid var(--line);
-          background: rgba(255, 255, 255, .94);
-          box-shadow: 0 1px 0 rgba(17, 24, 39, .04);
-        }
-        .brand { gap: 10px; }
-        .top-tools { gap: 8px; }
-        .search-pill,
-        .tool-chip {
-          min-height: 38px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          background: #fff;
-          color: var(--muted);
-          font-size: 12px;
-          font-weight: 750;
-          text-transform: none;
-        }
-        main {
-          width: min(100%, 1440px);
-          padding: 26px clamp(18px, 3vw, 34px) 56px;
-        }
-        h1, h2, h3 {
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          line-height: 1.05;
-          letter-spacing: 0;
-          text-transform: none;
-        }
-        h1 {
-          max-width: 760px;
-          font-size: clamp(32px, 4vw, 48px);
-          font-weight: 900;
-        }
-        h2 {
-          font-size: clamp(20px, 2vw, 28px);
-          font-weight: 900;
-        }
-        .eyebrow {
-          margin-bottom: 8px;
-          padding: 0;
-          border: 0;
-          border-radius: 0;
-          background: transparent;
-          box-shadow: none;
-          color: var(--red);
-          font-size: 11px;
-          letter-spacing: .08em;
-        }
-        .eyebrow::before { display:none; }
-        .topbar {
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-        .hero-copy {
-          padding: 0;
-          border: 0;
-          border-radius: 0;
-          background: transparent;
-          box-shadow: none;
-        }
-        .hero-copy::after { display:none; }
-        .muted { color: var(--muted); font-weight: 650; }
-        .button, button {
-          min-height: 38px;
-          padding: 0 14px;
-          border: 1px solid var(--red);
-          border-radius: 8px;
-          background: var(--red);
-          color: #fff;
-          box-shadow: none;
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 0;
-          text-transform: none;
-          transition: background 160ms ease, border-color 160ms ease;
-        }
-        .button:hover, button:hover,
-        .button:focus-visible, button:focus-visible {
-          background: var(--red-deep);
-          border-color: var(--red-deep);
-          transform: none;
-          box-shadow: none;
-        }
-        .button--gold {
-          background: #fff7db;
-          border-color: #e7c76f;
-          color: #5b3b00;
-        }
-        .button--gold:hover,
-        .button--gold:focus-visible {
-          background: #ffefb6;
-          border-color: #d39a17;
-        }
-        .button--ghost {
-          background: #fff;
-          border-color: var(--line);
-          color: var(--ink);
-        }
-        .grid,
-        .insight-grid,
-        .split-panels,
-        .ops-grid {
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        .card,
-        .insight,
-        .panel,
-        .filters {
-          border: 1px solid var(--line);
-          border-radius: 10px;
-          background: #fff;
-          box-shadow: none;
-        }
-        .card {
-          min-height: 128px;
-          padding: 18px;
-          border-top: 3px solid var(--red);
-        }
-        .card:nth-child(2),
-        .card:nth-child(3),
-        .card--blue,
-        .card--teal,
-        .card--green,
-        .card--dark {
-          background: #fff;
-          color: var(--ink);
-        }
-        .card--teal { border-top-color:#0ea5a9; }
-        .card--green { border-top-color:#16a34a; }
-        .card--dark { border-top-color:#111827; }
-        .card .muted,
-        .card--blue .muted,
-        .card--teal .muted,
-        .card--green .muted,
-        .card--dark .muted {
-          color: var(--muted);
-          font-size: 12px;
-          letter-spacing: .04em;
-        }
-        .stat,
-        .card:nth-child(2) .stat,
-        .card--blue .stat,
-        .card--teal .stat,
-        .card--green .stat,
-        .card--dark .stat {
-          margin-top: 12px;
-          color: var(--ink);
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-size: clamp(28px, 3.5vw, 42px);
-          line-height: 1;
-          letter-spacing: 0;
-        }
-        .card::after { display:none; }
-        .section-head {
-          margin: 30px 0 12px;
-          align-items:center;
-        }
-        .filters {
-          padding: 18px;
-        }
-        .filters h2,
-        .panel-title h2 {
-          margin-bottom: 12px;
-          font-size: clamp(20px, 2vw, 26px);
-        }
-        .filter-grid {
-          gap: 12px;
-        }
-        .insight {
-          padding: 16px;
-        }
-        .insight span {
-          color: var(--muted);
-          font-size: 11px;
-          letter-spacing: .04em;
-        }
-        .insight strong {
-          margin-top: 8px;
-          color: var(--ink);
-          font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-          font-size: clamp(22px, 2vw, 30px);
-          line-height: 1;
-          letter-spacing: 0;
-        }
-        .panel-pad {
-          padding: 18px;
-        }
-        .panel-title {
-          margin-bottom: 14px;
-        }
-        .ops-item {
-          gap: 12px;
-          padding: 12px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          background: #fff;
-        }
-        .ops-icon {
-          width: 34px;
-          height: 34px;
-          border: 0;
-          border-radius: 8px;
-          background: #fff4d6;
-          color: #704900;
-          font-size: 11px;
-        }
-        .ops-item strong {
-          font-size: 13px;
-          font-weight: 850;
-          text-transform: none;
-        }
-        .ops-item span {
-          color: var(--muted);
-          font-size: 12px;
-          font-weight: 650;
-        }
-        .mini-chart {
-          height: 160px;
-          padding: 14px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          background: #f8fafc;
-        }
-        .mini-chart span {
-          border: 0;
-          border-radius: 6px 6px 2px 2px;
-          background: #b42318;
-        }
-        .bar {
-          height: 8px;
-          border: 0;
-          background: #e5e7eb;
-        }
-        .bar span {
-          background: #b42318;
-        }
-        .ratio-row > div:first-child {
-          color: var(--muted);
-          font-size: 12px;
-          letter-spacing: .03em;
-        }
-        th, td {
-          padding: 12px 14px;
-          border-bottom: 1px solid #eef0f4;
-          font-size: 13px;
-        }
-        th {
-          background: #f8fafc;
-          color: #4b5563;
-          font-size: 11px;
-          letter-spacing: .05em;
-        }
-        td strong {
-          font-size: 14px;
-          font-weight: 850;
-          text-transform: none;
-        }
-        tbody tr:hover { background: #faf7f2; }
-        .status {
-          min-width: 0;
-          padding: 5px 9px;
-          border: 1px solid var(--line);
-          border-radius: 999px;
-          background: #f8fafc;
-          color: #374151;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0;
-          text-transform: none;
-        }
-        .status--live,
-        .status--active,
-        .status--paid {
-          background: #ecfdf3;
-          border-color: #bbf7d0;
-          color: #166534;
-        }
-        .status--drawn,
-        .status--winner {
-          background: #fff7db;
-          border-color: #fde68a;
-          color: #7a4b00;
-        }
-        .status--void,
-        .status--cancelled,
-        .status--refunded {
-          background: #fef3f2;
-          border-color: #fecaca;
-          color: #991b1b;
-        }
-        form:not(.inline-form) {
-          border: 1px solid var(--line);
-          border-radius: 10px;
-          background: #fff;
-          box-shadow: none;
-        }
-        label {
-          color: #4b5563;
-          font-size: 11px;
-          letter-spacing: .04em;
-        }
-        input, textarea, select {
-          min-height: 40px;
-          margin-top: 6px;
-          padding: 9px 10px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          background: #fff;
-          font-size: 13px;
-          font-weight: 650;
-        }
-        input:focus, textarea:focus, select:focus {
-          outline: 3px solid rgba(180, 35, 24, .12);
-          border-color: var(--red);
-        }
-        @media (max-width: 1200px) {
-          .grid,
-          .insight-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .search-pill {
-            min-width: min(280px, 30vw);
-          }
-        }
-        @media (max-width: 900px) {
-          .app-shell { grid-template-columns: 1fr; }
-          .sidebar {
-            position: relative;
-            height: auto;
-            display: block;
-            padding: 16px;
-            border-right: 0;
-            border-bottom: 3px solid var(--line);
-          }
-          .menu-group {
-            display:grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 6px;
-            margin-top: 14px;
-          }
-          .menu-title { grid-column: 1 / -1; }
-          header { border-radius: 0 0 28px 28px; align-items:flex-start; }
-          .topbar { grid-template-columns: 1fr; align-items:start; }
-          .grid, .insight-grid, .split-panels, .ops-grid { grid-template-columns: 1fr; }
-          .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .filter-grid .wide { grid-column: span 2; }
-          .section-head { display:block; }
-          .panel { overflow-x:auto; }
-          table { min-width: 760px; }
-        }
-        @media (max-width: 560px) {
-          .announce { font-size: 10px; }
-          header { padding: 14px; gap: 10px; align-items:stretch; flex-direction:column; }
-          .top-tools { justify-content:flex-start; }
-          .search-pill { min-width: 100%; }
-          .brand-mark { width: 44px; height:44px; }
-          nav .button { min-height: 42px; padding: 0 14px; font-size: 11px; }
-          main { padding-inline: 10px; }
-          .hero-copy { border-radius: 30px 12px 30px 12px; }
-          h1 { font-size: clamp(34px, 10vw, 40px); line-height: .9; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="app-shell">
-        <aside class="sidebar" aria-label="Meat For Free admin menu">
-          <a class="sidebar-brand" href="/admin" aria-label="Meat For Free dashboard">
-            <span class="sidebar-mark">MFF</span>
-            <span><strong>Meat For<br>Free</strong><span>Control room</span></span>
-          </a>
-          <div class="menu-group">
-            <p class="menu-title">Run vandaag</p>
-            <a class="menu-link menu-link--active" href="/admin#overview"><span class="menu-left"><span class="menu-icon">OV</span>Overview</span><span class="menu-count">1</span></a>
-            <a class="menu-link" href="/admin#winacties"><span class="menu-left"><span class="menu-icon">WA</span>Winacties</span></a>
-            <a class="menu-link" href="/admin#lotactiviteit"><span class="menu-left"><span class="menu-icon">LT</span>Loten</span></a>
-            <a class="menu-link" href="/admin#orders"><span class="menu-left"><span class="menu-icon">OR</span>Orders</span></a>
-          </div>
-          <div class="menu-group">
-            <p class="menu-title">Controle</p>
-            <a class="menu-link" href="/admin#deelnemers"><span class="menu-left"><span class="menu-icon">KL</span>Deelnemers</span></a>
-            <a class="menu-link" href="/admin#compliance"><span class="menu-left"><span class="menu-icon">CP</span>Compliance</span></a>
-            <a class="menu-link" href="/admin#sync"><span class="menu-left"><span class="menu-icon">SY</span>Sync jobs</span></a>
-            <a class="menu-link" href="/api/draws/live"><span class="menu-left"><span class="menu-icon">API</span>Live API</span></a>
-          </div>
-          <div class="menu-group">
-            <p class="menu-title">Acties</p>
-            <a class="menu-link" href="/admin/new-draw"><span class="menu-left"><span class="menu-icon">+</span>Nieuwe winactie</span></a>
-            <a class="menu-link" href="/embed/demo"><span class="menu-left"><span class="menu-icon">EM</span>Embed preview</span></a>
-          </div>
-        </aside>
-        <div class="content-shell">
-          <div class="announce">Meat For Free control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
-          <header>
-            <a class="brand" href="/admin" aria-label="Meat For Free dashboard">
-              <span class="brand-mark">MFF</span>
-              <span><strong>Meat For<br>Free</strong><span>Lottery app</span></span>
-            </a>
-            <div class="top-tools">
-              <a class="search-pill" href="/admin#filters">Search orders, loten, klanten</a>
-              <a class="tool-chip" href="/api/draws/live">Live API</a>
-              <a class="tool-chip" href="/embed/demo">Embed</a>
-            </div>
-          </header>
-          <main>${body}</main>
+  res.send(page("Overzicht | Meat For Free", "overzicht", `
+    ${topbar("Overzicht", "Sturing op loten, omzet en winacties.", "Eerste scherm voor dagelijkse controle: wat loopt, wat groeit, wat vraagt actie.", `<a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>`)}
+    ${kpiGrid([
+      { label: "Actieve loten", value: metrics.activeLiveEntries || 0, help: `${totals.total_entries || 0} loten totaal in de database.` },
+      { label: "Deelnemers", value: totals.participating_customers || 0, help: `${percent(totals.free_entries || 0, totals.total_entries || 0)} via gratis deelname.` },
+      { label: "Geschikte orders", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: `${orderTotals.eligible_orders || 0} orders vanaf €70.` },
+      { label: "Omzet in app", value: formatEuro(orderTotals.gross_cents || 0), help: `${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.` }
+    ])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Trend</p><h2>Lotvolume per maand</h2></div><span class="status status--active">${metrics.recentEntries} laatste 7 dagen</span></div>
+        ${monthChart()}
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Actielijst</p><h2>Vandaag belangrijk</h2></div></div>
+        <div class="stack">
+          ${opsItems.map(([icon, title, body, badge]) => `<div class="ops-item"><span class="ops-icon">${icon}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></div>`).join("")}
         </div>
       </div>
-    </body>
-  </html>`;
-}
+    </section>
+    <section class="grid grid-2">
+      ${breakdownPanel("Loten per bron", sourceRows, totals.total_entries || 0, "source")}
+      ${breakdownPanel("Loten per status", statusRows, totals.total_entries || 0)}
+    </section>
+    <div class="section-head"><h2>Laatste winacties</h2><a class="button button--ghost" href="/admin/winacties">Alle winacties</a></div>
+    <div class="panel">${drawTable(latestDraws)}</div>
+  `));
+});
 
-adminRouter.get("/", async (req, res) => {
-  const entryFilter = buildEntryFilter(req);
-  const orderFilter = buildOrderFilter(req);
+adminRouter.get("/winacties", (req, res) => {
+  const status = textParam(req.query.status);
+  const q = textParam(req.query.q);
+  const where = [];
+  const params = [];
+  if (status) {
+    where.push("d.status = ?");
+    params.push(status);
+  }
+  if (q) {
+    where.push("(d.title LIKE ? OR d.slug LIKE ? OR d.prize_name LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
   const draws = db.prepare(`
-    SELECT d.*,
-      (SELECT COUNT(*) FROM lottery_entries e WHERE e.draw_id = d.id) AS entry_count,
-      we.entry_number AS winner_entry_number,
-      wc.email AS winner_email
+    SELECT d.*, COUNT(e.id) AS entry_count, we.entry_number AS winner_entry_number, wc.email AS winner_email
     FROM lottery_draws d
+    LEFT JOIN lottery_entries e ON e.draw_id = d.id
     LEFT JOIN lottery_entries we ON we.id = d.winner_entry_id
     LEFT JOIN customers wc ON wc.id = we.customer_id
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    GROUP BY d.id
     ORDER BY d.created_at DESC
-    LIMIT 12
-  `).all();
+  `).all(...params);
+  const rowsByStatus = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_draws GROUP BY status ORDER BY count DESC").all();
 
-  const totals = db.prepare(`
-    SELECT
-      COUNT(*) AS total_entries,
-      SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_entries,
-      SUM(CASE WHEN status = 'WINNER' THEN 1 ELSE 0 END) AS winners,
-      SUM(CASE WHEN status = 'VOID' THEN 1 ELSE 0 END) AS void_entries,
-      SUM(CASE WHEN source = 'FREE_ENTRY' THEN 1 ELSE 0 END) AS free_entries,
-      SUM(CASE WHEN source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries,
-      COUNT(DISTINCT customer_id) AS participating_customers
-    FROM lottery_entries
-  `).get();
-  const orderTotals = db.prepare(`
-    SELECT
-      COUNT(*) AS total_orders,
-      SUM(total_cents) AS gross_cents,
-      AVG(total_cents) AS avg_cents,
-      SUM(CASE WHEN total_cents >= 7000 THEN 1 ELSE 0 END) AS eligible_orders
-    FROM orders
-  `).get();
-  const liveDraws = db.prepare("SELECT COUNT(*) AS count FROM lottery_draws WHERE status = 'LIVE'").get().count;
-  const recentEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE datetime(created_at) >= datetime('now', '-7 days')").get().count;
-  const todayOrders = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE date(created_at) = date('now')").get().count;
-  const filteredEntryCount = db.prepare(`
-    SELECT COUNT(*) AS count
+  res.send(page("Winacties | Meat For Free", "winacties", `
+    ${topbar("Winacties", "Beheer alle winacties.", "Maak acties aan, pas prijzen of timing aan, zet acties live en trek winnaars.", `<a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>`)}
+    ${kpiGrid([
+      { label: "Winacties", value: draws.length, help: "Binnen de huidige filters." },
+      { label: "Live acties", value: rowsByStatus.find((row) => row.status === "LIVE")?.count || 0, help: "Actief zichtbaar voor klanten." },
+      { label: "Getrokken", value: rowsByStatus.find((row) => row.status === "DRAWN")?.count || 0, help: "Acties met winnaar." },
+      { label: "Concepten", value: rowsByStatus.find((row) => row.status === "DRAFT")?.count || 0, help: "Nog niet live." }
+    ])}
+    <section class="filters">
+      <form method="get" action="/admin/winacties" class="filter-grid">
+        <label class="wide">Zoek winactie<input name="q" value="${escapeHtml(q)}" placeholder="Titel, slug of prijs"></label>
+        <label>Status<select name="status">${option("", status, "Alle statussen")}${drawStatuses.map((item) => option(item, status, statusLabel(item))).join("")}</select></label>
+        <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/winacties">Reset</a></div>
+      </form>
+    </section>
+    <div class="panel">${drawTable(draws)}</div>
+  `));
+});
+
+adminRouter.get("/winacties/:id", (req, res) => {
+  const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
+  if (!draw) return res.status(404).send(page("Niet gevonden", "winacties", topbar("Niet gevonden", "Winactie niet gevonden.", "", `<a class="button button--ghost" href="/admin/winacties">Terug</a>`)));
+  const counts = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_entries WHERE draw_id = ? GROUP BY status").all(draw.id);
+  const entries = db.prepare(`
+    SELECT e.entry_number, e.status, e.source, e.created_at, c.email, o.order_name
     FROM lottery_entries e
-    JOIN lottery_draws d ON d.id = e.draw_id
     LEFT JOIN customers c ON c.id = e.customer_id
     LEFT JOIN orders o ON o.id = e.order_id
-    ${entryFilter.whereSql}
-  `).get(...entryFilter.params).count;
-  const filteredOrderCount = db.prepare(`
-    SELECT COUNT(*) AS count, SUM(o.total_cents) AS total_cents
-    FROM orders o
-    LEFT JOIN customers c ON c.id = o.customer_id
-    ${orderFilter.whereSql}
-  `).get(...orderFilter.params);
+    WHERE e.draw_id = ?
+    ORDER BY e.created_at DESC
+    LIMIT 40
+  `).all(draw.id);
 
-  const orders = db.prepare(`
-    SELECT o.*, c.email AS customer_email, COUNT(e.id) AS entry_count
-    FROM orders o
-    LEFT JOIN customers c ON c.id = o.customer_id
-    LEFT JOIN lottery_entries e ON e.order_id = o.id
-    ${orderFilter.whereSql}
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
-    LIMIT 25
-  `).all(...orderFilter.params);
-  const activity = db.prepare(`
+  res.send(page(`${draw.title} | Meat For Free`, "winacties", `
+    ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a><a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`)}
+    ${kpiGrid([
+      { label: "Status", value: statusBadge(draw.status), help: "Huidige publicatiestatus." },
+      { label: "Actieve loten", value: counts.find((row) => row.status === "ACTIVE")?.count || 0, help: "Geldige loten voor trekking." },
+      { label: "Winnaars", value: counts.find((row) => row.status === "WINNER")?.count || 0, help: "Normaal 0 of 1." },
+      { label: "Ongeldig", value: counts.find((row) => row.status === "VOID")?.count || 0, help: "Terugbetalingen en annuleringen." }
+    ])}
+    <section class="panel panel-pad">
+      <div class="panel-title"><h2>Instellingen</h2></div>
+      ${drawForm(draw, `/admin/winacties/${escapeHtml(draw.id)}/update`, "Wijzigingen opslaan")}
+    </section>
+    <div class="section-head"><h2>Recente loten</h2>${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek winnaar</button></form>` : ""}</div>
+    <div class="panel">${entriesTable(entries)}</div>
+  `));
+});
+
+adminRouter.get("/new-draw", (_req, res) => {
+  res.send(page("Nieuwe winactie | Meat For Free", "nieuw", `
+    ${topbar("Nieuwe winactie", "Maak een winactie aan.", "Zet hem eerst op concept of direct live wanneer alles klaar staat.", `<a class="button button--ghost" href="/admin/winacties">Terug</a>`)}
+    <section class="panel panel-pad">${drawForm(null, "/admin/draws", "Winactie aanmaken")}</section>
+  `));
+});
+
+adminRouter.post("/draws", urlencoded, async (req, res) => {
+  await createDraw({
+    title: textParam(req.body.title),
+    slug: textParam(req.body.slug) || undefined,
+    prizeName: textParam(req.body.prizeName),
+    prizeValue: textParam(req.body.prizeValue),
+    description: textParam(req.body.description),
+    startsAt: maybeIsoDate(req.body.startsAt),
+    endsAt: maybeIsoDate(req.body.endsAt),
+    drawAt: maybeIsoDate(req.body.drawAt),
+    status: drawStatuses.includes(req.body.status) ? req.body.status : "DRAFT"
+  });
+  res.redirect("/admin/winacties");
+});
+
+adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
+  const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
+  if (!draw) return res.status(404).send("Winactie niet gevonden");
+  const status = drawStatuses.includes(req.body.status) ? req.body.status : draw.status;
+  db.prepare(`
+    UPDATE lottery_draws
+    SET title = ?, slug = ?, description = ?, prize_name = ?, prize_value = ?, starts_at = ?, ends_at = ?, draw_at = ?, status = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    textParam(req.body.title),
+    textParam(req.body.slug) || draw.slug,
+    textParam(req.body.description),
+    textParam(req.body.prizeName),
+    textParam(req.body.prizeValue),
+    maybeIsoDate(req.body.startsAt) || draw.starts_at,
+    maybeIsoDate(req.body.endsAt),
+    maybeIsoDate(req.body.drawAt),
+    status,
+    nowIso(),
+    draw.id
+  );
+  res.redirect(`/admin/winacties/${draw.id}`);
+});
+
+adminRouter.get("/loten", (req, res) => {
+  const filter = entryFilter(req);
+  const entries = db.prepare(`
     SELECT e.entry_number, e.source, e.status, e.created_at, d.title AS draw_title, c.email, o.order_name
     FROM lottery_entries e
     JOIN lottery_draws d ON d.id = e.draw_id
     LEFT JOIN customers c ON c.id = e.customer_id
     LEFT JOIN orders o ON o.id = e.order_id
-    ${entryFilter.whereSql}
+    ${filter.whereSql}
     ORDER BY e.created_at DESC
-    LIMIT 40
-  `).all(...entryFilter.params);
-  const topCustomers = db.prepare(`
-    SELECT c.email, c.first_name, c.last_name, COUNT(e.id) AS entry_count,
-      SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_count
-    FROM customers c
-    JOIN lottery_entries e ON e.customer_id = c.id
-    GROUP BY c.id
-    ORDER BY entry_count DESC, c.updated_at DESC
-    LIMIT 8
-  `).all();
-  const sourceBreakdown = db.prepare(`
-    SELECT source, COUNT(*) AS count
-    FROM lottery_entries
-    GROUP BY source
-    ORDER BY count DESC
-  `).all();
-  const statusBreakdown = db.prepare(`
-    SELECT status, COUNT(*) AS count
-    FROM lottery_entries
-    GROUP BY status
-    ORDER BY count DESC
-  `).all();
-  const drawStatusBreakdown = db.prepare(`
-    SELECT status, COUNT(*) AS count
-    FROM lottery_draws
-    GROUP BY status
-    ORDER BY count DESC
-  `).all();
-  const maxSourceCount = Math.max(1, ...sourceBreakdown.map((row) => row.count));
-  const maxStatusCount = Math.max(1, ...statusBreakdown.map((row) => row.count), ...drawStatusBreakdown.map((row) => row.count));
-  const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
-  const sources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
-  const drawStatuses = ["LIVE", "DRAFT", "DRAWN", "ARCHIVED"];
-  const orderStatuses = db.prepare(`
-    SELECT DISTINCT financial_status AS status
-    FROM orders
-    WHERE financial_status IS NOT NULL AND financial_status != ''
-    ORDER BY financial_status ASC
-  `).all();
-  const eligibleWithoutEntry = db.prepare(`
-    SELECT COUNT(*) AS count
-    FROM orders o
-    LEFT JOIN lottery_entries e ON e.order_id = o.id
-    WHERE o.total_cents >= 7000 AND e.id IS NULL
-  `).get().count;
-  const activeLiveEntries = db.prepare(`
+    LIMIT 120
+  `).all(...filter.params);
+  const count = db.prepare(`
     SELECT COUNT(*) AS count
     FROM lottery_entries e
     JOIN lottery_draws d ON d.id = e.draw_id
-    WHERE e.status = 'ACTIVE' AND d.status = 'LIVE'
-  `).get().count;
-  const liveDrawsWithoutEntries = db.prepare(`
-    SELECT COUNT(*) AS count
-    FROM lottery_draws d
-    WHERE d.status = 'LIVE'
-      AND NOT EXISTS (SELECT 1 FROM lottery_entries e WHERE e.draw_id = d.id)
-  `).get().count;
-  const latestWinner = db.prepare(`
-    SELECT e.entry_number, d.title AS draw_title, c.email
-    FROM lottery_entries e
-    JOIN lottery_draws d ON d.winner_entry_id = e.id
     LEFT JOIN customers c ON c.id = e.customer_id
-    WHERE e.status = 'WINNER'
-    ORDER BY e.created_at DESC
-    LIMIT 1
-  `).get();
-  const monthRows = db.prepare(`
-    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count
-    FROM lottery_entries
-    GROUP BY month
-    ORDER BY month DESC
-    LIMIT 12
-  `).all().reverse();
-  const maxMonthCount = Math.max(1, ...monthRows.map((row) => row.count));
-  const chartRows = monthRows.length ? monthRows : Array.from({ length: 12 }, (_, index) => ({ month: `M${index + 1}`, count: 0 }));
-  const eligibleRate = percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0);
-  const freeEntryShare = percent(totals.free_entries || 0, totals.total_entries || 0);
-  const voidRate = percent(totals.void_entries || 0, totals.total_entries || 0);
-  const entriesPerCustomer = safeDivide(totals.total_entries || 0, totals.participating_customers || 0);
-  const entriesPerOrder = safeDivide(totals.order_entries || 0, orderTotals.total_orders || 0);
-  const opsItems = [
-    {
-      icon: "OR",
-      title: `${eligibleWithoutEntry} eligible orders zonder lot`,
-      body: "Moet normaal 0 zijn. Check ordersync als dit stijgt.",
-      badge: eligibleWithoutEntry ? "Check" : "OK"
-    },
-    {
-      icon: "WA",
-      title: `${liveDraws} live winactie(s)`,
-      body: liveDrawsWithoutEntries ? `${liveDrawsWithoutEntries} live actie heeft nog geen loten.` : `${activeLiveEntries} actieve loten in live trekkingen.`,
-      badge: liveDraws ? "Live" : "Maak"
-    },
-    {
-      icon: "CP",
-      title: `${freeEntryShare} gratis deelname aandeel`,
-      body: "Compliance route blijft zichtbaar naast order-loten.",
-      badge: "Monitor"
-    },
-    {
-      icon: "WN",
-      title: latestWinner ? `Laatste winnaar ${latestWinner.entry_number}` : "Nog geen winnaar getrokken",
-      body: latestWinner ? `${latestWinner.draw_title} · ${latestWinner.email || "klant onbekend"}` : "Trek pas als live actie genoeg geldige loten heeft.",
-      badge: latestWinner ? "Done" : "Open"
-    }
-  ];
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${filter.whereSql}
+  `).get(...filter.params).count;
 
-  res.send(page("Meat For Free Dashboard", `
-    <div class="topbar" id="overview">
-      <div class="hero-copy">
-        <p class="eyebrow">Meat For Free ops</p>
-        <h1>Loten, omzet, orders en winnaars.</h1>
-      </div>
-      <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
-    </div>
-    <section class="grid" aria-label="Kerncijfers">
-      <div class="card card--blue"><p class="muted">Actieve loten</p><div class="stat">${totals.active_entries || 0}</div><p>${totals.total_entries || 0} loten totaal · ${activeLiveEntries} in live acties.</p></div>
-      <div class="card card--teal"><p class="muted">Deelnemers</p><div class="stat">${totals.participating_customers || 0}</div><p>${entriesPerCustomer} loten per deelnemer.</p></div>
-      <div class="card card--green"><p class="muted">Order eligibility</p><div class="stat">${eligibleRate}</div><p>${orderTotals.eligible_orders || 0} orders boven of gelijk aan €70.</p></div>
-      <div class="card card--dark"><p class="muted">Omzet uit app DB</p><div class="stat">${formatEuro(orderTotals.gross_cents || 0)}</div><p>${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.</p></div>
-    </section>
-    <section class="insight-grid">
-      <div class="insight"><span>Order-loten</span><strong>${totals.order_entries || 0}</strong></div>
-      <div class="insight"><span>Gratis deelnames</span><strong>${totals.free_entries || 0}</strong></div>
-      <div class="insight"><span>Winnaars / void</span><strong>${totals.winners || 0}/${totals.void_entries || 0}</strong></div>
-      <div class="insight"><span>Laatste 7 dagen</span><strong>${recentEntries}</strong></div>
-      <div class="insight"><span>Orders totaal</span><strong>${orderTotals.total_orders || 0}</strong></div>
-      <div class="insight"><span>Omzet uit app DB</span><strong>${formatEuro(orderTotals.gross_cents || 0)}</strong></div>
-      <div class="insight"><span>Gem. orderwaarde</span><strong>${formatEuro(Math.round(orderTotals.avg_cents || 0))}</strong></div>
-      <div class="insight"><span>Vandaag orders</span><strong>${todayOrders}</strong></div>
-    </section>
-    <section class="ops-grid" id="sync">
-      <div class="panel panel-pad">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow">Realtime analytics</p>
-            <h2>Lotvolume per maand.</h2>
-          </div>
-          <span class="status status--active">${recentEntries} in 7 dagen</span>
-        </div>
-        <div class="mini-chart" aria-label="Lotvolume per maand">
-          ${chartRows.map((row) => `<span title="${escapeHtml(row.month)}: ${row.count}" style="height:${barWidth(row.count, maxMonthCount)}%"></span>`).join("")}
-        </div>
-      </div>
-      <div class="panel panel-pad">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow">Ops queue</p>
-            <h2>Nu checken.</h2>
-          </div>
-        </div>
-        <div class="ops-list">
-          ${opsItems.map((item) => `<div class="ops-item">
-            <span class="ops-icon">${escapeHtml(item.icon)}</span>
-            <span><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span></span>
-            <span class="status">${escapeHtml(item.badge)}</span>
-          </div>`).join("")}
-        </div>
-      </div>
-    </section>
-    <section class="ops-grid" id="compliance">
-      <div class="panel panel-pad">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow">Compliance</p>
-            <h2>Gratis route en voids.</h2>
-          </div>
-        </div>
-        <div class="ratio-stack">
-          <div class="ratio-row"><div><span>Gratis deelnames</span><strong>${freeEntryShare}</strong></div><div class="bar"><span style="width:${barWidth(totals.free_entries || 0, totals.total_entries || 0)}%"></span></div></div>
-          <div class="ratio-row"><div><span>Void rate</span><strong>${voidRate}</strong></div><div class="bar"><span style="width:${barWidth(totals.void_entries || 0, totals.total_entries || 0)}%"></span></div></div>
-          <div class="ratio-row"><div><span>Order-loten per order</span><strong>${entriesPerOrder}</strong></div><div class="bar"><span style="width:${barWidth(totals.order_entries || 0, Math.max(orderTotals.total_orders || 0, totals.order_entries || 0))}%"></span></div></div>
-        </div>
-      </div>
-      <div class="panel panel-pad">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow">Acties</p>
-            <h2>Snel uitvoeren.</h2>
-          </div>
-        </div>
-        <div class="ops-list">
-          <form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Sync klantdashboards</button></form>
-          <form class="inline-form" method="post" action="/admin/reconcile"><button class="button--ghost" type="submit">Sync orders met loten</button></form>
-          <a class="button button--ghost" href="/api/draws/live">Bekijk live API</a>
-          <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
-        </div>
-      </div>
-    </section>
-    <section class="filters" id="filters">
-      <h2>Filters</h2>
-      <form method="get" action="/admin">
-        <div class="filter-grid">
-          <label class="wide">Zoek lot / klant / order / winactie
-            <input name="q" value="${escapeHtml(entryFilter.filter.q)}" placeholder="Bijv. email, #1001, MFF">
-          </label>
-          <label>Lotstatus
-            <select name="entryStatus">
-              ${option("", entryFilter.filter.entryStatus, "Alle lotstatussen")}
-              ${entryStatuses.map((status) => option(status, entryFilter.filter.entryStatus, status)).join("")}
-            </select>
-          </label>
-          <label>Bron
-            <select name="source">
-              ${option("", entryFilter.filter.source, "Alle bronnen")}
-              ${sources.map((source) => option(source, entryFilter.filter.source, source)).join("")}
-            </select>
-          </label>
-          <label>Winactie status
-            <select name="drawStatus">
-              ${option("", entryFilter.filter.drawStatus, "Alle winacties")}
-              ${drawStatuses.map((status) => option(status, entryFilter.filter.drawStatus, status)).join("")}
-            </select>
-          </label>
-          <label>Vanaf
-            <input type="date" name="from" value="${escapeHtml(entryFilter.filter.from)}">
-          </label>
-          <label>Tot
-            <input type="date" name="to" value="${escapeHtml(entryFilter.filter.to)}">
-          </label>
-          <label class="wide">Zoek order / orderklant
-            <input name="orderQ" value="${escapeHtml(orderFilter.filter.orderQ)}" placeholder="Bijv. #1001 of email">
-          </label>
-          <label>Orderstatus
-            <select name="orderStatus">
-              ${option("", orderFilter.filter.orderStatus, "Alle orderstatussen")}
-              ${orderStatuses.map((row) => option(row.status, orderFilter.filter.orderStatus, row.status)).join("")}
-            </select>
-          </label>
-          <label>Min. order €
-            <input inputmode="decimal" name="minTotal" value="${escapeHtml(orderFilter.filter.minTotal)}" placeholder="70">
-          </label>
-          <label>Max. order €
-            <input inputmode="decimal" name="maxTotal" value="${escapeHtml(orderFilter.filter.maxTotal)}" placeholder="250">
-          </label>
-          <div class="filter-actions">
-            <button type="submit">Filter</button>
-            <a class="button button--ghost" href="/admin">Reset</a>
-          </div>
-        </div>
+  res.send(page("Loten | Meat For Free", "loten", `
+    ${topbar("Loten", "Controleer alle loten.", "Filter op klant, order, bron, status en periode.", `<a class="button button--ghost" href="/admin/loten">Reset</a>`)}
+    ${entryFilters(filter.filter, "/admin/loten")}
+    ${kpiGrid([{ label: "Gevonden loten", value: count, help: "Binnen actieve filters." }, { label: "Getoond", value: entries.length, help: "Maximaal 120 regels." }, { label: "Bronnen", value: entrySources.length, help: "Order, gratis, handmatig, abonnement." }, { label: "Export", value: "CSV", help: "Per winactie beschikbaar." }])}
+    <div class="panel">${entriesTable(entries)}</div>
+  `));
+});
+
+adminRouter.get("/orders", (req, res) => {
+  const filter = orderFilter(req);
+  const orderStatuses = db.prepare("SELECT DISTINCT financial_status AS status FROM orders WHERE financial_status IS NOT NULL AND financial_status != '' ORDER BY financial_status ASC").all();
+  const orders = db.prepare(`
+    SELECT o.*, c.email AS customer_email, COUNT(e.id) AS entry_count
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN lottery_entries e ON e.order_id = o.id
+    ${filter.whereSql}
+    GROUP BY o.id
+    ORDER BY o.created_at DESC
+    LIMIT 120
+  `).all(...filter.params);
+  const totals = db.prepare(`
+    SELECT COUNT(*) AS count, SUM(o.total_cents) AS total_cents, AVG(o.total_cents) AS avg_cents
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    ${filter.whereSql}
+  `).get(...filter.params);
+
+  res.send(page("Orders | Meat For Free", "orders", `
+    ${topbar("Orders", "Orderkwaliteit en lottoekenning.", "Controleer of orders boven €70 correct loten krijgen.", `<form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders syncen</button></form>`)}
+    <section class="filters">
+      <form method="get" action="/admin/orders" class="filter-grid">
+        <label class="wide">Zoek order of klant<input name="orderQ" value="${escapeHtml(filter.filter.orderQ)}" placeholder="#1001 of email"></label>
+        <label>Status<select name="orderStatus">${option("", filter.filter.orderStatus, "Alle statussen")}${orderStatuses.map((row) => option(row.status, filter.filter.orderStatus, statusLabel(row.status))).join("")}</select></label>
+        <label>Min. order €<input name="minTotal" inputmode="decimal" value="${escapeHtml(filter.filter.minTotal)}" placeholder="70"></label>
+        <label>Max. order €<input name="maxTotal" inputmode="decimal" value="${escapeHtml(filter.filter.maxTotal)}" placeholder="250"></label>
+        <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/orders">Reset</a></div>
       </form>
     </section>
-    <section class="grid">
-      <div class="card"><p class="muted">Gefilterde loten</p><div class="stat">${filteredEntryCount}</div><p>Resultaat van de actieve lotfilters.</p></div>
-      <div class="card"><p class="muted">Gefilterde orders</p><div class="stat">${filteredOrderCount.count || 0}</div><p>${formatEuro(filteredOrderCount.total_cents || 0)} waarde.</p></div>
-      <div class="card"><p class="muted">Order eligibility</p><div class="stat">${orderTotals.eligible_orders || 0}</div><p>Orders boven of gelijk aan €70.</p></div>
-    </section>
-    <div class="split-panels">
-      <div>
-        <div class="section-head"><h2>Bronnen</h2></div>
-        <div class="panel">
-          <table class="compact-table">
-            <thead><tr><th>Bron</th><th>Aantal</th><th>Volume</th></tr></thead>
-            <tbody>
-              ${sourceBreakdown.length ? sourceBreakdown.map((row) => `<tr>
-                <td><strong>${escapeHtml(row.source)}</strong></td>
-                <td>${row.count}</td>
-                <td><div class="bar"><span style="width:${Math.round((row.count / maxSourceCount) * 100)}%"></span></div></td>
-              </tr>`).join("") : `<tr><td colspan="3"><div class="empty">Nog geen bronnen.</div></td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div>
-        <div class="section-head"><h2>Statussen</h2></div>
-        <div class="panel">
-          <table class="compact-table">
-            <thead><tr><th>Type</th><th>Status</th><th>Aantal</th></tr></thead>
-            <tbody>
-              ${[
-                ...statusBreakdown.map((row) => ({ type: "Lot", ...row })),
-                ...drawStatusBreakdown.map((row) => ({ type: "Winactie", ...row }))
-              ].map((row) => `<tr>
-                <td>${escapeHtml(row.type)}</td>
-                <td>${statusBadge(row.status)}</td>
-                <td><strong>${row.count}</strong><div class="bar"><span style="width:${Math.round((row.count / maxStatusCount) * 100)}%"></span></div></td>
-              </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nog geen statusdata.</div></td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="section-head" id="winacties">
-      <h2>Winacties</h2>
-      <div style="display:flex; flex-wrap:wrap; gap:10px;">
-        <form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Sync dashboards</button></form>
-        <form class="inline-form" method="post" action="/admin/reconcile"><button class="button--ghost" type="submit">Sync orders</button></form>
-      </div>
-    </div>
+    ${kpiGrid([{ label: "Orders", value: totals.count || 0, help: "Binnen actieve filters." }, { label: "Waarde", value: formatEuro(totals.total_cents || 0), help: "Orderwaarde in app database." }, { label: "Gemiddeld", value: formatEuro(Math.round(totals.avg_cents || 0)), help: "Gemiddelde orderwaarde." }, { label: "Getoond", value: orders.length, help: "Maximaal 120 regels." }])}
+    <div class="panel">${ordersTable(orders)}</div>
+  `));
+});
+
+adminRouter.get("/deelnemers", (_req, res) => {
+  const customers = db.prepare(`
+    SELECT c.*, COUNT(e.id) AS entry_count,
+      SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_count,
+      SUM(CASE WHEN e.status = 'WINNER' THEN 1 ELSE 0 END) AS winner_count
+    FROM customers c
+    LEFT JOIN lottery_entries e ON e.customer_id = c.id
+    GROUP BY c.id
+    ORDER BY entry_count DESC, c.updated_at DESC
+    LIMIT 120
+  `).all();
+
+  res.send(page("Deelnemers | Meat For Free", "deelnemers", `
+    ${topbar("Deelnemers", "Klanten en deelnamewaarde.", "Zie wie de meeste loten heeft, wie actief is en waar winnaars zitten.", "")}
+    ${kpiGrid([{ label: "Deelnemers", value: customers.length, help: "Top 120 zichtbaar." }, { label: "Actieve loten", value: customers.reduce((sum, row) => sum + Number(row.active_count || 0), 0), help: "Geldige deelname." }, { label: "Winnaars", value: customers.reduce((sum, row) => sum + Number(row.winner_count || 0), 0), help: "Historische winnaars." }, { label: "Shopify koppeling", value: customers.filter((row) => row.shopify_customer_id).length, help: "Met klant-ID." }])}
     <div class="panel">
       <table>
-        <thead><tr><th>Titel</th><th>Status</th><th>Prijs</th><th>Loten</th><th>Winnaar</th><th>Actie</th></tr></thead>
-        <tbody>
-          ${draws.length ? draws.map((draw) => `<tr>
-            <td><strong>${escapeHtml(draw.title)}</strong><br><span class="muted">${escapeHtml(draw.slug)}</span></td>
-            <td>${statusBadge(draw.status)}</td>
-            <td><strong>${escapeHtml(draw.prize_name)}</strong><br><span class="muted">${escapeHtml(draw.prize_value || "")}</span></td>
-            <td>${draw.entry_count}</td>
-            <td>${escapeHtml(draw.winner_email || draw.winner_entry_number || "-")}</td>
-            <td><div style="display:flex; flex-wrap:wrap; gap:8px;">
-              <a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export</a>
-              ${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek winnaar</button></form>` : ""}
-            </div></td>
-          </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen winacties. Maak de eerste live trekking aan.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-    <div class="section-head" id="lotactiviteit">
-      <h2>Gefilterde lotactiviteit</h2>
-    </div>
-    <div class="panel">
-      <table>
-        <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th><th>Datum</th></tr></thead>
-        <tbody>
-          ${activity.length ? activity.map((entry) => `<tr>
-            <td><strong>${escapeHtml(entry.entry_number)}</strong><br><span class="muted">${escapeHtml(entry.order_name || entry.created_at)}</span></td>
-            <td>${escapeHtml(entry.source)}</td>
-            <td>${escapeHtml(entry.email || "-")}</td>
-            <td>${escapeHtml(entry.draw_title)}</td>
-            <td>${statusBadge(entry.status)}</td>
-            <td>${escapeHtml(entry.created_at)}</td>
-          </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen loten binnen deze filters.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-    <div class="section-head" id="deelnemers">
-      <h2>Top deelnemers</h2>
-    </div>
-    <div class="panel">
-      <table>
-        <thead><tr><th>Klant</th><th>Totaal loten</th><th>Actieve loten</th></tr></thead>
-        <tbody>
-          ${topCustomers.length ? topCustomers.map((customer) => `<tr>
-            <td><strong>${escapeHtml([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Klant")}</strong><br><span class="muted">${escapeHtml(customer.email || "-")}</span></td>
-            <td>${customer.entry_count}</td>
-            <td>${customer.active_count}</td>
-          </tr>`).join("") : `<tr><td colspan="3"><div class="empty">Nog geen deelnemersranglijst.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-    <div class="section-head" id="orders">
-      <h2>Gefilterde orders</h2>
-    </div>
-    <div class="panel">
-      <table>
-        <thead><tr><th>Order</th><th>Klant</th><th>Waarde</th><th>Loten</th><th>Status</th><th>Datum</th></tr></thead>
-        <tbody>
-          ${orders.length ? orders.map((order) => `<tr>
-            <td><strong>${escapeHtml(order.order_name || order.shopify_order_id)}</strong></td>
-            <td>${escapeHtml(order.customer_email || order.email || "-")}</td>
-            <td>${formatEuro(order.total_cents)}</td>
-            <td>${order.entry_count}</td>
-            <td>${statusBadge(order.financial_status || "-")}</td>
-            <td>${escapeHtml(order.created_at)}</td>
-          </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen orders binnen deze filters.</div></td></tr>`}
-        </tbody>
+        <thead><tr><th>Klant</th><th>Email</th><th>Totaal loten</th><th>Actief</th><th>Winnaars</th><th>Laatste update</th></tr></thead>
+        <tbody>${customers.length ? customers.map((customer) => `<tr>
+          <td><strong>${escapeHtml([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Klant")}</strong><span class="muted">${escapeHtml(customer.shopify_customer_id || "Geen Shopify ID")}</span></td>
+          <td>${escapeHtml(customer.email || "-")}</td>
+          <td>${customer.entry_count || 0}</td>
+          <td>${customer.active_count || 0}</td>
+          <td>${customer.winner_count || 0}</td>
+          <td>${escapeHtml(customer.updated_at)}</td>
+        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen deelnemers.</div></td></tr>`}</tbody>
       </table>
     </div>
   `));
 });
 
+adminRouter.get("/compliance", (_req, res) => {
+  const metrics = getMetrics();
+  const { totals, orderTotals } = metrics;
+  const checks = [
+    ["Gratis deelname aandeel", percent(totals.free_entries || 0, totals.total_entries || 0), totals.free_entries || 0, totals.total_entries || 0],
+    ["Ongeldige loten", percent(totals.void_entries || 0, totals.total_entries || 0), totals.void_entries || 0, totals.total_entries || 0],
+    ["Geschikte orders zonder lot", String(metrics.eligibleWithoutEntry), metrics.eligibleWithoutEntry, Math.max(metrics.eligibleWithoutEntry, orderTotals.eligible_orders || 0)],
+    ["Live acties zonder loten", String(metrics.liveDrawsWithoutEntries), metrics.liveDrawsWithoutEntries, Math.max(metrics.liveDrawsWithoutEntries, metrics.liveDraws || 0)]
+  ];
+
+  res.send(page("Compliance | Meat For Free", "compliance", `
+    ${topbar("Compliance", "Eerlijke deelname aantoonbaar houden.", "Deze pagina is voor gratis deelname, refunds, eligible orders en auditchecks.", "")}
+    ${kpiGrid([{ label: "Gratis deelnames", value: totals.free_entries || 0, help: "Aparte deelname zonder aankoop." }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen." }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven." }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: "Orders boven €70." }])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><h2>Auditratio's</h2></div>
+        <div class="stack">${checks.map(([label, value, part, total]) => `<div class="metric-row"><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div><div class="bar"><span style="width:${ratio(part, total)}%"></span></div></div>`).join("")}</div>
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title"><h2>Professionele verbeteringen</h2></div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">1</span><span><strong>Auditlog per trekking</strong><br><span class="muted">Volgende logische stap: wie trok winnaar, wanneer, met welke pool.</span></span><span class="status">Aanrader</span></div>
+          <div class="ops-item"><span class="ops-icon">2</span><span><strong>Instelbare lotregels</strong><br><span class="muted">€70-grens later via admin beheren in plaats van code/config.</span></span><span class="status">Schaalbaar</span></div>
+          <div class="ops-item"><span class="ops-icon">3</span><span><strong>Fraudechecks</strong><br><span class="muted">Dubbele gratis deelnames, emaildomeinen en verdachte patronen markeren.</span></span><span class="status">Later</span></div>
+        </div>
+      </div>
+    </section>
+  `));
+});
+
+adminRouter.get("/sync", (_req, res) => {
+  const metrics = getMetrics();
+  res.send(page("Synchronisatie | Meat For Free", "sync", `
+    ${topbar("Synchronisatie", "Systeemacties voor datakwaliteit.", "Gebruik deze pagina als Shopify data, klantdashboards of loten niet gelijk lopen.", "")}
+    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen." }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties." }, { label: "Laatste 7 dagen", value: metrics.recentEntries, help: "Nieuwe lotactiviteit." }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt." }])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad"><div class="panel-title"><h2>Orders met loten synchroniseren</h2></div><p class="muted">Reconcilieert orders die recht hebben op loten maar nog geen lot kregen.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders synchroniseren</button></form></div></div>
+      <div class="panel panel-pad"><div class="panel-title"><h2>Klantdashboards synchroniseren</h2></div><p class="muted">Schrijft de huidige lotdata terug naar Shopify klantmetafields.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Klantdashboards synchroniseren</button></form></div></div>
+    </section>
+  `));
+});
+
+adminRouter.get("/api", (_req, res) => {
+  res.send(page("API | Meat For Free", "api", `
+    ${topbar("API", "Technische koppelingen.", "Snelle links voor embed, live winacties en klantdata.", "")}
+    <section class="grid grid-3">
+      <div class="panel panel-pad"><h2>Live winacties</h2><p class="helper">JSON voor actieve trekkingen.</p><p style="margin-top:12px"><a class="button button--ghost" href="/api/draws/live">/api/draws/live</a></p></div>
+      <div class="panel panel-pad"><h2>Site samenvatting</h2><p class="helper">Gebruikt door frontend/embed voor actie-info.</p><p style="margin-top:12px"><a class="button button--ghost" href="/api/site/summary">/api/site/summary</a></p></div>
+      <div class="panel panel-pad"><h2>Embed script</h2><p class="helper">Shopify embed startpunt.</p><p style="margin-top:12px"><a class="button button--ghost" href="/embed/dvl-lottery.js">/embed/dvl-lottery.js</a></p></div>
+    </section>
+  `));
+});
+
+adminRouter.get("/embed", (_req, res) => {
+  res.send(page("Embed | Meat For Free", "embed", `
+    ${topbar("Embed voorbeeld", "Controleer de Shopify embed.", "Gebruik deze pagina om de klant-facing widget snel te openen.", `<a class="button button--gold" href="/embed/demo">Open embed demo</a>`)}
+    <section class="panel panel-pad"><h2>Embed URL</h2><p class="helper">Plaats deze in Shopify waar de app wordt ingeladen.</p><input readonly value="https://dvl-lottery-app.onrender.com/embed/dvl-lottery.js" onclick="this.select()"></section>
+  `));
+});
+
 adminRouter.get("/draws/:id/export.csv", (req, res) => {
   const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
-  if (!draw) return res.status(404).send("Draw not found");
-
+  if (!draw) return res.status(404).send("Winactie niet gevonden");
   const rows = db.prepare(`
     SELECT e.entry_number, e.source, e.status, e.reason, e.created_at, c.email, c.first_name, c.last_name, o.order_name, o.total_cents
     FROM lottery_entries e
@@ -1819,11 +782,11 @@ adminRouter.get("/draws/:id/export.csv", (req, res) => {
     WHERE e.draw_id = ?
     ORDER BY e.created_at ASC
   `).all(draw.id);
-  const header = ["entry_number", "status", "source", "email", "first_name", "last_name", "order_name", "order_total", "reason", "created_at"];
+  const header = ["lotnummer", "status", "bron", "email", "voornaam", "achternaam", "order", "orderwaarde", "reden", "aangemaakt"];
   const body = rows.map((row) => [
     row.entry_number,
-    row.status,
-    row.source,
+    statusLabel(row.status),
+    statusLabel(row.source),
     row.email,
     row.first_name,
     row.last_name,
@@ -1832,61 +795,107 @@ adminRouter.get("/draws/:id/export.csv", (req, res) => {
     row.reason,
     row.created_at
   ].map(csv).join(","));
-
   res.setHeader("content-type", "text/csv; charset=utf-8");
-  res.setHeader("content-disposition", `attachment; filename="${draw.slug || draw.id}-entries.csv"`);
+  res.setHeader("content-disposition", `attachment; filename="${draw.slug || draw.id}-loten.csv"`);
   return res.send([header.map(csv).join(","), ...body].join("\n"));
-});
-
-adminRouter.get("/new-draw", (_req, res) => {
-  res.send(page("Nieuwe winactie", `
-    <div class="topbar">
-      <div class="hero-copy">
-        <p class="eyebrow">Nieuwe trekking</p>
-        <h1>Nieuwe winactie.</h1>
-      </div>
-      <a class="button button--ghost" href="/admin">Terug</a>
-    </div>
-    <form method="post" action="/admin/draws">
-      <label>Titel<input name="title" required placeholder="Bijv. Juni BBQ Trekking"></label>
-      <label>Prijsnaam<input name="prizeName" required placeholder="Bijv. 1 jaar gratis vlees"></label>
-      <label>Prijswaarde<input name="prizeValue" placeholder="Bijv. Hoofdprijs"></label>
-      <label>Beschrijving<textarea name="description" rows="4"></textarea></label>
-      <label>Status<select name="status"><option value="DRAFT">Draft</option><option value="LIVE">Live</option></select></label>
-      <div class="form-actions">
-        <button type="submit">Opslaan</button>
-        <a class="button button--ghost" href="/admin">Annuleren</a>
-      </div>
-    </form>
-  `));
-});
-
-adminRouter.post("/draws", express.urlencoded({ extended: false }), async (req, res) => {
-  await createDraw({
-    title: req.body.title,
-    prizeName: req.body.prizeName,
-    prizeValue: req.body.prizeValue,
-    description: req.body.description,
-    status: req.body.status === "LIVE" ? "LIVE" : "DRAFT"
-  });
-  res.redirect("/admin");
 });
 
 adminRouter.post("/draws/:id/draw", async (req, res) => {
   try {
     await drawWinner(req.params.id);
-    res.redirect("/admin");
+    res.redirect(`/admin/winacties/${req.params.id}`);
   } catch (error) {
-    res.status(400).send(page("Trekking fout", `<div class="hero-copy"><p class="eyebrow">Actie gestopt</p><h1>Kan niet trekken.</h1><p class="muted">${escapeHtml(error.message)}</p><p><a class="button button--gold" href="/admin">Terug</a></p></div>`));
+    res.status(400).send(page("Trekking fout", "winacties", topbar("Actie gestopt", "Kan geen winnaar trekken.", error.message, `<a class="button button--gold" href="/admin/winacties/${escapeHtml(req.params.id)}">Terug</a>`)));
   }
 });
 
 adminRouter.post("/reconcile", async (_req, res) => {
   await reconcileActiveOrderEntries();
-  res.redirect("/admin");
+  res.redirect("/admin/sync");
 });
 
 adminRouter.post("/sync-dashboards", async (_req, res) => {
   await syncAllCustomerDashboardMetafields();
-  res.redirect("/admin");
+  res.redirect("/admin/sync");
 });
+
+function drawForm(draw, action, submitLabel) {
+  return `<form method="post" action="${action}">
+    <div class="form-grid">
+      <label>Titel<input name="title" required value="${escapeHtml(draw?.title || "")}" placeholder="Bijv. Juli BBQ trekking"></label>
+      <label>Slug<input name="slug" value="${escapeHtml(draw?.slug || "")}" placeholder="juli-bbq-trekking"><span class="helper">Voor URL/API herkenning. Laat leeg bij nieuw voor automatische slug.</span></label>
+      <label>Prijsnaam<input name="prizeName" required value="${escapeHtml(draw?.prize_name || "")}" placeholder="Bijv. 1 jaar gratis vlees"></label>
+      <label>Prijswaarde<input name="prizeValue" value="${escapeHtml(draw?.prize_value || "")}" placeholder="Bijv. Hoofdprijs t.w.v. €1.200"></label>
+      <label>Startdatum<input type="date" name="startsAt" value="${escapeHtml(dateInput(draw?.starts_at))}"></label>
+      <label>Einddatum<input type="date" name="endsAt" value="${escapeHtml(dateInput(draw?.ends_at))}"></label>
+      <label>Trekdatum<input type="date" name="drawAt" value="${escapeHtml(dateInput(draw?.draw_at))}"></label>
+      <label>Status<select name="status">${drawStatuses.map((status) => option(status, draw?.status || "DRAFT", statusLabel(status))).join("")}</select></label>
+      <label class="wide">Beschrijving<textarea name="description" placeholder="Korte uitleg die richting klant en admin bruikbaar blijft.">${escapeHtml(draw?.description || "")}</textarea></label>
+    </div>
+    <div class="actions" style="justify-content:flex-start; margin-top:18px">
+      <button type="submit">${escapeHtml(submitLabel)}</button>
+      <a class="button button--ghost" href="/admin/winacties">Annuleren</a>
+    </div>
+  </form>`;
+}
+
+function drawTable(draws) {
+  return `<table>
+    <thead><tr><th>Titel</th><th>Status</th><th>Prijs</th><th>Loten</th><th>Timing</th><th>Winnaar</th><th>Acties</th></tr></thead>
+    <tbody>${draws.length ? draws.map((draw) => `<tr>
+      <td><strong>${escapeHtml(draw.title)}</strong><span class="muted">${escapeHtml(draw.slug)}</span></td>
+      <td>${statusBadge(draw.status)}</td>
+      <td><strong>${escapeHtml(draw.prize_name)}</strong><span class="muted">${escapeHtml(draw.prize_value || "-")}</span></td>
+      <td>${draw.entry_count || 0}</td>
+      <td><span class="muted">Start</span> ${escapeHtml(dateInput(draw.starts_at) || "-")}<br><span class="muted">Trekking</span> ${escapeHtml(dateInput(draw.draw_at) || "-")}</td>
+      <td>${escapeHtml(draw.winner_email || draw.winner_entry_number || "-")}</td>
+      <td><div class="actions" style="justify-content:flex-start">
+        <a class="button button--ghost" href="/admin/winacties/${escapeHtml(draw.id)}">Beheer</a>
+        <a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">CSV</a>
+        ${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek</button></form>` : ""}
+      </div></td>
+    </tr>`).join("") : `<tr><td colspan="7"><div class="empty">Nog geen winacties.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function entryFilters(filter, action) {
+  return `<section class="filters">
+    <form method="get" action="${action}" class="filter-grid">
+      <label class="wide">Zoek lot, klant, order of winactie<input name="q" value="${escapeHtml(filter.q)}" placeholder="Email, lotnummer, ordernummer"></label>
+      <label>Lotstatus<select name="entryStatus">${option("", filter.entryStatus, "Alle lotstatussen")}${entryStatuses.map((status) => option(status, filter.entryStatus, statusLabel(status))).join("")}</select></label>
+      <label>Bron<select name="source">${option("", filter.source, "Alle bronnen")}${entrySources.map((source) => option(source, filter.source, statusLabel(source))).join("")}</select></label>
+      <label>Winactie status<select name="drawStatus">${option("", filter.drawStatus, "Alle winacties")}${drawStatuses.map((status) => option(status, filter.drawStatus, statusLabel(status))).join("")}</select></label>
+      <label>Vanaf<input type="date" name="from" value="${escapeHtml(filter.from)}"></label>
+      <label>Tot<input type="date" name="to" value="${escapeHtml(filter.to)}"></label>
+      <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="${action}">Reset</a></div>
+    </form>
+  </section>`;
+}
+
+function entriesTable(entries) {
+  return `<table>
+    <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th><th>Datum</th></tr></thead>
+    <tbody>${entries.length ? entries.map((entry) => `<tr>
+      <td><strong>${escapeHtml(entry.entry_number)}</strong><span class="muted">${escapeHtml(entry.order_name || "-")}</span></td>
+      <td>${escapeHtml(statusLabel(entry.source))}</td>
+      <td>${escapeHtml(entry.email || "-")}</td>
+      <td>${escapeHtml(entry.draw_title || "-")}</td>
+      <td>${statusBadge(entry.status)}</td>
+      <td>${escapeHtml(entry.created_at)}</td>
+    </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen loten gevonden.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function ordersTable(orders) {
+  return `<table>
+    <thead><tr><th>Order</th><th>Klant</th><th>Waarde</th><th>Loten</th><th>Status</th><th>Datum</th></tr></thead>
+    <tbody>${orders.length ? orders.map((order) => `<tr>
+      <td><strong>${escapeHtml(order.order_name || order.shopify_order_id)}</strong><span class="muted">${escapeHtml(order.shopify_order_id)}</span></td>
+      <td>${escapeHtml(order.customer_email || order.email || "-")}</td>
+      <td>${formatEuro(order.total_cents)}</td>
+      <td>${order.entry_count || 0}</td>
+      <td>${statusBadge(order.financial_status || "-")}</td>
+      <td>${escapeHtml(order.created_at)}</td>
+    </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen orders gevonden.</div></td></tr>`}</tbody>
+  </table>`;
+}
