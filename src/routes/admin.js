@@ -123,6 +123,7 @@ function ruleLabel(rule) {
 function page(title, active, body) {
   const menu = [
     ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
+    ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
     ["loten", "/admin/loten", "Tickets", "Loten"],
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
@@ -229,6 +230,9 @@ function page(title, active, body) {
         .status--live, .status--active, .status--paid { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
         .status--drawn, .status--winner { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
         .status--void, .status--cancelled, .status--refunded, .status--archived { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
+        .status--goed, .status--laag { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--monitor, .status--controle, .status--middel, .status--check { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
+        .status--actie, .status--hoog { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
         .filters { padding:18px; margin-bottom:22px; }
         .filter-grid, .form-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:end; }
         .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
@@ -292,11 +296,11 @@ function page(title, active, body) {
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
-            ${menu.slice(0, 4).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(0, 5).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(4, 8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(5, 9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -434,7 +438,77 @@ function suspiciousIpRows(limit = 8) {
     HAVING COUNT(DISTINCT fc.draw_id) >= 2 OR COUNT(DISTINCT fc.email) >= 2
     ORDER BY draw_count DESC, email_count DESC, claim_count DESC, last_seen DESC
     LIMIT ?
+  `).all(limit).map((row) => {
+    const drawCount = Number(row.draw_count || 0);
+    const emailCount = Number(row.email_count || 0);
+    const claimCount = Number(row.claim_count || 0);
+    const riskScore = (drawCount >= 3 ? 2 : 0) + (emailCount >= 2 ? 2 : 0) + (claimCount >= 5 ? 1 : 0);
+    return {
+      ...row,
+      risk_score: riskScore,
+      risk_label: riskScore >= 4 ? "Hoog" : riskScore >= 2 ? "Middel" : "Laag"
+    };
+  });
+}
+
+function sourceQualityRows() {
+  return db.prepare(`
+    SELECT
+      e.source,
+      COUNT(*) AS total_entries,
+      SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_entries,
+      SUM(CASE WHEN e.status = 'WINNER' THEN 1 ELSE 0 END) AS winners,
+      SUM(CASE WHEN e.status = 'VOID' THEN 1 ELSE 0 END) AS void_entries,
+      COUNT(DISTINCT e.customer_id) AS customers,
+      COUNT(DISTINCT e.order_id) AS orders
+    FROM lottery_entries e
+    GROUP BY e.source
+    ORDER BY total_entries DESC
+  `).all();
+}
+
+function drawPerformanceRows(limit = 12) {
+  return db.prepare(`
+    SELECT
+      d.id,
+      d.title,
+      d.status,
+      d.prize_name,
+      d.starts_at,
+      d.draw_at,
+      COUNT(e.id) AS entry_count,
+      COUNT(DISTINCT e.customer_id) AS customer_count,
+      SUM(CASE WHEN e.source = 'FREE_ENTRY' THEN 1 ELSE 0 END) AS free_entries,
+      SUM(CASE WHEN e.source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries,
+      SUM(CASE WHEN e.status = 'VOID' THEN 1 ELSE 0 END) AS void_entries,
+      we.entry_number AS winner_entry_number,
+      wc.email AS winner_email
+    FROM lottery_draws d
+    LEFT JOIN lottery_entries e ON e.draw_id = d.id
+    LEFT JOIN lottery_entries we ON we.id = d.winner_entry_id
+    LEFT JOIN customers wc ON wc.id = we.customer_id
+    GROUP BY d.id
+    ORDER BY COALESCE(d.starts_at, d.created_at) DESC
+    LIMIT ?
   `).all(limit);
+}
+
+function sourceSignal(row) {
+  const total = Number(row.total_entries || 0);
+  const voidRate = total ? Number(row.void_entries || 0) / total : 0;
+  const entriesPerCustomer = Number(row.customers || 0) ? total / Number(row.customers || 1) : 0;
+  if (voidRate >= 0.12) return ["Controle", "Veel ongeldige loten"];
+  if (row.source === "FREE_ENTRY" && entriesPerCustomer >= 1.8) return ["Monitor", "Let op herhaalde gratis deelname"];
+  if (entriesPerCustomer >= 4) return ["Monitor", "Veel loten per deelnemer"];
+  return ["Goed", "Geen afwijkend patroon"];
+}
+
+function drawSignal(row) {
+  const total = Number(row.entry_count || 0);
+  if (row.status === "LIVE" && total === 0) return ["Actie", "Live zonder loten"];
+  if (row.status === "DRAWN" && !row.winner_entry_number) return ["Actie", "Getrokken status zonder winnaar"];
+  if (total > 0 && Number(row.customer_count || 0) === 0) return ["Controle", "Loten zonder klantkoppeling"];
+  return ["Goed", "Normaal"];
 }
 
 function kpiGrid(items) {
@@ -557,6 +631,59 @@ function breakdownPanel(title, rows, total, keyName = "status") {
       </div>`).join("") : `<p class="empty">Nog geen data.</p>`}
     </div>
   </div>`;
+}
+
+function sourceQualityPanel(rows) {
+  const total = rows.reduce((sum, row) => sum + Number(row.total_entries || 0), 0);
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Bronkwaliteit</p><h2>Welke deelnamebron draagt wat bij?</h2></div></div>
+    <div class="stack">
+      ${rows.length ? rows.map((row) => {
+        const [badge, note] = sourceSignal(row);
+        return `<div class="metric-row">
+          <div><span>${escapeHtml(statusLabel(row.source))}</span><strong>${row.total_entries || 0} loten</strong></div>
+          <div class="bar"><span style="width:${ratio(row.total_entries, total)}%"></span></div>
+          <p class="helper">${escapeHtml(note)} · ${row.customers || 0} deelnemers · ${row.orders || 0} orders · <strong>${escapeHtml(badge)}</strong></p>
+        </div>`;
+      }).join("") : `<p class="empty">Nog geen brondata.</p>`}
+    </div>
+  </div>`;
+}
+
+function sourceQualityTable(rows) {
+  return `<table>
+    <thead><tr><th>Bron</th><th>Loten</th><th>Actief</th><th>Winnaars</th><th>Ongeldig</th><th>Deelnemers</th><th>Signaal</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => {
+      const [badge, note] = sourceSignal(row);
+      return `<tr>
+        <td><strong>${escapeHtml(statusLabel(row.source))}</strong><span class="muted">${escapeHtml(row.source)}</span></td>
+        <td>${row.total_entries || 0}</td>
+        <td>${row.active_entries || 0}</td>
+        <td>${row.winners || 0}</td>
+        <td>${row.void_entries || 0}</td>
+        <td>${row.customers || 0}</td>
+        <td>${statusBadge(badge)}<br><span class="muted">${escapeHtml(note)}</span></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7"><div class="empty">Nog geen brondata.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function drawPerformanceTable(rows) {
+  return `<table>
+    <thead><tr><th>Winactie</th><th>Status</th><th>Loten</th><th>Deelnemers</th><th>Mix</th><th>Winnaar</th><th>Signaal</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => {
+      const [badge, note] = drawSignal(row);
+      return `<tr>
+        <td><strong>${escapeHtml(row.title)}</strong><span class="muted">${escapeHtml(row.prize_name || "-")}</span></td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${row.entry_count || 0}<br><span class="muted">${row.void_entries || 0} ongeldig</span></td>
+        <td>${row.customer_count || 0}</td>
+        <td><span class="muted">Order</span> ${row.order_entries || 0}<br><span class="muted">Gratis</span> ${row.free_entries || 0}</td>
+        <td>${escapeHtml(row.winner_email || row.winner_entry_number || "-")}</td>
+        <td>${statusBadge(badge)}<br><span class="muted">${escapeHtml(note)}</span></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7"><div class="empty">Nog geen winacties.</div></td></tr>`}</tbody>
+  </table>`;
 }
 
 function auditRows(limit = 10) {
@@ -791,11 +918,73 @@ adminRouter.get("/", (_req, res) => {
           <div class="ops-item"><span class="ops-icon">${icon("Target")}</span><span><strong>${funnel.eligibleOrders} orders kwalificeren</strong><br><span class="muted">Op basis van ${escapeHtml(ruleLabel(rule))}.</span></span><span class="status">Basis</span></div>
           <div class="ops-item"><span class="ops-icon">${icon("Tickets")}</span><span><strong>${funnel.ordersWithEntries} orders hebben loten</strong><br><span class="muted">Coverage binnen ordergebonden deelname.</span></span><span class="status">${funnel.ordersWithEntries === funnel.eligibleOrders ? "Goed" : "Check"}</span></div>
           <div class="ops-item"><span class="ops-icon">${icon("Gift")}</span><span><strong>${funnel.freeEntries} gratis loten actief</strong><br><span class="muted">Gebruik dit om verhouding aankoop versus gratis te monitoren.</span></span><span class="status">Monitor</span></div>
+          <a class="ops-item" href="/admin/analyse" style="text-decoration:none"><span class="ops-icon">${icon("ChartNoAxesCombined")}</span><span><strong>Open volledige analyse</strong><br><span class="muted">Bronkwaliteit, winactie-performance en funnel samen.</span></span><span class="status">Analyse</span></a>
         </div>
       </div>
     </section>
     <div class="section-head"><h2>Laatste winacties</h2><a class="button button--ghost" href="/admin/winacties">Alle winacties</a></div>
     <div class="panel">${drawTable(latestDraws)}</div>
+  `));
+});
+
+adminRouter.get("/analyse", (_req, res) => {
+  const metrics = getMetrics();
+  const funnel = funnelMetrics();
+  const sourceRows = sourceQualityRows();
+  const drawRows = drawPerformanceRows(12);
+  const suspiciousIps = suspiciousIpRows(6);
+  const monitorSources = sourceRows.filter((row) => sourceSignal(row)[0] !== "Goed").length;
+  const actionDraws = drawRows.filter((row) => drawSignal(row)[0] !== "Goed").length;
+  const highRiskIps = suspiciousIps.filter((row) => row.risk_label === "Hoog").length;
+  const { totals, orderTotals } = metrics;
+  const totalEntries = Number(totals.total_entries || 0);
+  const actionItems = [
+    ["PackageSearch", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, metrics.eligibleWithoutEntry ? "Synchronisatie draaien en daarna opnieuw controleren." : "Orderdekking is op dit moment schoon.", "/admin/orders", metrics.eligibleWithoutEntry ? "Actie" : "Goed"],
+    ["ChartNoAxesCombined", `${monitorSources} bron(nen) met monitor-signaal`, monitorSources ? "Bekijk bronkwaliteit voordat je verkeer opschaalt." : "Bronmix toont geen directe afwijkingen.", "/admin/analyse", monitorSources ? "Monitor" : "Goed"],
+    ["Gift", `${actionDraws} winactie(s) met aandachtspunt`, actionDraws ? "Controleer live acties zonder loten of status zonder winnaar." : "Winactie-performance oogt stabiel.", "/admin/winacties", actionDraws ? "Controle" : "Goed"],
+    ["ShieldAlert", `${highRiskIps} hoge IP-risicohash(es)`, highRiskIps ? "Gratis deelnamepatronen direct nalopen." : "Geen hoog risico in de top IP-hashes.", "/admin/compliance", highRiskIps ? "Actie" : "Goed"]
+  ];
+
+  res.send(page("Analyse | Meat For Free", "analyse", `
+    ${topbar("Analyse", "Funnel, bronkwaliteit en risico's.", "Gebruik deze pagina voor schaalbare beslissingen: waar komt deelname vandaan, wat converteert, en waar zit risico.", `<a class="button button--ghost" href="/admin/compliance">${icon("ShieldCheck")}Compliance</a>`)}
+    ${kpiGrid([
+      { label: "Orderdekking", value: percent(funnel.ordersWithEntries, funnel.eligibleOrders || 0), help: `${funnel.ordersWithEntries} van ${funnel.eligibleOrders} kwalificerende orders hebben loten.`, icon: "Target" },
+      { label: "Gratis aandeel", value: percent(totals.free_entries || 0, totalEntries), help: `${totals.free_entries || 0} gratis loten op ${totalEntries} totaal.`, icon: "Gift" },
+      { label: "Bronnen monitoren", value: monitorSources, help: "Bronnen met afwijkende verhouding of invalidatie.", icon: "ScanSearch" },
+      { label: "Winactie-checks", value: actionDraws, help: "Recente acties met operationeel aandachtspunt.", icon: "Gauge" }
+    ])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Trend</p><h2>Nieuwe loten versus orderkans</h2></div><span class="status">${metrics.recentEntries} laatste 7 dagen</span></div>
+        ${trendChart()}
+      </div>
+      ${sourceQualityPanel(sourceRows)}
+    </section>
+    <section class="grid grid-2">
+      ${funnelPanel(funnel)}
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Beslispunten</p><h2>Wat vraagt aandacht?</h2></div></div>
+        <div class="stack">${actionItems.map(([iconName, title, body, href, badge]) => `<a class="ops-item" href="${href}" style="text-decoration:none"><span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></a>`).join("")}</div>
+      </div>
+    </section>
+    <div class="section-head"><h2>Bronkwaliteit</h2><span class="muted">Niet meer data, alleen data die iets zegt.</span></div>
+    <div class="panel">${sourceQualityTable(sourceRows)}</div>
+    <div class="section-head"><h2>Winactie-performance</h2><span class="muted">Laatste 12 acties met bronmix en signaal.</span></div>
+    <div class="panel">${drawPerformanceTable(drawRows)}</div>
+    <div class="section-head"><h2>Risico uit gratis deelname</h2><a class="button button--ghost" href="/admin/compliance">Volledige compliance</a></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>IP-hash</th><th>Risico</th><th>Claims</th><th>Winacties</th><th>Emails</th><th>Laatst gezien</th></tr></thead>
+        <tbody>${suspiciousIps.length ? suspiciousIps.map((row) => `<tr>
+          <td><strong>${escapeHtml(String(row.ip_hash).slice(0, 12))}...</strong><span class="muted">Hash afgekapt</span></td>
+          <td>${statusBadge(row.risk_label)}</td>
+          <td>${row.claim_count}</td>
+          <td>${row.draw_count}</td>
+          <td>${row.email_count}</td>
+          <td>${escapeHtml(row.last_seen)}</td>
+        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen opvallende IP-hashes.</div></td></tr>`}</tbody>
+      </table>
+    </div>
   `));
 });
 
@@ -1135,6 +1324,7 @@ adminRouter.get("/compliance", (_req, res) => {
   const { totals, orderTotals } = metrics;
   const alerts = complianceAlerts(metrics);
   const logs = auditRows(12);
+  const highRiskIps = suspiciousIps.filter((row) => row.risk_label === "Hoog").length;
   const claimStats = db.prepare(`
     SELECT COUNT(*) AS total_claims, COUNT(DISTINCT ip_hash) AS unique_ips, COUNT(DISTINCT email) AS unique_emails
     FROM free_entry_claims
@@ -1148,7 +1338,7 @@ adminRouter.get("/compliance", (_req, res) => {
 
   res.send(page("Compliance | Meat For Free", "compliance", `
     ${topbar("Compliance", "Alleen actiepunten en bewijs.", "IP's worden gehasht opgeslagen: genoeg om misbruik te blokkeren, zonder rauwe IP's in het dashboard.", "")}
-    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.`, icon: "ShieldCheck" }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen.", icon: "TriangleAlert" }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven.", icon: "PackageSearch" }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule), icon: "Target" }])}
+    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.`, icon: "ShieldCheck" }, { label: "Hoge risico's", value: highRiskIps, help: "IP-hashes met meerdere risicosignalen.", icon: "ShieldAlert" }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven.", icon: "PackageSearch" }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule), icon: "Target" }])}
     <section class="grid grid-2">
       <div class="panel panel-pad">
         <div class="panel-title"><h2>Actiepunten</h2></div>
@@ -1162,14 +1352,15 @@ adminRouter.get("/compliance", (_req, res) => {
     <div class="section-head"><h2>Verdachte IP-hashes</h2><span class="muted">Alleen hashes, geen rauwe IP-adressen.</span></div>
     <div class="panel">
       <table>
-        <thead><tr><th>IP-hash</th><th>Claims</th><th>Winacties</th><th>Emails</th><th>Laatst gezien</th></tr></thead>
+        <thead><tr><th>IP-hash</th><th>Risico</th><th>Claims</th><th>Winacties</th><th>Emails</th><th>Laatst gezien</th></tr></thead>
         <tbody>${suspiciousIps.length ? suspiciousIps.map((row) => `<tr>
           <td><strong>${escapeHtml(String(row.ip_hash).slice(0, 12))}...</strong><span class="muted">Afgekapt voor leesbaarheid</span></td>
+          <td>${statusBadge(row.risk_label)}</td>
           <td>${row.claim_count}</td>
           <td>${row.draw_count}</td>
           <td>${row.email_count}</td>
           <td>${escapeHtml(row.last_seen)}</td>
-        </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Geen IP-hashes met opvallend patroon.</div></td></tr>`}</tbody>
+        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen IP-hashes met opvallend patroon.</div></td></tr>`}</tbody>
       </table>
     </div>
     <div class="section-head"><h2>Auditlog</h2><a class="button button--ghost" href="/admin/regels">Lotregels beheren</a></div>
