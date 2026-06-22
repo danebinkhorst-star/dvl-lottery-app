@@ -177,13 +177,7 @@ function page(title, active, body) {
         .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 14px; background:var(--forest); color:#f9fbf6; border-right:1px solid rgba(255,255,255,.08); }
         .sidebar-brand { display:flex; justify-content:center; padding:4px 6px 22px; color:inherit; text-decoration:none; }
         .brand-mark { width:62px; height:70px; display:block; }
-        .brand-wordmark { width:168px; max-width:100%; height:auto; display:block; }
         .brand { display:flex; align-items:center; text-decoration:none; min-width:0; }
-        .brand-lockup { display:grid; gap:5px; min-width:0; }
-        .brand-lockup small { color:var(--muted); font-size:10px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
-        .sidebar .brand-lockup small { color:rgba(249,251,246,.64); }
-        .sidebar .brand-wordmark text:first-of-type { fill:#fff7e8; }
-        .sidebar .brand-wordmark text:last-of-type { fill:var(--moss); }
         .menu-title { margin:18px 8px 8px; color:rgba(249,251,246,.46); font-size:10px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
         .menu-link { min-height:42px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:8px; color:rgba(249,251,246,.78); text-decoration:none; font-size:13px; font-weight:800; border:1px solid transparent; }
         .menu-link:hover, .menu-link:focus-visible { background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.06); color:#fff; outline:none; }
