@@ -47,6 +47,21 @@ function option(value, current, label) {
   return `<option value="${escapeHtml(value)}"${String(current || "") === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
 }
 
+function percent(part, total) {
+  if (!total) return "0%";
+  return `${Math.round((Number(part || 0) / Number(total || 0)) * 100)}%`;
+}
+
+function safeDivide(part, total, decimals = 1) {
+  if (!total) return "0";
+  return (Number(part || 0) / Number(total || 0)).toFixed(decimals);
+}
+
+function barWidth(part, total) {
+  if (!total) return 0;
+  return Math.max(4, Math.min(100, Math.round((Number(part || 0) / Number(total || 0)) * 100)));
+}
+
 function buildEntryFilter(req) {
   const filter = {
     q: textParam(req.query.q),
@@ -152,9 +167,7 @@ function page(title, body) {
           min-height: 100vh;
           margin: 0;
           color: var(--ink);
-          background:
-            radial-gradient(circle at 16% 10%, rgba(240, 191, 57, .28), transparent 24rem),
-            linear-gradient(135deg, var(--cream) 0%, #fff8ec 48%, var(--cream-2) 100%);
+          background: #f2eadc;
           font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
           font-weight: 700;
         }
@@ -167,6 +180,126 @@ function page(title, body) {
           background-image: linear-gradient(45deg, var(--line) 1px, transparent 1px);
           background-size: 18px 18px;
           mix-blend-mode: multiply;
+        }
+        .app-shell {
+          position: relative;
+          z-index: 1;
+          min-height: 100vh;
+          display: grid;
+          grid-template-columns: 278px minmax(0, 1fr);
+        }
+        .sidebar {
+          position: sticky;
+          top: 0;
+          height: 100vh;
+          overflow-y: auto;
+          padding: 24px 18px;
+          border-right: 3px solid var(--line);
+          background:
+            linear-gradient(180deg, #18261e 0%, #10140f 100%);
+          color: var(--cream);
+        }
+        .sidebar-brand {
+          display:flex;
+          align-items:center;
+          gap:12px;
+          margin-bottom: 28px;
+          color: inherit;
+          text-decoration:none;
+        }
+        .sidebar-mark {
+          width:44px;
+          height:44px;
+          display:grid;
+          place-items:center;
+          border:2px solid rgba(255, 244, 221, .36);
+          border-radius: 14px 6px 14px 6px;
+          background: var(--red);
+          color: var(--cream);
+          box-shadow: 4px 4px 0 var(--gold);
+          font-family:"Archivo Black", Impact, sans-serif;
+          font-size: 16px;
+        }
+        .sidebar-brand strong {
+          display:block;
+          font-family:"Archivo Black", Impact, sans-serif;
+          font-size: 20px;
+          line-height:.88;
+          text-transform: uppercase;
+        }
+        .sidebar-brand span span {
+          display:block;
+          margin-top:5px;
+          color: rgba(255, 244, 221, .62);
+          font-size:10px;
+          font-weight:950;
+          letter-spacing:.12em;
+          text-transform: uppercase;
+        }
+        .menu-group {
+          margin: 22px 0 0;
+        }
+        .menu-title {
+          margin: 0 0 8px;
+          color: rgba(255, 244, 221, .54);
+          font-size: 10px;
+          font-weight: 950;
+          letter-spacing: .14em;
+          text-transform: uppercase;
+        }
+        .menu-link {
+          min-height: 42px;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap: 12px;
+          padding: 9px 10px;
+          border: 2px solid transparent;
+          border-radius: 14px 6px 14px 6px;
+          color: rgba(255, 244, 221, .82);
+          text-decoration:none;
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .menu-link:hover,
+        .menu-link:focus-visible,
+        .menu-link--active {
+          border-color: rgba(255, 244, 221, .24);
+          background: rgba(255, 244, 221, .09);
+          color: var(--cream);
+          outline: none;
+        }
+        .menu-left {
+          display:flex;
+          align-items:center;
+          gap: 10px;
+        }
+        .menu-icon {
+          width: 25px;
+          height: 25px;
+          display:grid;
+          place-items:center;
+          border: 2px solid rgba(255, 244, 221, .22);
+          border-radius: 9px 4px 9px 4px;
+          color: var(--mustard);
+          font-size: 10px;
+          font-weight: 950;
+        }
+        .menu-count {
+          min-width: 24px;
+          height: 24px;
+          display:grid;
+          place-items:center;
+          border-radius: 999px;
+          background: var(--mustard);
+          color: var(--ink);
+          font-size: 11px;
+          font-weight: 950;
+        }
+        .content-shell {
+          min-width: 0;
+          display:flex;
+          flex-direction:column;
         }
         .announce {
           min-height: 38px;
@@ -187,18 +320,15 @@ function page(title, body) {
           position: sticky;
           top: 0;
           z-index: 10;
-          margin: 0 clamp(10px, 2vw, 26px);
-          transform: translateY(-1px);
+          min-height: 74px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 18px;
-          padding: 18px clamp(16px, 3vw, 34px);
-          border: 3px solid var(--line);
-          border-top: 0;
-          border-radius: 0 0 42px 42px;
-          background: var(--paper);
-          box-shadow: var(--shadow);
+          padding: 14px clamp(16px, 3vw, 32px);
+          border-bottom: 3px solid var(--line);
+          background: rgba(255, 250, 240, .94);
+          backdrop-filter: blur(16px);
         }
         .brand {
           display: flex;
@@ -243,6 +373,42 @@ function page(title, body) {
           justify-content: flex-end;
           flex-wrap: wrap;
           gap: 10px;
+        }
+        .top-tools {
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          flex-wrap:wrap;
+          gap: 10px;
+        }
+        .search-pill {
+          min-width: min(360px, 32vw);
+          min-height: 44px;
+          display:flex;
+          align-items:center;
+          gap: 10px;
+          padding: 0 16px;
+          border: 3px solid var(--line);
+          border-radius: 999px;
+          background: #fffdf6;
+          color: #6f5540;
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .tool-chip {
+          min-height: 44px;
+          display:inline-flex;
+          align-items:center;
+          gap: 8px;
+          padding: 0 14px;
+          border: 3px solid var(--line);
+          border-radius: 999px;
+          background: var(--paper);
+          color: var(--ink);
+          font-size: 12px;
+          font-weight: 950;
+          text-transform: uppercase;
+          text-decoration:none;
         }
         main {
           position: relative;
@@ -354,7 +520,7 @@ function page(title, body) {
         .button--ghost { background: var(--paper); color: var(--ink); }
         .grid {
           display:grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: clamp(12px, 1.8vw, 20px);
           margin-bottom: clamp(34px, 5vw, 62px);
         }
@@ -375,6 +541,20 @@ function page(title, body) {
         }
         .card:nth-child(2) { background: var(--mustard); }
         .card:nth-child(3) { background: #f7dca7; }
+        .card--blue { background:#3f7df2; color:#fffdf6; }
+        .card--teal { background:#0fb5bf; color:#fffdf6; }
+        .card--green { background:#4aaf50; color:#fffdf6; }
+        .card--dark { background:#172019; color:#fffdf6; }
+        .card--blue .muted,
+        .card--teal .muted,
+        .card--green .muted,
+        .card--dark .muted,
+        .card--blue .stat,
+        .card--teal .stat,
+        .card--green .stat,
+        .card--dark .stat {
+          color: inherit;
+        }
         .card p { margin: 0; }
         .card .muted {
           color: var(--ink);
@@ -497,6 +677,97 @@ function page(title, body) {
           height:100%;
           background: var(--red);
         }
+        .ops-grid {
+          display:grid;
+          grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr);
+          gap: clamp(14px, 2vw, 22px);
+          margin-bottom: clamp(30px, 5vw, 58px);
+        }
+        .panel-pad {
+          padding: clamp(16px, 2.4vw, 26px);
+        }
+        .panel-title {
+          display:flex;
+          align-items:flex-start;
+          justify-content:space-between;
+          gap:16px;
+          margin-bottom: 18px;
+        }
+        .panel-title h2 {
+          font-size: clamp(24px, 3vw, 42px);
+        }
+        .ops-list {
+          display:grid;
+          gap: 12px;
+        }
+        .ops-item {
+          display:grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          align-items:center;
+          gap: 14px;
+          padding: 14px;
+          border: 2px solid rgba(36, 23, 15, .18);
+          border-radius: 18px 8px 18px 8px;
+          background: rgba(255, 253, 246, .78);
+        }
+        .ops-icon {
+          width: 42px;
+          height: 42px;
+          display:grid;
+          place-items:center;
+          border: 3px solid var(--line);
+          border-radius: 14px 6px 14px 6px;
+          background: var(--mustard);
+          font-weight: 950;
+        }
+        .ops-item strong {
+          display:block;
+          font-size: 15px;
+          font-weight: 950;
+          text-transform: uppercase;
+        }
+        .ops-item span {
+          display:block;
+          margin-top: 3px;
+          color:#6f5540;
+          font-size: 12px;
+          font-weight: 850;
+        }
+        .mini-chart {
+          display:grid;
+          grid-template-columns: repeat(12, minmax(10px, 1fr));
+          align-items:end;
+          gap: 8px;
+          height: 176px;
+          padding: 18px;
+          border: 2px solid rgba(36, 23, 15, .18);
+          border-radius: 22px 10px 22px 10px;
+          background: linear-gradient(180deg, rgba(240, 191, 57, .12), rgba(255, 253, 246, .7));
+        }
+        .mini-chart span {
+          min-height: 6px;
+          border: 2px solid var(--line);
+          border-radius: 999px 999px 4px 4px;
+          background: var(--red);
+        }
+        .ratio-stack {
+          display:grid;
+          gap: 14px;
+        }
+        .ratio-row {
+          display:grid;
+          gap: 7px;
+        }
+        .ratio-row > div:first-child {
+          display:flex;
+          justify-content:space-between;
+          gap: 12px;
+          color:#5c4534;
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing:.06em;
+          text-transform: uppercase;
+        }
         table {
           width:100%;
           border-collapse: collapse;
@@ -589,10 +860,35 @@ function page(title, body) {
           color:#6f5540;
           font-weight: 850;
         }
+        @media (max-width: 1200px) {
+          .grid,
+          .insight-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .search-pill {
+            min-width: min(280px, 30vw);
+          }
+        }
         @media (max-width: 900px) {
+          .app-shell { grid-template-columns: 1fr; }
+          .sidebar {
+            position: relative;
+            height: auto;
+            display: block;
+            padding: 16px;
+            border-right: 0;
+            border-bottom: 3px solid var(--line);
+          }
+          .menu-group {
+            display:grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            margin-top: 14px;
+          }
+          .menu-title { grid-column: 1 / -1; }
           header { border-radius: 0 0 28px 28px; align-items:flex-start; }
           .topbar { grid-template-columns: 1fr; align-items:start; }
-          .grid, .insight-grid, .split-panels { grid-template-columns: 1fr; }
+          .grid, .insight-grid, .split-panels, .ops-grid { grid-template-columns: 1fr; }
           .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .filter-grid .wide { grid-column: span 2; }
           .section-head { display:block; }
@@ -601,7 +897,9 @@ function page(title, body) {
         }
         @media (max-width: 560px) {
           .announce { font-size: 10px; }
-          header { margin: 0 8px; padding: 14px; gap: 10px; }
+          header { padding: 14px; gap: 10px; align-items:stretch; flex-direction:column; }
+          .top-tools { justify-content:flex-start; }
+          .search-pill { min-width: 100%; }
           .brand-mark { width: 44px; height:44px; }
           nav .button { min-height: 42px; padding: 0 14px; font-size: 11px; }
           main { padding-inline: 10px; }
@@ -611,18 +909,48 @@ function page(title, body) {
       </style>
     </head>
     <body>
-      <div class="announce">Meat For Free control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
-      <header>
-        <a class="brand" href="/admin" aria-label="Meat For Free dashboard">
-          <span class="brand-mark">MFF</span>
-          <span><strong>Meat For<br>Free</strong><span>Lottery app</span></span>
-        </a>
-        <nav>
-          <a class="button button--ghost" href="/api/draws/live">Live API</a>
-          <a class="button button--gold" href="/admin">Dashboard</a>
-        </nav>
-      </header>
-      <main>${body}</main>
+      <div class="app-shell">
+        <aside class="sidebar" aria-label="Meat For Free admin menu">
+          <a class="sidebar-brand" href="/admin" aria-label="Meat For Free dashboard">
+            <span class="sidebar-mark">MFF</span>
+            <span><strong>Meat For<br>Free</strong><span>Control room</span></span>
+          </a>
+          <div class="menu-group">
+            <p class="menu-title">Run vandaag</p>
+            <a class="menu-link menu-link--active" href="/admin#overview"><span class="menu-left"><span class="menu-icon">OV</span>Overview</span><span class="menu-count">1</span></a>
+            <a class="menu-link" href="/admin#winacties"><span class="menu-left"><span class="menu-icon">WA</span>Winacties</span></a>
+            <a class="menu-link" href="/admin#lotactiviteit"><span class="menu-left"><span class="menu-icon">LT</span>Loten</span></a>
+            <a class="menu-link" href="/admin#orders"><span class="menu-left"><span class="menu-icon">OR</span>Orders</span></a>
+          </div>
+          <div class="menu-group">
+            <p class="menu-title">Controle</p>
+            <a class="menu-link" href="/admin#deelnemers"><span class="menu-left"><span class="menu-icon">KL</span>Deelnemers</span></a>
+            <a class="menu-link" href="/admin#compliance"><span class="menu-left"><span class="menu-icon">CP</span>Compliance</span></a>
+            <a class="menu-link" href="/admin#sync"><span class="menu-left"><span class="menu-icon">SY</span>Sync jobs</span></a>
+            <a class="menu-link" href="/api/draws/live"><span class="menu-left"><span class="menu-icon">API</span>Live API</span></a>
+          </div>
+          <div class="menu-group">
+            <p class="menu-title">Acties</p>
+            <a class="menu-link" href="/admin/new-draw"><span class="menu-left"><span class="menu-icon">+</span>Nieuwe winactie</span></a>
+            <a class="menu-link" href="/embed/demo"><span class="menu-left"><span class="menu-icon">EM</span>Embed preview</span></a>
+          </div>
+        </aside>
+        <div class="content-shell">
+          <div class="announce">Meat For Free control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
+          <header>
+            <a class="brand" href="/admin" aria-label="Meat For Free dashboard">
+              <span class="brand-mark">MFF</span>
+              <span><strong>Meat For<br>Free</strong><span>Lottery app</span></span>
+            </a>
+            <div class="top-tools">
+              <a class="search-pill" href="/admin#filters">Search orders, loten, klanten</a>
+              <a class="tool-chip" href="/api/draws/live">Live API</a>
+              <a class="tool-chip" href="/embed/demo">Embed</a>
+            </div>
+          </header>
+          <main>${body}</main>
+        </div>
+      </div>
     </body>
   </html>`;
 }
@@ -737,19 +1065,87 @@ adminRouter.get("/", async (req, res) => {
     WHERE financial_status IS NOT NULL AND financial_status != ''
     ORDER BY financial_status ASC
   `).all();
+  const eligibleWithoutEntry = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM orders o
+    LEFT JOIN lottery_entries e ON e.order_id = o.id
+    WHERE o.total_cents >= 7000 AND e.id IS NULL
+  `).get().count;
+  const activeLiveEntries = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    WHERE e.status = 'ACTIVE' AND d.status = 'LIVE'
+  `).get().count;
+  const liveDrawsWithoutEntries = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_draws d
+    WHERE d.status = 'LIVE'
+      AND NOT EXISTS (SELECT 1 FROM lottery_entries e WHERE e.draw_id = d.id)
+  `).get().count;
+  const latestWinner = db.prepare(`
+    SELECT e.entry_number, d.title AS draw_title, c.email
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.winner_entry_id = e.id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    WHERE e.status = 'WINNER'
+    ORDER BY e.created_at DESC
+    LIMIT 1
+  `).get();
+  const monthRows = db.prepare(`
+    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count
+    FROM lottery_entries
+    GROUP BY month
+    ORDER BY month DESC
+    LIMIT 12
+  `).all().reverse();
+  const maxMonthCount = Math.max(1, ...monthRows.map((row) => row.count));
+  const chartRows = monthRows.length ? monthRows : Array.from({ length: 12 }, (_, index) => ({ month: `M${index + 1}`, count: 0 }));
+  const eligibleRate = percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0);
+  const freeEntryShare = percent(totals.free_entries || 0, totals.total_entries || 0);
+  const voidRate = percent(totals.void_entries || 0, totals.total_entries || 0);
+  const entriesPerCustomer = safeDivide(totals.total_entries || 0, totals.participating_customers || 0);
+  const entriesPerOrder = safeDivide(totals.order_entries || 0, orderTotals.total_orders || 0);
+  const opsItems = [
+    {
+      icon: "OR",
+      title: `${eligibleWithoutEntry} eligible orders zonder lot`,
+      body: "Moet normaal 0 zijn. Check ordersync als dit stijgt.",
+      badge: eligibleWithoutEntry ? "Check" : "OK"
+    },
+    {
+      icon: "WA",
+      title: `${liveDraws} live winactie(s)`,
+      body: liveDrawsWithoutEntries ? `${liveDrawsWithoutEntries} live actie heeft nog geen loten.` : `${activeLiveEntries} actieve loten in live trekkingen.`,
+      badge: liveDraws ? "Live" : "Maak"
+    },
+    {
+      icon: "CP",
+      title: `${freeEntryShare} gratis deelname aandeel`,
+      body: "Compliance route blijft zichtbaar naast order-loten.",
+      badge: "Monitor"
+    },
+    {
+      icon: "WN",
+      title: latestWinner ? `Laatste winnaar ${latestWinner.entry_number}` : "Nog geen winnaar getrokken",
+      body: latestWinner ? `${latestWinner.draw_title} · ${latestWinner.email || "klant onbekend"}` : "Trek pas als live actie genoeg geldige loten heeft.",
+      badge: latestWinner ? "Done" : "Open"
+    }
+  ];
 
   res.send(page("Meat For Free Dashboard", `
-    <div class="topbar">
+    <div class="topbar" id="overview">
       <div class="hero-copy">
         <p class="eyebrow">Meat For Free ops</p>
         <h1>Loten, omzet, orders en winnaars.</h1>
       </div>
       <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
     </div>
-    <section class="grid">
-      <div class="card"><p class="muted">Actieve loten</p><div class="stat">${totals.active_entries || 0}</div><p>${totals.total_entries || 0} loten totaal.</p></div>
-      <div class="card"><p class="muted">Klanten met deelname</p><div class="stat">${totals.participating_customers || 0}</div><p>${liveDraws} live winactie(s).</p></div>
-      <div class="card"><p class="muted">Regel</p><div class="stat">€70</div><p>1 gratis lot bij bestelling vanaf €70.</p></div>
+    <section class="grid" aria-label="Kerncijfers">
+      <div class="card card--blue"><p class="muted">Actieve loten</p><div class="stat">${totals.active_entries || 0}</div><p>${totals.total_entries || 0} loten totaal · ${activeLiveEntries} in live acties.</p></div>
+      <div class="card card--teal"><p class="muted">Deelnemers</p><div class="stat">${totals.participating_customers || 0}</div><p>${entriesPerCustomer} loten per deelnemer.</p></div>
+      <div class="card card--green"><p class="muted">Order eligibility</p><div class="stat">${eligibleRate}</div><p>${orderTotals.eligible_orders || 0} orders boven of gelijk aan €70.</p></div>
+      <div class="card card--dark"><p class="muted">Omzet uit app DB</p><div class="stat">${formatEuro(orderTotals.gross_cents || 0)}</div><p>${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.</p></div>
     </section>
     <section class="insight-grid">
       <div class="insight"><span>Order-loten</span><strong>${totals.order_entries || 0}</strong></div>
@@ -761,7 +1157,65 @@ adminRouter.get("/", async (req, res) => {
       <div class="insight"><span>Gem. orderwaarde</span><strong>${formatEuro(Math.round(orderTotals.avg_cents || 0))}</strong></div>
       <div class="insight"><span>Vandaag orders</span><strong>${todayOrders}</strong></div>
     </section>
-    <section class="filters">
+    <section class="ops-grid" id="sync">
+      <div class="panel panel-pad">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Realtime analytics</p>
+            <h2>Lotvolume per maand.</h2>
+          </div>
+          <span class="status status--active">${recentEntries} in 7 dagen</span>
+        </div>
+        <div class="mini-chart" aria-label="Lotvolume per maand">
+          ${chartRows.map((row) => `<span title="${escapeHtml(row.month)}: ${row.count}" style="height:${barWidth(row.count, maxMonthCount)}%"></span>`).join("")}
+        </div>
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Ops queue</p>
+            <h2>Nu checken.</h2>
+          </div>
+        </div>
+        <div class="ops-list">
+          ${opsItems.map((item) => `<div class="ops-item">
+            <span class="ops-icon">${escapeHtml(item.icon)}</span>
+            <span><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span></span>
+            <span class="status">${escapeHtml(item.badge)}</span>
+          </div>`).join("")}
+        </div>
+      </div>
+    </section>
+    <section class="ops-grid" id="compliance">
+      <div class="panel panel-pad">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Compliance</p>
+            <h2>Gratis route en voids.</h2>
+          </div>
+        </div>
+        <div class="ratio-stack">
+          <div class="ratio-row"><div><span>Gratis deelnames</span><strong>${freeEntryShare}</strong></div><div class="bar"><span style="width:${barWidth(totals.free_entries || 0, totals.total_entries || 0)}%"></span></div></div>
+          <div class="ratio-row"><div><span>Void rate</span><strong>${voidRate}</strong></div><div class="bar"><span style="width:${barWidth(totals.void_entries || 0, totals.total_entries || 0)}%"></span></div></div>
+          <div class="ratio-row"><div><span>Order-loten per order</span><strong>${entriesPerOrder}</strong></div><div class="bar"><span style="width:${barWidth(totals.order_entries || 0, Math.max(orderTotals.total_orders || 0, totals.order_entries || 0))}%"></span></div></div>
+        </div>
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Acties</p>
+            <h2>Snel uitvoeren.</h2>
+          </div>
+        </div>
+        <div class="ops-list">
+          <form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Sync klantdashboards</button></form>
+          <form class="inline-form" method="post" action="/admin/reconcile"><button class="button--ghost" type="submit">Sync orders met loten</button></form>
+          <a class="button button--ghost" href="/api/draws/live">Bekijk live API</a>
+          <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
+        </div>
+      </div>
+    </section>
+    <section class="filters" id="filters">
       <h2>Filters</h2>
       <form method="get" action="/admin">
         <div class="filter-grid">
@@ -854,7 +1308,7 @@ adminRouter.get("/", async (req, res) => {
         </div>
       </div>
     </div>
-    <div class="section-head">
+    <div class="section-head" id="winacties">
       <h2>Winacties</h2>
       <div style="display:flex; flex-wrap:wrap; gap:10px;">
         <form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Sync dashboards</button></form>
@@ -879,7 +1333,7 @@ adminRouter.get("/", async (req, res) => {
         </tbody>
       </table>
     </div>
-    <div class="section-head">
+    <div class="section-head" id="lotactiviteit">
       <h2>Gefilterde lotactiviteit</h2>
     </div>
     <div class="panel">
@@ -897,7 +1351,7 @@ adminRouter.get("/", async (req, res) => {
         </tbody>
       </table>
     </div>
-    <div class="section-head">
+    <div class="section-head" id="deelnemers">
       <h2>Top deelnemers</h2>
     </div>
     <div class="panel">
@@ -912,7 +1366,7 @@ adminRouter.get("/", async (req, res) => {
         </tbody>
       </table>
     </div>
-    <div class="section-head">
+    <div class="section-head" id="orders">
       <h2>Gefilterde orders</h2>
     </div>
     <div class="panel">
