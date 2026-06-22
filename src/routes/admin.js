@@ -188,6 +188,7 @@ function page(title, active, body) {
         .content { min-width:0; }
         header { position:sticky; top:0; z-index:5; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,252,247,.94); backdrop-filter:blur(14px); }
         .top-tools { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+        .mobile-chip-nav, .mobile-tabbar { display:none; }
         main { width:min(100%,1440px); margin:0 auto; padding:26px clamp(18px,3vw,34px) 56px; }
         h1, h2, h3, p { margin:0; }
         h1 { max-width:800px; font-size:clamp(32px,4vw,48px); line-height:1.05; font-weight:950; }
@@ -264,23 +265,64 @@ function page(title, active, body) {
         .helper { margin-top:8px; color:var(--muted); font-size:12px; font-weight:650; text-transform:none; letter-spacing:0; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:900px) {
+          html, body { background:#f4f1e8; }
           .app-shell { grid-template-columns:1fr; }
-          .sidebar { position:relative; height:auto; padding:16px; }
-          .menu { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
-          .menu-title { grid-column:1 / -1; }
-          header { position:relative; align-items:flex-start; flex-direction:column; }
+          .sidebar { display:none; }
+          header { top:0; min-height:64px; align-items:center; flex-direction:row; gap:10px; padding:10px 12px; padding-top:max(10px, env(safe-area-inset-top)); background:rgba(255,252,247,.82); border-bottom:1px solid rgba(217,212,199,.78); box-shadow:0 8px 22px rgba(20,18,13,.06); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
+          header .brand { gap:8px; }
+          header .brand-mark { width:34px; height:38px; }
+          header .brand-wordmark { width:92px; }
+          header .brand-lockup { gap:2px; }
+          header .brand-lockup small { display:none; }
+          .top-tools { flex:1 1 auto; flex-wrap:nowrap; justify-content:flex-end; gap:7px; overflow-x:auto; padding:2px 0; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+          .top-tools::-webkit-scrollbar, .mobile-chip-nav::-webkit-scrollbar { display:none; }
+          .top-tools .button { min-height:36px; padding:0 11px; border-radius:999px; white-space:nowrap; box-shadow:0 1px 0 rgba(255,255,255,.75) inset; }
+          .top-tools .button--ghost:first-child { display:none; }
+          .mobile-chip-nav { position:sticky; top:63px; z-index:4; display:flex; gap:8px; overflow-x:auto; padding:9px 12px; border-bottom:1px solid rgba(217,212,199,.74); background:rgba(244,241,232,.88); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+          .mobile-chip-link { min-height:36px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; padding:0 12px; border:1px solid rgba(217,212,199,.9); border-radius:999px; background:rgba(255,255,255,.74); color:var(--muted); font-size:12px; font-weight:850; text-decoration:none; box-shadow:0 1px 0 rgba(255,255,255,.78) inset; }
+          .mobile-chip-link svg { width:15px; height:15px; }
+          .mobile-chip-link--active { background:var(--forest); border-color:var(--forest); color:#fffdf7; box-shadow:0 8px 18px rgba(20,35,20,.18); }
+          .mobile-tabbar { position:fixed; left:10px; right:10px; bottom:10px; bottom:max(10px, env(safe-area-inset-bottom)); z-index:20; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; min-height:64px; padding:7px; border:1px solid rgba(217,212,199,.88); border-radius:24px; background:rgba(255,252,247,.86); box-shadow:0 18px 46px rgba(20,18,13,.18); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
+          .mobile-tab-link { min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border-radius:18px; color:#686159; text-decoration:none; font-size:10px; line-height:1; font-weight:850; }
+          .mobile-tab-link svg { width:20px; height:20px; }
+          .mobile-tab-label { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .mobile-tab-link--active { background:#172112; color:#fff9ee; }
+          .mobile-tab-link--active svg { color:var(--leaf); }
           .topbar { grid-template-columns:1fr; align-items:start; }
-          .grid, .grid-3, .grid-2 { grid-template-columns:1fr; }
+          .grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+          .grid-3, .grid-2 { grid-template-columns:1fr; }
+          .card { min-height:126px; padding:14px; border-radius:18px; }
+          .card-icon { width:34px; height:34px; border-radius:12px; }
+          .stat { font-size:32px; }
+          .card p:last-child { font-size:12px; line-height:1.35; }
           .form-grid { grid-template-columns:1fr; }
           .wide { grid-column:auto; }
-          .panel { overflow-x:auto; }
+          .panel, .filters { border-radius:18px; }
+          .panel-pad, .filters { padding:14px; }
+          .section-head { align-items:flex-start; flex-direction:column; gap:8px; margin:22px 0 10px; }
+          .ops-item { border-radius:16px; grid-template-columns:auto minmax(0,1fr) auto; }
+          .chart-wrap { border-radius:16px; padding:10px 8px 8px; }
+          .filter-grid { grid-template-columns:1fr; }
+          .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
           table { min-width:760px; }
         }
         @media (max-width:560px) {
-          main { padding-inline:10px; }
-          .filter-grid { grid-template-columns:1fr; }
+          main { padding:16px 12px calc(102px + env(safe-area-inset-bottom)); }
           .top-tools, .actions { justify-content:flex-start; }
-          h1 { font-size:34px; }
+          .topbar { margin-bottom:14px; }
+          .topbar .actions { margin-top:12px; }
+          h1 { font-size:30px; line-height:1.06; }
+          h2 { font-size:21px; }
+          .eyebrow { font-size:10px; }
+          .button, button { min-height:38px; border-radius:12px; }
+          input, textarea, select { min-height:44px; border-radius:12px; }
+          .metric-row > div:first-child { font-size:11px; }
+          .status { padding:5px 8px; font-size:10px; }
+        }
+        @media (max-width:390px) {
+          .grid { grid-template-columns:1fr; }
+          header .brand-wordmark { width:82px; }
+          .top-tools .button { padding:0 9px; }
         }
       </style>
     </head>
@@ -318,8 +360,14 @@ function page(title, active, body) {
               <a class="button button--gold" href="/admin/new-draw">${icon("Plus")}Nieuwe winactie</a>
             </div>
           </header>
+          <nav class="mobile-chip-nav" aria-label="Mobiele admin navigatie">
+            ${menu.map(([key, href, iconName, label]) => mobileChipLink(active, key, href, iconName, label)).join("")}
+          </nav>
           <main>${body}</main>
         </div>
+        <nav class="mobile-tabbar" aria-label="Snelle mobiele navigatie">
+          ${menu.slice(0, 5).map(([key, href, iconName, label]) => mobileTabLink(active, key, href, iconName, label)).join("")}
+        </nav>
       </div>
     </body>
   </html>`;
@@ -328,6 +376,18 @@ function page(title, active, body) {
 function menuLink(active, key, href, iconName, label) {
   return `<a class="menu-link${active === key ? " menu-link--active" : ""}" href="${href}">
     <span class="menu-left"><span class="menu-icon">${icon(iconName)}</span>${escapeHtml(label)}</span>
+  </a>`;
+}
+
+function mobileChipLink(active, key, href, iconName, label) {
+  return `<a class="mobile-chip-link${active === key ? " mobile-chip-link--active" : ""}" href="${href}">
+    ${icon(iconName)}<span>${escapeHtml(label)}</span>
+  </a>`;
+}
+
+function mobileTabLink(active, key, href, iconName, label) {
+  return `<a class="mobile-tab-link${active === key ? " mobile-tab-link--active" : ""}" href="${href}">
+    ${icon(iconName)}<span class="mobile-tab-label">${escapeHtml(label)}</span>
   </a>`;
 }
 
