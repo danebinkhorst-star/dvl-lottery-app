@@ -1,4 +1,4 @@
-# DVL Lottery Shopify Embed
+# Meat For Free Lottery Shopify Embed
 
 Public widget script:
 

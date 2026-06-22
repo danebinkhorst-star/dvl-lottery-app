@@ -1,6 +1,6 @@
-# De Vlees Loterij Custom Lottery App
+# Meat For Free Custom Lottery App
 
-Custom MVP app for the DVL lottery/loyalty system.
+Custom MVP app for the Meat For Free lottery/loyalty system.
 
 ## What this app does
 

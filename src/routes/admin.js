@@ -25,6 +25,102 @@ function csv(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
+function textParam(value) {
+  return String(value || "").trim();
+}
+
+function moneyParamToCents(value) {
+  const raw = textParam(value).replace(",", ".");
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round(parsed * 100);
+}
+
+function isoDateParam(value) {
+  const raw = textParam(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  return raw;
+}
+
+function option(value, current, label) {
+  return `<option value="${escapeHtml(value)}"${String(current || "") === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function buildEntryFilter(req) {
+  const filter = {
+    q: textParam(req.query.q),
+    drawStatus: textParam(req.query.drawStatus),
+    entryStatus: textParam(req.query.entryStatus),
+    source: textParam(req.query.source),
+    from: isoDateParam(req.query.from),
+    to: isoDateParam(req.query.to)
+  };
+  const where = [];
+  const params = [];
+
+  if (filter.q) {
+    where.push(`(e.entry_number LIKE ? OR c.email LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR o.order_name LIKE ? OR d.title LIKE ?)`);
+    const like = `%${filter.q}%`;
+    params.push(like, like, like, like, like, like);
+  }
+  if (filter.drawStatus) {
+    where.push("d.status = ?");
+    params.push(filter.drawStatus);
+  }
+  if (filter.entryStatus) {
+    where.push("e.status = ?");
+    params.push(filter.entryStatus);
+  }
+  if (filter.source) {
+    where.push("e.source = ?");
+    params.push(filter.source);
+  }
+  if (filter.from) {
+    where.push("date(e.created_at) >= date(?)");
+    params.push(filter.from);
+  }
+  if (filter.to) {
+    where.push("date(e.created_at) <= date(?)");
+    params.push(filter.to);
+  }
+
+  return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+}
+
+function buildOrderFilter(req) {
+  const filter = {
+    orderQ: textParam(req.query.orderQ),
+    orderStatus: textParam(req.query.orderStatus),
+    minTotal: textParam(req.query.minTotal),
+    maxTotal: textParam(req.query.maxTotal)
+  };
+  const minCents = moneyParamToCents(filter.minTotal);
+  const maxCents = moneyParamToCents(filter.maxTotal);
+  const where = [];
+  const params = [];
+
+  if (filter.orderQ) {
+    where.push("(o.order_name LIKE ? OR o.email LIKE ? OR c.email LIKE ?)");
+    const like = `%${filter.orderQ}%`;
+    params.push(like, like, like);
+  }
+  if (filter.orderStatus) {
+    where.push("o.financial_status = ?");
+    params.push(filter.orderStatus);
+  }
+  if (minCents !== null) {
+    where.push("o.total_cents >= ?");
+    params.push(minCents);
+  }
+  if (maxCents !== null) {
+    where.push("o.total_cents <= ?");
+    params.push(maxCents);
+  }
+
+  return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+}
+
 function page(title, body) {
   return `<!doctype html>
   <html lang="nl">
@@ -210,7 +306,7 @@ function page(title, body) {
           box-shadow: var(--shadow);
         }
         .hero-copy::after {
-          content:"LOTEN";
+          content:"FREE";
           position:absolute;
           right: -10px;
           bottom: -10px;
@@ -262,6 +358,11 @@ function page(title, body) {
           gap: clamp(12px, 1.8vw, 20px);
           margin-bottom: clamp(34px, 5vw, 62px);
         }
+        .grid > *,
+        .insight-grid > *,
+        .split-panels > * {
+          min-width: 0;
+        }
         .card {
           position: relative;
           min-height: 174px;
@@ -308,11 +409,93 @@ function page(title, body) {
           margin: clamp(26px, 5vw, 54px) 0 16px;
         }
         .panel {
+          max-width: 100%;
           overflow: hidden;
           border: 3px solid var(--line);
           border-radius: 34px 14px 34px 14px;
           background: rgba(255, 250, 240, .9);
           box-shadow: 10px 10px 0 rgba(33, 21, 15, .14);
+        }
+        .filters {
+          margin: 0 0 clamp(28px, 4vw, 46px);
+          padding: clamp(16px, 2.6vw, 28px);
+          border: 3px solid var(--line);
+          border-radius: 30px 12px 30px 12px;
+          background: rgba(255, 250, 240, .92);
+          box-shadow: 8px 8px 0 rgba(33, 21, 15, .14);
+        }
+        .filters h2 {
+          margin-bottom: 18px;
+          font-size: clamp(24px, 3vw, 42px);
+        }
+        .filter-grid {
+          display:grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 12px;
+          align-items:end;
+        }
+        .filter-grid label {
+          margin: 0;
+        }
+        .filter-grid .wide {
+          grid-column: span 2;
+        }
+        .filter-actions {
+          display:flex;
+          flex-wrap:wrap;
+          gap:10px;
+          align-items:center;
+        }
+        .insight-grid {
+          display:grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+          margin-bottom: clamp(34px, 5vw, 62px);
+        }
+        .insight {
+          padding: 18px;
+          border: 2px solid rgba(36, 23, 15, .22);
+          border-radius: 22px 10px 22px 10px;
+          background: rgba(255, 250, 240, .74);
+        }
+        .insight span {
+          display:block;
+          color:#6f5540;
+          font-size: 11px;
+          font-weight: 950;
+          letter-spacing:.08em;
+          text-transform:uppercase;
+        }
+        .insight strong {
+          display:block;
+          margin-top: 10px;
+          color: var(--red);
+          font-family: "Archivo Black", Impact, sans-serif;
+          font-size: clamp(24px, 3vw, 42px);
+          line-height: .9;
+          letter-spacing: -.03em;
+        }
+        .split-panels {
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: clamp(14px, 2vw, 22px);
+          margin-bottom: clamp(30px, 5vw, 58px);
+        }
+        .compact-table td,
+        .compact-table th {
+          padding: 13px 14px;
+        }
+        .bar {
+          height: 12px;
+          overflow:hidden;
+          border: 2px solid var(--line);
+          border-radius: 999px;
+          background: #fffdf6;
+        }
+        .bar span {
+          display:block;
+          height:100%;
+          background: var(--red);
         }
         table {
           width:100%;
@@ -409,7 +592,9 @@ function page(title, body) {
         @media (max-width: 900px) {
           header { border-radius: 0 0 28px 28px; align-items:flex-start; }
           .topbar { grid-template-columns: 1fr; align-items:start; }
-          .grid { grid-template-columns: 1fr; }
+          .grid, .insight-grid, .split-panels { grid-template-columns: 1fr; }
+          .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .filter-grid .wide { grid-column: span 2; }
           .section-head { display:block; }
           .panel { overflow-x:auto; }
           table { min-width: 760px; }
@@ -426,11 +611,11 @@ function page(title, body) {
       </style>
     </head>
     <body>
-      <div class="announce">DVL control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
+      <div class="announce">Meat For Free control room · loten bij €70 · live trekkingen · eerlijke winnaars</div>
       <header>
-        <a class="brand" href="/admin" aria-label="De Vlees Loterij dashboard">
-          <span class="brand-mark">DVL</span>
-          <span><strong>De Vlees<br>Loterij</strong><span>Lottery app</span></span>
+        <a class="brand" href="/admin" aria-label="Meat For Free dashboard">
+          <span class="brand-mark">MFF</span>
+          <span><strong>Meat For<br>Free</strong><span>Lottery app</span></span>
         </a>
         <nav>
           <a class="button button--ghost" href="/api/draws/live">Live API</a>
@@ -442,7 +627,9 @@ function page(title, body) {
   </html>`;
 }
 
-adminRouter.get("/", async (_req, res) => {
+adminRouter.get("/", async (req, res) => {
+  const entryFilter = buildEntryFilter(req);
+  const orderFilter = buildOrderFilter(req);
   const draws = db.prepare(`
     SELECT d.*,
       (SELECT COUNT(*) FROM lottery_entries e WHERE e.draw_id = d.id) AS entry_count,
@@ -454,30 +641,64 @@ adminRouter.get("/", async (_req, res) => {
     ORDER BY d.created_at DESC
     LIMIT 12
   `).all();
-  const entries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'ACTIVE'").get().count;
-  const customers = db.prepare("SELECT COUNT(*) AS count FROM customers").get().count;
-  const freeEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'FREE_ENTRY'").get().count;
-  const orderEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'ORDER_THRESHOLD'").get().count;
-  const winners = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'WINNER'").get().count;
-  const voidEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'VOID'").get().count;
+
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total_entries,
+      SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_entries,
+      SUM(CASE WHEN status = 'WINNER' THEN 1 ELSE 0 END) AS winners,
+      SUM(CASE WHEN status = 'VOID' THEN 1 ELSE 0 END) AS void_entries,
+      SUM(CASE WHEN source = 'FREE_ENTRY' THEN 1 ELSE 0 END) AS free_entries,
+      SUM(CASE WHEN source = 'ORDER_THRESHOLD' THEN 1 ELSE 0 END) AS order_entries,
+      COUNT(DISTINCT customer_id) AS participating_customers
+    FROM lottery_entries
+  `).get();
+  const orderTotals = db.prepare(`
+    SELECT
+      COUNT(*) AS total_orders,
+      SUM(total_cents) AS gross_cents,
+      AVG(total_cents) AS avg_cents,
+      SUM(CASE WHEN total_cents >= 7000 THEN 1 ELSE 0 END) AS eligible_orders
+    FROM orders
+  `).get();
+  const liveDraws = db.prepare("SELECT COUNT(*) AS count FROM lottery_draws WHERE status = 'LIVE'").get().count;
+  const recentEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE datetime(created_at) >= datetime('now', '-7 days')").get().count;
+  const todayOrders = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE date(created_at) = date('now')").get().count;
+  const filteredEntryCount = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${entryFilter.whereSql}
+  `).get(...entryFilter.params).count;
+  const filteredOrderCount = db.prepare(`
+    SELECT COUNT(*) AS count, SUM(o.total_cents) AS total_cents
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    ${orderFilter.whereSql}
+  `).get(...orderFilter.params);
+
   const orders = db.prepare(`
     SELECT o.*, c.email AS customer_email, COUNT(e.id) AS entry_count
     FROM orders o
     LEFT JOIN customers c ON c.id = o.customer_id
     LEFT JOIN lottery_entries e ON e.order_id = o.id
+    ${orderFilter.whereSql}
     GROUP BY o.id
     ORDER BY o.created_at DESC
-    LIMIT 8
-  `).all();
+    LIMIT 25
+  `).all(...orderFilter.params);
   const activity = db.prepare(`
     SELECT e.entry_number, e.source, e.status, e.created_at, d.title AS draw_title, c.email, o.order_name
     FROM lottery_entries e
     JOIN lottery_draws d ON d.id = e.draw_id
     LEFT JOIN customers c ON c.id = e.customer_id
     LEFT JOIN orders o ON o.id = e.order_id
+    ${entryFilter.whereSql}
     ORDER BY e.created_at DESC
-    LIMIT 10
-  `).all();
+    LIMIT 40
+  `).all(...entryFilter.params);
   const topCustomers = db.prepare(`
     SELECT c.email, c.first_name, c.last_name, COUNT(e.id) AS entry_count,
       SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_count
@@ -487,25 +708,152 @@ adminRouter.get("/", async (_req, res) => {
     ORDER BY entry_count DESC, c.updated_at DESC
     LIMIT 8
   `).all();
+  const sourceBreakdown = db.prepare(`
+    SELECT source, COUNT(*) AS count
+    FROM lottery_entries
+    GROUP BY source
+    ORDER BY count DESC
+  `).all();
+  const statusBreakdown = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM lottery_entries
+    GROUP BY status
+    ORDER BY count DESC
+  `).all();
+  const drawStatusBreakdown = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM lottery_draws
+    GROUP BY status
+    ORDER BY count DESC
+  `).all();
+  const maxSourceCount = Math.max(1, ...sourceBreakdown.map((row) => row.count));
+  const maxStatusCount = Math.max(1, ...statusBreakdown.map((row) => row.count), ...drawStatusBreakdown.map((row) => row.count));
+  const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
+  const sources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
+  const drawStatuses = ["LIVE", "DRAFT", "DRAWN", "ARCHIVED"];
+  const orderStatuses = db.prepare(`
+    SELECT DISTINCT financial_status AS status
+    FROM orders
+    WHERE financial_status IS NOT NULL AND financial_status != ''
+    ORDER BY financial_status ASC
+  `).all();
 
-  res.send(page("DVL Lottery Dashboard", `
+  res.send(page("Meat For Free Dashboard", `
     <div class="topbar">
       <div class="hero-copy">
-        <p class="eyebrow">Custom lottery system</p>
-        <h1>Loten, trekkingen en winnaars.</h1>
+        <p class="eyebrow">Meat For Free ops</p>
+        <h1>Loten, omzet, orders en winnaars.</h1>
       </div>
       <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
     </div>
     <section class="grid">
-      <div class="card"><p class="muted">Actieve loten</p><div class="stat">${entries}</div></div>
-      <div class="card"><p class="muted">Klanten met deelname</p><div class="stat">${customers}</div></div>
+      <div class="card"><p class="muted">Actieve loten</p><div class="stat">${totals.active_entries || 0}</div><p>${totals.total_entries || 0} loten totaal.</p></div>
+      <div class="card"><p class="muted">Klanten met deelname</p><div class="stat">${totals.participating_customers || 0}</div><p>${liveDraws} live winactie(s).</p></div>
       <div class="card"><p class="muted">Regel</p><div class="stat">€70</div><p>1 gratis lot bij bestelling vanaf €70.</p></div>
     </section>
-    <section class="grid">
-      <div class="card"><p class="muted">Order-loten</p><div class="stat">${orderEntries}</div><p>Automatisch uit Shopify orders.</p></div>
-      <div class="card"><p class="muted">Gratis deelnames</p><div class="stat">${freeEntries}</div><p>Compliance-route zonder aankoop.</p></div>
-      <div class="card"><p class="muted">Winnaars / ongeldig</p><div class="stat">${winners}/${voidEntries}</div><p>Getrokken winnaars en geannuleerde loten.</p></div>
+    <section class="insight-grid">
+      <div class="insight"><span>Order-loten</span><strong>${totals.order_entries || 0}</strong></div>
+      <div class="insight"><span>Gratis deelnames</span><strong>${totals.free_entries || 0}</strong></div>
+      <div class="insight"><span>Winnaars / void</span><strong>${totals.winners || 0}/${totals.void_entries || 0}</strong></div>
+      <div class="insight"><span>Laatste 7 dagen</span><strong>${recentEntries}</strong></div>
+      <div class="insight"><span>Orders totaal</span><strong>${orderTotals.total_orders || 0}</strong></div>
+      <div class="insight"><span>Omzet uit app DB</span><strong>${formatEuro(orderTotals.gross_cents || 0)}</strong></div>
+      <div class="insight"><span>Gem. orderwaarde</span><strong>${formatEuro(Math.round(orderTotals.avg_cents || 0))}</strong></div>
+      <div class="insight"><span>Vandaag orders</span><strong>${todayOrders}</strong></div>
     </section>
+    <section class="filters">
+      <h2>Filters</h2>
+      <form method="get" action="/admin">
+        <div class="filter-grid">
+          <label class="wide">Zoek lot / klant / order / winactie
+            <input name="q" value="${escapeHtml(entryFilter.filter.q)}" placeholder="Bijv. email, #1001, MFF">
+          </label>
+          <label>Lotstatus
+            <select name="entryStatus">
+              ${option("", entryFilter.filter.entryStatus, "Alle lotstatussen")}
+              ${entryStatuses.map((status) => option(status, entryFilter.filter.entryStatus, status)).join("")}
+            </select>
+          </label>
+          <label>Bron
+            <select name="source">
+              ${option("", entryFilter.filter.source, "Alle bronnen")}
+              ${sources.map((source) => option(source, entryFilter.filter.source, source)).join("")}
+            </select>
+          </label>
+          <label>Winactie status
+            <select name="drawStatus">
+              ${option("", entryFilter.filter.drawStatus, "Alle winacties")}
+              ${drawStatuses.map((status) => option(status, entryFilter.filter.drawStatus, status)).join("")}
+            </select>
+          </label>
+          <label>Vanaf
+            <input type="date" name="from" value="${escapeHtml(entryFilter.filter.from)}">
+          </label>
+          <label>Tot
+            <input type="date" name="to" value="${escapeHtml(entryFilter.filter.to)}">
+          </label>
+          <label class="wide">Zoek order / orderklant
+            <input name="orderQ" value="${escapeHtml(orderFilter.filter.orderQ)}" placeholder="Bijv. #1001 of email">
+          </label>
+          <label>Orderstatus
+            <select name="orderStatus">
+              ${option("", orderFilter.filter.orderStatus, "Alle orderstatussen")}
+              ${orderStatuses.map((row) => option(row.status, orderFilter.filter.orderStatus, row.status)).join("")}
+            </select>
+          </label>
+          <label>Min. order €
+            <input inputmode="decimal" name="minTotal" value="${escapeHtml(orderFilter.filter.minTotal)}" placeholder="70">
+          </label>
+          <label>Max. order €
+            <input inputmode="decimal" name="maxTotal" value="${escapeHtml(orderFilter.filter.maxTotal)}" placeholder="250">
+          </label>
+          <div class="filter-actions">
+            <button type="submit">Filter</button>
+            <a class="button button--ghost" href="/admin">Reset</a>
+          </div>
+        </div>
+      </form>
+    </section>
+    <section class="grid">
+      <div class="card"><p class="muted">Gefilterde loten</p><div class="stat">${filteredEntryCount}</div><p>Resultaat van de actieve lotfilters.</p></div>
+      <div class="card"><p class="muted">Gefilterde orders</p><div class="stat">${filteredOrderCount.count || 0}</div><p>${formatEuro(filteredOrderCount.total_cents || 0)} waarde.</p></div>
+      <div class="card"><p class="muted">Order eligibility</p><div class="stat">${orderTotals.eligible_orders || 0}</div><p>Orders boven of gelijk aan €70.</p></div>
+    </section>
+    <div class="split-panels">
+      <div>
+        <div class="section-head"><h2>Bronnen</h2></div>
+        <div class="panel">
+          <table class="compact-table">
+            <thead><tr><th>Bron</th><th>Aantal</th><th>Volume</th></tr></thead>
+            <tbody>
+              ${sourceBreakdown.length ? sourceBreakdown.map((row) => `<tr>
+                <td><strong>${escapeHtml(row.source)}</strong></td>
+                <td>${row.count}</td>
+                <td><div class="bar"><span style="width:${Math.round((row.count / maxSourceCount) * 100)}%"></span></div></td>
+              </tr>`).join("") : `<tr><td colspan="3"><div class="empty">Nog geen bronnen.</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="section-head"><h2>Statussen</h2></div>
+        <div class="panel">
+          <table class="compact-table">
+            <thead><tr><th>Type</th><th>Status</th><th>Aantal</th></tr></thead>
+            <tbody>
+              ${[
+                ...statusBreakdown.map((row) => ({ type: "Lot", ...row })),
+                ...drawStatusBreakdown.map((row) => ({ type: "Winactie", ...row }))
+              ].map((row) => `<tr>
+                <td>${escapeHtml(row.type)}</td>
+                <td>${statusBadge(row.status)}</td>
+                <td><strong>${row.count}</strong><div class="bar"><span style="width:${Math.round((row.count / maxStatusCount) * 100)}%"></span></div></td>
+              </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nog geen statusdata.</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     <div class="section-head">
       <h2>Winacties</h2>
       <div style="display:flex; flex-wrap:wrap; gap:10px;">
@@ -532,11 +880,11 @@ adminRouter.get("/", async (_req, res) => {
       </table>
     </div>
     <div class="section-head">
-      <h2>Live activiteit</h2>
+      <h2>Gefilterde lotactiviteit</h2>
     </div>
     <div class="panel">
       <table>
-        <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th></tr></thead>
+        <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th><th>Datum</th></tr></thead>
         <tbody>
           ${activity.length ? activity.map((entry) => `<tr>
             <td><strong>${escapeHtml(entry.entry_number)}</strong><br><span class="muted">${escapeHtml(entry.order_name || entry.created_at)}</span></td>
@@ -544,7 +892,8 @@ adminRouter.get("/", async (_req, res) => {
             <td>${escapeHtml(entry.email || "-")}</td>
             <td>${escapeHtml(entry.draw_title)}</td>
             <td>${statusBadge(entry.status)}</td>
-          </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen lotactiviteit.</div></td></tr>`}
+            <td>${escapeHtml(entry.created_at)}</td>
+          </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen loten binnen deze filters.</div></td></tr>`}
         </tbody>
       </table>
     </div>
@@ -564,11 +913,11 @@ adminRouter.get("/", async (_req, res) => {
       </table>
     </div>
     <div class="section-head">
-      <h2>Laatste orders</h2>
+      <h2>Gefilterde orders</h2>
     </div>
     <div class="panel">
       <table>
-        <thead><tr><th>Order</th><th>Klant</th><th>Waarde</th><th>Loten</th><th>Status</th></tr></thead>
+        <thead><tr><th>Order</th><th>Klant</th><th>Waarde</th><th>Loten</th><th>Status</th><th>Datum</th></tr></thead>
         <tbody>
           ${orders.length ? orders.map((order) => `<tr>
             <td><strong>${escapeHtml(order.order_name || order.shopify_order_id)}</strong></td>
@@ -576,7 +925,8 @@ adminRouter.get("/", async (_req, res) => {
             <td>${formatEuro(order.total_cents)}</td>
             <td>${order.entry_count}</td>
             <td>${statusBadge(order.financial_status || "-")}</td>
-          </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen orders met loten. Plaats een testorder vanaf €70 om de flow te zien.</div></td></tr>`}
+            <td>${escapeHtml(order.created_at)}</td>
+          </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen orders binnen deze filters.</div></td></tr>`}
         </tbody>
       </table>
     </div>

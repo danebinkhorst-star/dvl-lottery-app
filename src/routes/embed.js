@@ -467,7 +467,7 @@ function widgetRuntime() {
       <p class="dvl-widget-eyebrow">Live winacties</p>
       <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
       <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Elke bestelling vanaf €70 speelt automatisch mee. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking live en transparant.")}</p>
-      <div class="dvl-widget-steps" aria-label="Zo werkt De Vlees Loterij">
+      <div class="dvl-widget-steps" aria-label="Zo werkt Meat For Free">
         <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf €70</span></div>
         <div class="dvl-widget-step"><b>2</b><span>Ontvang je lot automatisch</span></div>
         <div class="dvl-widget-step"><b>3</b><span>Volg je kansen in je dashboard</span></div>
@@ -531,7 +531,7 @@ function widgetRuntime() {
 
   function customerWidget(el, data) {
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
-      <p class="dvl-widget-eyebrow">Mijn DVL</p>
+      <p class="dvl-widget-eyebrow">Mijn MFF</p>
       <h2 class="dvl-widget-title">Je loten. Je trekkingen.</h2>
       <p class="dvl-widget-copy">Log in met hetzelfde account waarmee je bestelt. In je dashboard zie je je actieve loten, recente deelnames en de winactie waar je nu voor meespeelt.</p>
       <div class="dvl-widget-grid">
@@ -559,7 +559,7 @@ function widgetRuntime() {
         <div class="dvl-widget-hero-card">
           <small>Hoofdprijs nu</small>
           <strong>${escapeHtml(draw?.prizeName || "Premium vleespakket")}</strong>
-          <span>${escapeHtml(draw?.prizeValue || "Actieve hoofdprijs")} · trekking transparant zichtbaar in Mijn DVL.</span>
+          <span>${escapeHtml(draw?.prizeValue || "Actieve hoofdprijs")} · trekking transparant zichtbaar in Mijn MFF.</span>
         </div>
         <div class="dvl-widget-side">
           <div class="dvl-widget-side-card">
@@ -593,7 +593,7 @@ function widgetRuntime() {
     const draw = data.liveDraw;
     const countdownTarget = nextDrawTimestamp(draw);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
-      <p class="dvl-widget-eyebrow">Mijn DVL</p>
+      <p class="dvl-widget-eyebrow">Mijn MFF</p>
       <h2 class="dvl-widget-title">Je loten op een plek.</h2>
       <p class="dvl-widget-copy">Log in en zie direct je loten, de actieve trekking en welke bestelling deelname heeft verdiend.</p>
       <div class="dvl-widget-compact">
@@ -628,7 +628,7 @@ function widgetRuntime() {
 
   async function render(el) {
     injectStyles();
-    el.innerHTML = '<section class="dvl-lottery-widget dvl-widget-shell"><p class="dvl-widget-eyebrow">Laden</p><h2 class="dvl-widget-title">DVL wordt geladen.</h2></section>';
+    el.innerHTML = '<section class="dvl-lottery-widget dvl-widget-shell"><p class="dvl-widget-eyebrow">Laden</p><h2 class="dvl-widget-title">MFF wordt geladen.</h2></section>';
     try {
       const data = await fetchJson("/api/site/summary");
       const type = el.getAttribute("data-dvl-lottery") || "live";
@@ -671,7 +671,7 @@ embedRouter.get("/demo", (_req, res) => {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DVL Lottery Embed Demo</title>
+    <title>Meat For Free Lottery Embed Demo</title>
     <style>
       body {
         margin: 0;
@@ -705,7 +705,7 @@ embedRouter.get("/demo", (_req, res) => {
   <body>
     <main>
       <header>
-        <h1>DVL test</h1>
+        <h1>MFF test</h1>
         <p>Deze pagina test alle widgets zoals ze in Shopify geladen worden.</p>
       </header>
       <div data-dvl-lottery="live"></div>
@@ -729,7 +729,7 @@ embedRouter.get("/frame", (req, res) => {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DVL Lottery ${widget}</title>
+    <title>Meat For Free Lottery ${widget}</title>
     <style>
       html,
       body {

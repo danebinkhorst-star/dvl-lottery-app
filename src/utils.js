@@ -17,7 +17,7 @@ export function slugify(input) {
     .slice(0, 80);
 }
 
-export function makeEntryNumber(prefix = "DVL") {
+export function makeEntryNumber(prefix = "MFF") {
   const body = crypto.randomBytes(5).toString("hex").toUpperCase();
   return `${prefix}-${body}`;
 }

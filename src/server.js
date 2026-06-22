@@ -24,7 +24,7 @@ function requireAdminAuth(req, res, next) {
     }
   }
 
-  res.set("WWW-Authenticate", 'Basic realm="DVL Lottery Admin"');
+  res.set("WWW-Authenticate", 'Basic realm="Meat For Free Lottery Admin"');
   return res.status(401).send("Authentication required");
 }
 
@@ -62,6 +62,6 @@ const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
   await getOrCreateLiveDraw();
   createApp().listen(config.PORT, () => {
-    console.log(`DVL lottery app running on http://localhost:${config.PORT}`);
+    console.log(`Meat For Free lottery app running on http://localhost:${config.PORT}`);
   });
 }
