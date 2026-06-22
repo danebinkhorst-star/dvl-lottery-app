@@ -1,4 +1,6 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
 import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
 import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
@@ -8,9 +10,30 @@ import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../a
 
 export const apiRouter = express.Router();
 
-apiRouter.use(express.json());
+apiRouter.use(express.json({ limit: "16kb" }));
 
 const freeEntryAttempts = new Map();
+const freeEntrySchema = z.object({
+  email: z.string().trim().email().max(160),
+  firstName: z.string().trim().max(80).optional().default(""),
+  lastName: z.string().trim().max(80).optional().default(""),
+  drawId: z.string().trim().max(64).optional(),
+  website: z.string().trim().max(120).optional().default("")
+});
+const freeEntryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 6,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Te veel gratis deelnameverzoeken. Probeer het later opnieuw." }
+});
+const adminWriteLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Te veel schrijfacties in korte tijd. Probeer het straks opnieuw." }
+});
 
 function allowFreeEntryAttempt(key) {
   const now = Date.now();
@@ -98,21 +121,22 @@ apiRouter.get("/site/summary", async (_req, res) => {
   });
 });
 
-apiRouter.post("/free-entry", async (req, res) => {
+apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {
   try {
-    if (req.body?.website) {
+    const payload = freeEntrySchema.parse(req.body || {});
+    if (payload.website) {
       return res.status(400).json({ error: "Invalid request" });
     }
     const ipAddress = clientIp(req);
-    const attemptKey = String(req.body?.email || ipAddress || "unknown").trim().toLowerCase();
+    const attemptKey = String(payload.email || ipAddress || "unknown").trim().toLowerCase();
     if (!allowFreeEntryAttempt(attemptKey)) {
       return res.status(429).json({ error: "Te veel aanvragen. Probeer het later opnieuw." });
     }
     const result = await createFreeEntry({
-      email: req.body.email,
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      drawId: req.body.drawId,
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      drawId: payload.drawId,
       ipAddress,
       userAgent: req.get("user-agent") || ""
     });
@@ -130,7 +154,14 @@ apiRouter.post("/free-entry", async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      const firstIssue = error.issues[0];
+      if (firstIssue?.path?.[0] === "email") {
+        return res.status(400).json({ error: "Vul een geldig e-mailadres in." });
+      }
+      return res.status(400).json({ error: "Controleer de ingevulde gegevens." });
+    }
+    return res.status(400).json({ error: error.message || "Ongeldige aanvraag." });
   }
 });
 
@@ -155,7 +186,7 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
   res.json(buildCustomerDashboardPayload(customer));
 });
 
-apiRouter.post("/customers/:shopifyCustomerId/token", async (req, res) => {
+apiRouter.post("/customers/:shopifyCustomerId/token", adminWriteLimiter, async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
   if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -166,7 +197,7 @@ apiRouter.post("/customers/:shopifyCustomerId/token", async (req, res) => {
   });
 });
 
-apiRouter.post("/draws", async (req, res) => {
+apiRouter.post("/draws", adminWriteLimiter, async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
   if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -175,7 +206,7 @@ apiRouter.post("/draws", async (req, res) => {
   return res.status(201).json({ draw });
 });
 
-apiRouter.post("/reconcile/orders", async (req, res) => {
+apiRouter.post("/reconcile/orders", adminWriteLimiter, async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
   if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -184,7 +215,7 @@ apiRouter.post("/reconcile/orders", async (req, res) => {
   return res.json({ ok: true, ...result });
 });
 
-apiRouter.post("/sync/customer-dashboards", async (req, res) => {
+apiRouter.post("/sync/customer-dashboards", adminWriteLimiter, async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
   if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });

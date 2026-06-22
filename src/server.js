@@ -1,5 +1,6 @@
 import express from "express";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -30,10 +31,34 @@ function requireAdminAuth(req, res, next) {
 
 export function createApp() {
   const app = express();
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 180,
+    standardHeaders: "draft-8",
+    legacyHeaders: false
+  });
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: "Te veel loginpogingen. Probeer het over 15 minuten opnieuw."
+  });
 
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    referrerPolicy: { policy: "no-referrer" }
+  }));
   app.use(morgan("dev"));
   app.use((req, res, next) => {
+    if (req.path.startsWith("/admin")) {
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    }
     if (req.path.startsWith("/api/") || req.path.startsWith("/embed/")) {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -45,13 +70,13 @@ export function createApp() {
   });
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, app: "dvl-lottery-app", dashboard: "ip-locked-actionable-admin" });
+    res.json({ ok: true, app: "dvl-lottery-app", dashboard: "brand-secure-admin-v2" });
   });
 
   app.use("/webhooks", webhookRouter);
-  app.use("/api", apiRouter);
+  app.use("/api", apiLimiter, apiRouter);
   app.use("/embed", embedRouter);
-  app.use("/admin", requireAdminAuth, adminRouter);
+  app.use("/admin", authLimiter, requireAdminAuth, adminRouter);
   app.get("/", (_req, res) => res.redirect("/admin"));
 
   return app;

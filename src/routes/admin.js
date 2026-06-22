@@ -5,11 +5,18 @@ import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboa
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, updateLotteryRule } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
+import { brandMarkSvg, brandPalette, brandWordmarkSvg } from "../services/admin-brand.js";
+import { icon } from "../services/admin-icons.js";
 import { formatEuro } from "../utils.js";
 
 export const adminRouter = express.Router();
+adminRouter.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  next();
+});
 
-const urlencoded = express.urlencoded({ extended: false });
+const urlencoded = express.urlencoded({ extended: false, limit: "16kb" });
 const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
 const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
@@ -115,16 +122,16 @@ function ruleLabel(rule) {
 
 function page(title, active, body) {
   const menu = [
-    ["overzicht", "/admin", "OV", "Overzicht"],
-    ["winacties", "/admin/winacties", "WA", "Winacties"],
-    ["loten", "/admin/loten", "LT", "Loten"],
-    ["orders", "/admin/orders", "OR", "Orders"],
-    ["deelnemers", "/admin/deelnemers", "KL", "Deelnemers"],
-    ["compliance", "/admin/compliance", "CP", "Compliance"],
-    ["sync", "/admin/sync", "SY", "Synchronisatie"],
-    ["regels", "/admin/regels", "RG", "Regels"],
-    ["nieuw", "/admin/new-draw", "+", "Nieuwe winactie"],
-    ["embed", "/admin/embed", "EM", "Embed voorbeeld"]
+    ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
+    ["winacties", "/admin/winacties", "Gift", "Winacties"],
+    ["loten", "/admin/loten", "Tickets", "Loten"],
+    ["orders", "/admin/orders", "ShoppingCart", "Orders"],
+    ["deelnemers", "/admin/deelnemers", "Users", "Deelnemers"],
+    ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
+    ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
+    ["regels", "/admin/regels", "SlidersHorizontal", "Regels"],
+    ["nieuw", "/admin/new-draw", "Plus", "Nieuwe winactie"],
+    ["embed", "/admin/embed", "ExternalLink", "Embed voorbeeld"]
   ];
 
   return `<!doctype html>
@@ -138,63 +145,75 @@ function page(title, active, body) {
       <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap" rel="stylesheet">
       <style>
         :root {
-          --bg:#f3f5f8;
-          --panel:#fff;
-          --ink:#111827;
-          --muted:#6b7280;
-          --line:#d8dee8;
-          --line-soft:#edf0f4;
-          --red:#b42318;
-          --red-dark:#8a1c13;
-          --gold:#d39a17;
-          --green:#157347;
-          --blue:#2563eb;
-          --cyan:#0e9aa7;
-          --shadow:0 10px 26px rgba(17,24,39,.07);
+          --bg:${brandPalette.cream};
+          --panel:${brandPalette.paper};
+          --panel-alt:#fff;
+          --ink:${brandPalette.ink};
+          --muted:${brandPalette.muted};
+          --line:#d9d4c7;
+          --line-soft:#ece7dc;
+          --forest:${brandPalette.forest};
+          --moss:${brandPalette.moss};
+          --sage:${brandPalette.sage};
+          --leaf:${brandPalette.leaf};
+          --sand:${brandPalette.sand};
+          --success:#25613b;
+          --warning:#8a5a0a;
+          --danger:#9b2226;
         }
         * { box-sizing:border-box; }
         html, body { margin:0; min-height:100%; background:var(--bg); color:var(--ink); font-family:Manrope, ui-sans-serif, system-ui, sans-serif; }
-        body { font-weight:650; }
+        body { font-weight:650; -webkit-font-smoothing:antialiased; }
         a { color:inherit; }
         .app-shell { min-height:100vh; display:grid; grid-template-columns:260px minmax(0,1fr); }
-        .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 14px; background:#111827; color:#f9fafb; }
-        .sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 6px 20px; color:inherit; text-decoration:none; }
-        .mark { width:38px; height:38px; display:grid; place-items:center; border-radius:8px; background:var(--red); color:#fff; font-weight:950; font-size:13px; }
-        .sidebar-brand strong, .brand strong { display:block; font-size:17px; line-height:1.02; font-weight:950; }
-        .sidebar-brand span span, .brand span span { display:block; margin-top:4px; color:rgba(249,250,251,.58); font-size:10px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
-        .brand span span { color:var(--muted); }
-        .menu-title { margin:18px 8px 8px; color:rgba(249,250,251,.48); font-size:10px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
-        .menu-link { min-height:38px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:8px; color:rgba(249,250,251,.74); text-decoration:none; font-size:13px; font-weight:800; }
-        .menu-link:hover, .menu-link:focus-visible, .menu-link--active { background:rgba(255,255,255,.08); color:#fff; outline:none; }
+        .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:20px 14px; background:var(--forest); color:#f9fbf6; border-right:1px solid rgba(255,255,255,.08); }
+        .sidebar-brand { display:grid; gap:14px; padding:2px 6px 18px; color:inherit; text-decoration:none; }
+        .sidebar-brand small { color:rgba(249,251,246,.64); font-size:11px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+        .brand-mark { width:44px; height:50px; display:block; }
+        .brand-wordmark { width:168px; max-width:100%; height:auto; display:block; }
+        .brand { display:flex; align-items:center; gap:12px; text-decoration:none; min-width:0; }
+        .brand-lockup { display:grid; gap:5px; min-width:0; }
+        .brand-lockup small { color:var(--muted); font-size:10px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+        .sidebar .brand-lockup small { color:rgba(249,251,246,.64); }
+        .sidebar .brand-wordmark text:first-of-type { fill:#fff7e8; }
+        .sidebar .brand-wordmark text:last-of-type { fill:var(--moss); }
+        .menu-title { margin:18px 8px 8px; color:rgba(249,251,246,.46); font-size:10px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+        .menu-link { min-height:42px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:8px; color:rgba(249,251,246,.78); text-decoration:none; font-size:13px; font-weight:800; border:1px solid transparent; }
+        .menu-link:hover, .menu-link:focus-visible { background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.06); color:#fff; outline:none; }
+        .menu-link--active { background:rgba(148,190,70,.14); border-color:rgba(148,190,70,.26); color:#fff; }
         .menu-left { display:flex; align-items:center; gap:10px; min-width:0; }
-        .menu-icon { width:24px; height:24px; display:grid; place-items:center; flex:0 0 auto; border-radius:7px; background:rgba(255,255,255,.08); color:#f5c451; font-size:9px; font-weight:950; }
+        .menu-icon { width:28px; height:28px; display:grid; place-items:center; flex:0 0 auto; border-radius:8px; background:rgba(255,255,255,.06); color:var(--leaf); }
+        .menu-icon svg { width:16px; height:16px; }
         .content { min-width:0; }
-        header { position:sticky; top:0; z-index:5; min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.94); backdrop-filter:blur(14px); }
-        .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
+        header { position:sticky; top:0; z-index:5; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,252,247,.94); backdrop-filter:blur(14px); }
         .top-tools { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
         main { width:min(100%,1440px); margin:0 auto; padding:26px clamp(18px,3vw,34px) 56px; }
         h1, h2, h3, p { margin:0; }
         h1 { max-width:800px; font-size:clamp(32px,4vw,48px); line-height:1.05; font-weight:950; }
         h2 { font-size:clamp(20px,2vw,28px); line-height:1.1; font-weight:950; }
         h3 { font-size:16px; line-height:1.25; font-weight:900; }
-        .eyebrow { margin-bottom:8px; color:var(--red); font-size:11px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
+        .eyebrow { margin-bottom:8px; color:var(--moss); font-size:11px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
         .muted { color:var(--muted); font-weight:650; }
         .topbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:16px; margin-bottom:20px; }
         .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
-        .button, button { min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; border:1px solid var(--red); border-radius:8px; background:var(--red); color:#fff; font:inherit; font-size:12px; font-weight:850; text-decoration:none; cursor:pointer; }
-        .button:hover, button:hover, .button:focus-visible, button:focus-visible { background:var(--red-dark); border-color:var(--red-dark); outline:none; }
-        .button--ghost { background:#fff; border-color:var(--line); color:var(--ink); }
-        .button--ghost:hover, .button--ghost:focus-visible { background:#f8fafc; border-color:#c9d1dd; color:var(--ink); }
-        .button--gold { background:#fff7db; border-color:#e7c76f; color:#5b3b00; }
-        .button--gold:hover, .button--gold:focus-visible { background:#ffefb6; border-color:var(--gold); color:#5b3b00; }
+        .button, button { min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; border:1px solid var(--moss); border-radius:8px; background:var(--moss); color:#fff; font:inherit; font-size:12px; font-weight:850; text-decoration:none; cursor:pointer; }
+        .button svg, button svg { width:15px; height:15px; }
+        .button:hover, button:hover, .button:focus-visible, button:focus-visible { background:#527838; border-color:#527838; outline:none; }
+        .button--ghost { background:var(--panel-alt); border-color:var(--line); color:var(--ink); }
+        .button--ghost:hover, .button--ghost:focus-visible { background:#f8f6f0; border-color:#cbc3b2; color:var(--ink); }
+        .button--gold { background:#eef5df; border-color:#cbdba2; color:var(--forest); }
+        .button--gold:hover, .button--gold:focus-visible { background:#e4efcd; border-color:#bbcf8a; color:var(--forest); }
         .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
         .grid-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
         .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .card, .panel, .filters { min-width:0; border:1px solid var(--line); border-radius:10px; background:var(--panel); box-shadow:none; }
-        .card { min-height:126px; padding:18px; border-top:3px solid var(--red); }
-        .card--blue { border-top-color:var(--blue); }
-        .card--green { border-top-color:var(--green); }
-        .card--cyan { border-top-color:var(--cyan); }
+        .card { min-height:132px; padding:18px; }
+        .card--tint-0 { background:linear-gradient(180deg,#fffdf9,#faf7ef); }
+        .card--tint-1 { background:linear-gradient(180deg,#fcfdf8,#f4f8e9); }
+        .card--tint-2 { background:linear-gradient(180deg,#fffdf8,#f8f3e7); }
+        .card--tint-3 { background:linear-gradient(180deg,#fcfdf9,#eef4e5); }
+        .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .card-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:10px; background:rgba(95,141,62,.12); color:var(--moss); }
         .stat { margin-top:10px; color:var(--ink); font-size:clamp(28px,3.5vw,42px); line-height:1; font-weight:950; letter-spacing:0; }
         .card p:last-child { margin-top:8px; color:var(--muted); font-size:13px; }
         .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:30px 0 12px; }
@@ -203,35 +222,41 @@ function page(title, active, body) {
         .panel-title { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; }
         table { width:100%; border-collapse:collapse; background:transparent; }
         th, td { padding:12px 14px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:middle; font-size:13px; }
-        th { background:#f8fafc; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+        th { background:#f7f5ef; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
         td strong { display:block; font-size:14px; font-weight:900; }
-        tbody tr:hover { background:#faf7f2; }
+        tbody tr:hover { background:#faf8f2; }
         .status { display:inline-flex; align-items:center; justify-content:center; min-width:0; padding:5px 9px; border:1px solid var(--line); border-radius:999px; background:#f8fafc; color:#374151; font-size:11px; font-weight:850; }
-        .status--live, .status--active, .status--paid { background:#ecfdf3; border-color:#bbf7d0; color:#166534; }
-        .status--drawn, .status--winner { background:#fff7db; border-color:#fde68a; color:#7a4b00; }
-        .status--void, .status--cancelled, .status--refunded, .status--archived { background:#fef3f2; border-color:#fecaca; color:#991b1b; }
+        .status--live, .status--active, .status--paid { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--drawn, .status--winner { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
+        .status--void, .status--cancelled, .status--refunded, .status--archived { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
         .filters { padding:18px; margin-bottom:22px; }
         .filter-grid, .form-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:end; }
         .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
         label { display:block; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
         input, textarea, select { width:100%; min-height:40px; margin-top:6px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:13px; font-weight:650; }
         textarea { min-height:108px; resize:vertical; }
-        input:focus, textarea:focus, select:focus { outline:3px solid rgba(180,35,24,.12); border-color:var(--red); }
+        input:focus, textarea:focus, select:focus { outline:3px solid rgba(95,141,62,.12); border-color:var(--moss); }
         .wide { grid-column:span 2; }
         form.inline-form { display:inline; margin:0; }
         .empty { padding:26px; color:var(--muted); font-size:14px; }
-        .bar { height:8px; overflow:hidden; border-radius:999px; background:#e5e7eb; }
-        .bar span { display:block; height:100%; border-radius:999px; background:var(--red); }
-        .chart { height:220px; display:grid; grid-template-columns:repeat(12,minmax(10px,1fr)); align-items:end; gap:9px; padding:18px; border:1px solid var(--line); border-radius:10px; background:linear-gradient(180deg,#f8fafc,#fff); }
-        .chart-bar { position:relative; min-height:5px; border-radius:6px 6px 2px 2px; background:var(--red); }
-        .chart-bar:nth-child(3n) { background:var(--blue); }
-        .chart-bar:nth-child(3n + 1) { background:var(--cyan); }
-        .chart-labels { display:grid; grid-template-columns:repeat(12,minmax(10px,1fr)); gap:9px; margin:8px 18px 0; color:var(--muted); font-size:10px; text-align:center; }
+        .bar { height:8px; overflow:hidden; border-radius:999px; background:#e7e2d6; }
+        .bar span { display:block; height:100%; border-radius:999px; background:var(--moss); }
+        .chart-shell { display:grid; gap:14px; }
+        .chart-wrap { padding:14px 14px 10px; border:1px solid var(--line); border-radius:10px; background:linear-gradient(180deg,#fffdf9,#fbf8ef); }
+        .chart-svg { width:100%; height:auto; display:block; }
+        .chart-meta { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; }
+        .chart-legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--muted); font-size:12px; }
+        .legend-item { display:inline-flex; align-items:center; gap:7px; }
+        .legend-dot { width:10px; height:10px; border-radius:999px; }
+        .legend-dot--entries { background:var(--moss); }
+        .legend-dot--orders { background:var(--sage); }
+        .chart-note { color:var(--muted); font-size:12px; }
         .stack { display:grid; gap:12px; }
         .metric-row { display:grid; gap:7px; }
         .metric-row > div:first-child { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:12px; font-weight:850; }
         .ops-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-        .ops-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:8px; background:#fff4d6; color:#704900; font-size:11px; font-weight:950; }
+        .ops-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:8px; background:#eff4e5; color:var(--forest); }
+        .ops-icon svg { width:16px; height:16px; }
         .helper { margin-top:8px; color:var(--muted); font-size:12px; font-weight:650; text-transform:none; letter-spacing:0; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:900px) {
@@ -259,8 +284,11 @@ function page(title, active, body) {
       <div class="app-shell">
         <aside class="sidebar" aria-label="Admin menu">
           <a class="sidebar-brand" href="/admin">
-            <span class="mark">MFF</span>
-            <span><strong>Meat For<br>Free</strong><span>Beheer</span></span>
+            ${brandMarkSvg("brand-mark")}
+            <span class="brand-lockup">
+              ${brandWordmarkSvg("brand-wordmark")}
+              <small>Beheeromgeving</small>
+            </span>
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
@@ -274,13 +302,16 @@ function page(title, active, body) {
         <div class="content">
           <header>
             <a class="brand" href="/admin">
-              <span class="mark">MFF</span>
-              <span><strong>Meat For<br>Free</strong><span>Beheerdashboard</span></span>
+              ${brandMarkSvg("brand-mark")}
+              <span class="brand-lockup">
+                ${brandWordmarkSvg("brand-wordmark")}
+                <small>Beheerdashboard</small>
+              </span>
             </a>
             <div class="top-tools">
-              <a class="button button--ghost" href="/api/draws/live">Live API</a>
-              <a class="button button--ghost" href="/admin/embed">Embed</a>
-              <a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>
+              <a class="button button--ghost" href="/api/draws/live">${icon("FileJson")}Live API</a>
+              <a class="button button--ghost" href="/admin/embed">${icon("ExternalLink")}Embed</a>
+              <a class="button button--gold" href="/admin/new-draw">${icon("Plus")}Nieuwe winactie</a>
             </div>
           </header>
           <main>${body}</main>
@@ -290,9 +321,9 @@ function page(title, active, body) {
   </html>`;
 }
 
-function menuLink(active, key, href, icon, label) {
+function menuLink(active, key, href, iconName, label) {
   return `<a class="menu-link${active === key ? " menu-link--active" : ""}" href="${href}">
-    <span class="menu-left"><span class="menu-icon">${escapeHtml(icon)}</span>${escapeHtml(label)}</span>
+    <span class="menu-left"><span class="menu-icon">${icon(iconName)}</span>${escapeHtml(label)}</span>
   </a>`;
 }
 
@@ -359,27 +390,94 @@ function getMetrics() {
 }
 
 function kpiGrid(items) {
-  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => `<div class="card ${["", "card--cyan", "card--green", "card--blue"][index % 4]}">
-    <p class="muted">${escapeHtml(item.label)}</p>
+  const tints = ["card--tint-0", "card--tint-1", "card--tint-2", "card--tint-3"];
+  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => `<div class="card ${tints[index % tints.length]}">
+    <div class="card-head"><p class="muted">${escapeHtml(item.label)}</p><span class="card-icon">${icon(item.icon || "Activity")}</span></div>
     <div class="stat">${item.value}</div>
     <p>${escapeHtml(item.help)}</p>
   </div>`).join("")}</section>`;
 }
 
-function monthChart() {
-  const rows = db.prepare(`
-    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count
-    FROM lottery_entries
-    GROUP BY month
-    ORDER BY month DESC
-    LIMIT 12
-  `).all().reverse();
-  const chartRows = rows.length ? rows : Array.from({ length: 12 }, (_, index) => ({ month: `M${index + 1}`, count: 0 }));
-  const max = Math.max(1, ...chartRows.map((row) => row.count));
-  return `<div class="chart" aria-label="Lotvolume per maand">
-    ${chartRows.map((row) => `<span class="chart-bar" title="${escapeHtml(row.month)}: ${row.count}" style="height:${ratio(row.count, max)}%"></span>`).join("")}
-  </div>
-  <div class="chart-labels">${chartRows.map((row) => `<span>${escapeHtml(String(row.month).slice(5) || row.month)}</span>`).join("")}</div>`;
+function trendChart() {
+  const entryMap = new Map(
+    db.prepare(`
+      SELECT date(created_at) AS day, COUNT(*) AS count
+      FROM lottery_entries
+      WHERE datetime(created_at) >= datetime('now', '-13 days')
+      GROUP BY day
+      ORDER BY day ASC
+    `).all().map((row) => [row.day, Number(row.count || 0)])
+  );
+  const orderMap = new Map(
+    db.prepare(`
+      SELECT date(created_at) AS day,
+        SUM(CASE WHEN total_cents >= ? THEN 1 ELSE 0 END) AS eligible_count
+      FROM orders
+      WHERE datetime(created_at) >= datetime('now', '-13 days')
+      GROUP BY day
+      ORDER BY day ASC
+    `).all(getLotteryRule().LOT_ORDER_MINIMUM_CENTS).map((row) => [row.day, Number(row.eligible_count || 0)])
+  );
+  const days = Array.from({ length: 14 }, (_, offset) => {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - (13 - offset));
+    const day = date.toISOString().slice(0, 10);
+    return {
+      day,
+      label: day.slice(5),
+      entries: entryMap.get(day) || 0,
+      orders: orderMap.get(day) || 0
+    };
+  });
+  const max = Math.max(1, ...days.flatMap((row) => [row.entries, row.orders]));
+  const width = 720;
+  const height = 240;
+  const paddingX = 20;
+  const paddingTop = 16;
+  const paddingBottom = 26;
+  const innerWidth = width - paddingX * 2;
+  const innerHeight = height - paddingTop - paddingBottom;
+  const stepX = days.length > 1 ? innerWidth / (days.length - 1) : innerWidth;
+  const y = (value) => paddingTop + innerHeight - (value / max) * innerHeight;
+  const areaPath = (key) => {
+    const points = days.map((row, index) => `${paddingX + (index * stepX)},${y(row[key])}`);
+    return `M ${paddingX} ${paddingTop + innerHeight} L ${points.join(" L ")} L ${paddingX + innerWidth} ${paddingTop + innerHeight} Z`;
+  };
+  const linePath = (key) => days.map((row, index) => `${index === 0 ? "M" : "L"} ${paddingX + (index * stepX)} ${y(row[key])}`).join(" ");
+  const latest = days[days.length - 1];
+
+  return `<div class="chart-shell" aria-label="Trend van loten en geschikte orders">
+    <div class="chart-wrap">
+      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Lijnchart met loten en geschikte orders over 14 dagen">
+        ${Array.from({ length: 5 }, (_, index) => {
+          const lineY = paddingTop + ((innerHeight / 4) * index);
+          return `<line x1="${paddingX}" y1="${lineY}" x2="${width - paddingX}" y2="${lineY}" stroke="#dfdacd" stroke-width="1" />`;
+        }).join("")}
+        <path d="${areaPath("orders")}" fill="rgba(148,190,70,.14)"></path>
+        <path d="${areaPath("entries")}" fill="rgba(95,141,62,.12)"></path>
+        <path d="${linePath("orders")}" fill="none" stroke="${brandPalette.sage}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="${linePath("entries")}" fill="none" stroke="${brandPalette.moss}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        ${days.map((row, index) => {
+          const x = paddingX + (index * stepX);
+          return `<circle cx="${x}" cy="${y(row.orders)}" r="3.5" fill="${brandPalette.sage}"></circle>
+            <circle cx="${x}" cy="${y(row.entries)}" r="4" fill="${brandPalette.moss}"></circle>
+            ${index < days.length - 1 ? "" : `<rect x="${x - 32}" y="${Math.min(y(row.entries), y(row.orders)) - 34}" width="92" height="28" rx="8" fill="#fffdf8" stroke="#d9d4c7"></rect>
+            <text x="${x - 24}" y="${Math.min(y(row.entries), y(row.orders)) - 16}" font-size="11" font-weight="800" fill="${brandPalette.ink}">${row.entries} loten</text>`}`;
+        }).join("")}
+        ${days.map((row, index) => {
+          const x = paddingX + (index * stepX);
+          return `<text x="${x}" y="${height - 8}" text-anchor="middle" font-size="10" fill="${brandPalette.muted}">${escapeHtml(row.label)}</text>`;
+        }).join("")}
+      </svg>
+    </div>
+    <div class="chart-meta">
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot legend-dot--entries"></span>Loten per dag</span>
+        <span class="legend-item"><span class="legend-dot legend-dot--orders"></span>Geschikte orders per dag</span>
+      </div>
+      <p class="chart-note">Vandaag: ${latest.entries} loten en ${latest.orders} geschikte orders.</p>
+    </div>
+  </div>`;
 }
 
 function breakdownPanel(title, rows, total, keyName = "status") {
@@ -416,16 +514,16 @@ function complianceAlerts(metrics) {
     )
   `).get().count;
   if (metrics.eligibleWithoutEntry > 0) {
-    alerts.push(["OR", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, "Voer ordersynchronisatie uit.", "/admin/sync"]);
+    alerts.push(["PackageSearch", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, "Voer ordersynchronisatie uit.", "/admin/sync"]);
   }
   if (metrics.liveDrawsWithoutEntries > 0) {
-    alerts.push(["WA", `${metrics.liveDrawsWithoutEntries} live winactie(s) zonder loten`, "Controleer of de actie echt al live moet staan.", "/admin/winacties"]);
+    alerts.push(["Gift", `${metrics.liveDrawsWithoutEntries} live winactie(s) zonder loten`, "Controleer of de actie echt al live moet staan.", "/admin/winacties"]);
   }
   if (multiDrawIpClaims > 0) {
-    alerts.push(["IP", `${multiDrawIpClaims} IP-hash(es) actief in 3+ winacties`, "Controleer gratis deelnamepatronen.", "/admin/compliance"]);
+    alerts.push(["ShieldAlert", `${multiDrawIpClaims} IP-hash(es) actief in 3+ winacties`, "Controleer gratis deelnamepatronen.", "/admin/compliance"]);
   }
   if (!alerts.length) {
-    alerts.push(["OK", "Geen directe compliance-acties", `${blockedClaimCount} gratis deelnameclaims worden met IP-hash bewaakt.`, "/admin/compliance"]);
+    alerts.push(["ShieldCheck", "Geen directe compliance-acties", `${blockedClaimCount} gratis deelnameclaims worden met IP-hash bewaakt.`, "/admin/compliance"]);
   }
   return alerts;
 }
@@ -515,28 +613,28 @@ adminRouter.get("/", (_req, res) => {
     LIMIT 5
   `).all();
   const opsItems = [
-    ["OR", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, metrics.eligibleWithoutEntry ? "Ordersynchronisatie controleren" : "Geen actie nodig", metrics.eligibleWithoutEntry ? "Controle" : "Goed"],
-    ["WA", `${metrics.liveDraws} live winactie(s)`, metrics.liveDrawsWithoutEntries ? `${metrics.liveDrawsWithoutEntries} zonder loten` : `${metrics.activeLiveEntries} actieve loten`, metrics.liveDraws ? "Live" : "Maak"],
-    ["CP", `${percent(totals.free_entries || 0, totals.total_entries || 0)} gratis deelname`, "Gratis route zichtbaar houden voor compliance", "Monitoren"]
+    ["PackageSearch", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, metrics.eligibleWithoutEntry ? "Ordersynchronisatie controleren" : "Geen actie nodig", metrics.eligibleWithoutEntry ? "Controle" : "Goed"],
+    ["Gift", `${metrics.liveDraws} live winactie(s)`, metrics.liveDrawsWithoutEntries ? `${metrics.liveDrawsWithoutEntries} zonder loten` : `${metrics.activeLiveEntries} actieve loten`, metrics.liveDraws ? "Live" : "Maak"],
+    ["ShieldCheck", `${percent(totals.free_entries || 0, totals.total_entries || 0)} gratis deelname`, "Gratis route zichtbaar houden voor compliance", "Monitoren"]
   ];
 
   res.send(page("Overzicht | Meat For Free", "overzicht", `
     ${topbar("Overzicht", "Sturing op loten, omzet en winacties.", "Eerste scherm voor dagelijkse controle: wat loopt, wat groeit, wat vraagt actie.", `<a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>`)}
     ${kpiGrid([
-      { label: "Actieve loten", value: metrics.activeLiveEntries || 0, help: `${totals.total_entries || 0} loten totaal in de database.` },
-      { label: "Deelnemers", value: totals.participating_customers || 0, help: `${percent(totals.free_entries || 0, totals.total_entries || 0)} via gratis deelname.` },
-      { label: "Geschikte orders", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: `${orderTotals.eligible_orders || 0} orders volgens ${ruleLabel(rule)}.` },
-      { label: "Omzet in app", value: formatEuro(orderTotals.gross_cents || 0), help: `${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.` }
+      { label: "Actieve loten", value: metrics.activeLiveEntries || 0, help: `${totals.total_entries || 0} loten totaal in de database.`, icon: "Tickets" },
+      { label: "Deelnemers", value: totals.participating_customers || 0, help: `${percent(totals.free_entries || 0, totals.total_entries || 0)} via gratis deelname.`, icon: "Users" },
+      { label: "Geschikte orders", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: `${orderTotals.eligible_orders || 0} orders volgens ${ruleLabel(rule)}.`, icon: "Target" },
+      { label: "Omzet in app", value: formatEuro(orderTotals.gross_cents || 0), help: `${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.`, icon: "TrendingUp" }
     ])}
     <section class="grid grid-2">
       <div class="panel panel-pad">
-        <div class="panel-title"><div><p class="eyebrow">Trend</p><h2>Lotvolume per maand</h2></div><span class="status status--active">${metrics.recentEntries} laatste 7 dagen</span></div>
-        ${monthChart()}
+        <div class="panel-title"><div><p class="eyebrow">Trend</p><h2>Loten versus orderkans</h2></div><span class="status status--active">${metrics.recentEntries} laatste 7 dagen</span></div>
+        ${trendChart()}
       </div>
       <div class="panel panel-pad">
         <div class="panel-title"><div><p class="eyebrow">Actielijst</p><h2>Vandaag belangrijk</h2></div></div>
         <div class="stack">
-          ${opsItems.map(([icon, title, body, badge]) => `<div class="ops-item"><span class="ops-icon">${icon}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></div>`).join("")}
+          ${opsItems.map(([iconName, title, body, badge]) => `<div class="ops-item"><span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></div>`).join("")}
         </div>
       </div>
     </section>
@@ -577,10 +675,10 @@ adminRouter.get("/winacties", (req, res) => {
   res.send(page("Winacties | Meat For Free", "winacties", `
     ${topbar("Winacties", "Beheer alle winacties.", "Maak acties aan, pas prijzen of timing aan, zet acties live en trek winnaars.", `<a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>`)}
     ${kpiGrid([
-      { label: "Winacties", value: draws.length, help: "Binnen de huidige filters." },
-      { label: "Live acties", value: rowsByStatus.find((row) => row.status === "LIVE")?.count || 0, help: "Actief zichtbaar voor klanten." },
-      { label: "Getrokken", value: rowsByStatus.find((row) => row.status === "DRAWN")?.count || 0, help: "Acties met winnaar." },
-      { label: "Concepten", value: rowsByStatus.find((row) => row.status === "DRAFT")?.count || 0, help: "Nog niet live." }
+      { label: "Winacties", value: draws.length, help: "Binnen de huidige filters.", icon: "Gift" },
+      { label: "Live acties", value: rowsByStatus.find((row) => row.status === "LIVE")?.count || 0, help: "Actief zichtbaar voor klanten.", icon: "Activity" },
+      { label: "Getrokken", value: rowsByStatus.find((row) => row.status === "DRAWN")?.count || 0, help: "Acties met winnaar.", icon: "BadgeCheck" },
+      { label: "Concepten", value: rowsByStatus.find((row) => row.status === "DRAFT")?.count || 0, help: "Nog niet live.", icon: "FilePenLine" }
     ])}
     <section class="filters">
       <form method="get" action="/admin/winacties" class="filter-grid">
@@ -610,10 +708,10 @@ adminRouter.get("/winacties/:id", (req, res) => {
   res.send(page(`${draw.title} | Meat For Free`, "winacties", `
     ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a><a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`)}
     ${kpiGrid([
-      { label: "Status", value: statusBadge(draw.status), help: "Huidige publicatiestatus." },
-      { label: "Actieve loten", value: counts.find((row) => row.status === "ACTIVE")?.count || 0, help: "Geldige loten voor trekking." },
-      { label: "Winnaars", value: counts.find((row) => row.status === "WINNER")?.count || 0, help: "Normaal 0 of 1." },
-      { label: "Ongeldig", value: counts.find((row) => row.status === "VOID")?.count || 0, help: "Terugbetalingen en annuleringen." }
+      { label: "Status", value: statusBadge(draw.status), help: "Huidige publicatiestatus.", icon: "Flag" },
+      { label: "Actieve loten", value: counts.find((row) => row.status === "ACTIVE")?.count || 0, help: "Geldige loten voor trekking.", icon: "Tickets" },
+      { label: "Winnaars", value: counts.find((row) => row.status === "WINNER")?.count || 0, help: "Normaal 0 of 1.", icon: "Trophy" },
+      { label: "Ongeldig", value: counts.find((row) => row.status === "VOID")?.count || 0, help: "Terugbetalingen en annuleringen.", icon: "Ban" }
     ])}
     <section class="panel panel-pad">
       <div class="panel-title"><h2>Instellingen</h2></div>
@@ -708,7 +806,7 @@ adminRouter.get("/loten", (req, res) => {
   res.send(page("Loten | Meat For Free", "loten", `
     ${topbar("Loten", "Controleer alle loten.", "Filter op klant, order, bron, status en periode.", `<a class="button button--ghost" href="/admin/loten">Reset</a>`)}
     ${entryFilters(filter.filter, "/admin/loten")}
-    ${kpiGrid([{ label: "Gevonden loten", value: count, help: "Binnen actieve filters." }, { label: "Getoond", value: entries.length, help: "Maximaal 120 regels." }, { label: "Bronnen", value: entrySources.length, help: "Order, gratis, handmatig, abonnement." }, { label: "Export", value: "CSV", help: "Per winactie beschikbaar." }])}
+    ${kpiGrid([{ label: "Gevonden loten", value: count, help: "Binnen actieve filters.", icon: "Tickets" }, { label: "Getoond", value: entries.length, help: "Maximaal 120 regels.", icon: "ListFilter" }, { label: "Bronnen", value: entrySources.length, help: "Order, gratis, handmatig, abonnement.", icon: "Waypoints" }, { label: "Export", value: "CSV", help: "Per winactie beschikbaar.", icon: "FileSpreadsheet" }])}
     <div class="panel">${entriesTable(entries)}</div>
   `));
 });
@@ -745,7 +843,7 @@ adminRouter.get("/orders", (req, res) => {
         <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/orders">Reset</a></div>
       </form>
     </section>
-    ${kpiGrid([{ label: "Orders", value: totals.count || 0, help: "Binnen actieve filters." }, { label: "Waarde", value: formatEuro(totals.total_cents || 0), help: "Orderwaarde in app database." }, { label: "Gemiddeld", value: formatEuro(Math.round(totals.avg_cents || 0)), help: "Gemiddelde orderwaarde." }, { label: "Getoond", value: orders.length, help: "Maximaal 120 regels." }])}
+    ${kpiGrid([{ label: "Orders", value: totals.count || 0, help: "Binnen actieve filters.", icon: "ShoppingCart" }, { label: "Waarde", value: formatEuro(totals.total_cents || 0), help: "Orderwaarde in app database.", icon: "Wallet" }, { label: "Gemiddeld", value: formatEuro(Math.round(totals.avg_cents || 0)), help: "Gemiddelde orderwaarde.", icon: "Scale" }, { label: "Getoond", value: orders.length, help: "Maximaal 120 regels.", icon: "Rows3" }])}
     <div class="panel">${ordersTable(orders)}</div>
   `));
 });
@@ -764,7 +862,7 @@ adminRouter.get("/deelnemers", (_req, res) => {
 
   res.send(page("Deelnemers | Meat For Free", "deelnemers", `
     ${topbar("Deelnemers", "Klanten en deelnamewaarde.", "Zie wie de meeste loten heeft, wie actief is en waar winnaars zitten.", "")}
-    ${kpiGrid([{ label: "Deelnemers", value: customers.length, help: "Top 120 zichtbaar." }, { label: "Actieve loten", value: customers.reduce((sum, row) => sum + Number(row.active_count || 0), 0), help: "Geldige deelname." }, { label: "Winnaars", value: customers.reduce((sum, row) => sum + Number(row.winner_count || 0), 0), help: "Historische winnaars." }, { label: "Shopify koppeling", value: customers.filter((row) => row.shopify_customer_id).length, help: "Met klant-ID." }])}
+    ${kpiGrid([{ label: "Deelnemers", value: customers.length, help: "Top 120 zichtbaar.", icon: "Users" }, { label: "Actieve loten", value: customers.reduce((sum, row) => sum + Number(row.active_count || 0), 0), help: "Geldige deelname.", icon: "Tickets" }, { label: "Winnaars", value: customers.reduce((sum, row) => sum + Number(row.winner_count || 0), 0), help: "Historische winnaars.", icon: "Trophy" }, { label: "Shopify koppeling", value: customers.filter((row) => row.shopify_customer_id).length, help: "Met klant-ID.", icon: "Link2" }])}
     <div class="panel">
       <table>
         <thead><tr><th>Klant</th><th>Email</th><th>Totaal loten</th><th>Actief</th><th>Winnaars</th><th>Laatste update</th></tr></thead>
@@ -800,11 +898,11 @@ adminRouter.get("/compliance", (_req, res) => {
 
   res.send(page("Compliance | Meat For Free", "compliance", `
     ${topbar("Compliance", "Alleen actiepunten en bewijs.", "IP's worden gehasht opgeslagen: genoeg om misbruik te blokkeren, zonder rauwe IP's in het dashboard.", "")}
-    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.` }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen." }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven." }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule) }])}
+    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.`, icon: "ShieldCheck" }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen.", icon: "TriangleAlert" }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven.", icon: "PackageSearch" }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule), icon: "Target" }])}
     <section class="grid grid-2">
       <div class="panel panel-pad">
         <div class="panel-title"><h2>Actiepunten</h2></div>
-        <div class="stack">${alerts.map(([icon, title, body, href]) => `<a class="ops-item" href="${href}" style="text-decoration:none"><span class="ops-icon">${escapeHtml(icon)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${icon === "OK" ? "Goed" : "Actie"}</span></a>`).join("")}</div>
+        <div class="stack">${alerts.map(([iconName, title, body, href]) => `<a class="ops-item" href="${href}" style="text-decoration:none"><span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${iconName === "ShieldCheck" ? "Goed" : "Actie"}</span></a>`).join("")}</div>
       </div>
       <div class="panel panel-pad">
         <div class="panel-title"><h2>Auditratio's</h2></div>
@@ -831,10 +929,10 @@ adminRouter.get("/regels", (_req, res) => {
   res.send(page("Regels | Meat For Free", "regels", `
     ${topbar("Regels", "Lottoekenning beheren.", "Wijzig alleen wat operationeel nodig is: ordergrens, berekeningsmodus en gratis deelname.", "")}
     ${kpiGrid([
-      { label: "Actieve regel", value: ruleLabel(rule), help: "Wordt gebruikt bij nieuwe orders." },
-      { label: "Modus", value: rule.LOT_RULE_MODE === "PER_AMOUNT" ? "Per bedrag" : "Ordergrens", help: "Bepaalt hoeveel loten een order krijgt." },
-      { label: "Gratis deelname", value: rule.FREE_ENTRY_ENABLED ? "Open" : "Gesloten", help: "Voor deelname zonder aankoop." },
-      { label: "Privacy", value: "IP-hash", help: "Geen rauwe IP's in dashboard." }
+      { label: "Actieve regel", value: ruleLabel(rule), help: "Wordt gebruikt bij nieuwe orders.", icon: "SlidersHorizontal" },
+      { label: "Modus", value: rule.LOT_RULE_MODE === "PER_AMOUNT" ? "Per bedrag" : "Ordergrens", help: "Bepaalt hoeveel loten een order krijgt.", icon: "Waypoints" },
+      { label: "Gratis deelname", value: rule.FREE_ENTRY_ENABLED ? "Open" : "Gesloten", help: "Voor deelname zonder aankoop.", icon: "Gift" },
+      { label: "Privacy", value: "IP-hash", help: "Geen rauwe IP's in dashboard.", icon: "LockKeyhole" }
     ])}
     <section class="panel panel-pad">
       <div class="panel-title"><h2>Instellingen</h2></div>
@@ -884,7 +982,7 @@ adminRouter.get("/sync", (_req, res) => {
   const metrics = getMetrics();
   res.send(page("Synchronisatie | Meat For Free", "sync", `
     ${topbar("Synchronisatie", "Systeemacties voor datakwaliteit.", "Gebruik deze pagina als Shopify data, klantdashboards of loten niet gelijk lopen.", "")}
-    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen." }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties." }, { label: "Laatste 7 dagen", value: metrics.recentEntries, help: "Nieuwe lotactiviteit." }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt." }])}
+    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen.", icon: "PackageSearch" }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties.", icon: "Tickets" }, { label: "Laatste 7 dagen", value: metrics.recentEntries, help: "Nieuwe lotactiviteit.", icon: "Activity" }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt.", icon: "ShoppingCart" }])}
     <section class="grid grid-2">
       <div class="panel panel-pad"><div class="panel-title"><h2>Orders met loten synchroniseren</h2></div><p class="muted">Reconcilieert orders die recht hebben op loten maar nog geen lot kregen.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Klantdashboards synchroniseren</h2></div><p class="muted">Schrijft de huidige lotdata terug naar Shopify klantmetafields.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Klantdashboards synchroniseren</button></form></div></div>
