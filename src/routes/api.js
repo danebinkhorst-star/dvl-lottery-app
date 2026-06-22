@@ -3,6 +3,7 @@ import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
 import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
+import { getLotteryRule } from "../services/settings.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -18,6 +19,11 @@ function allowFreeEntryAttempt(key) {
   attempts.push(now);
   freeEntryAttempts.set(key, attempts);
   return attempts.length <= 5;
+}
+
+function clientIp(req) {
+  const forwarded = String(req.get("x-forwarded-for") || "").split(",")[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 apiRouter.get("/draws/live", async (_req, res) => {
@@ -44,6 +50,7 @@ apiRouter.get("/draws/live", async (_req, res) => {
 });
 
 apiRouter.get("/site/summary", async (_req, res) => {
+  const rule = getLotteryRule();
   const draw = db.prepare(`
     SELECT d.*, (SELECT COUNT(*) FROM lottery_entries e WHERE e.draw_id = d.id AND e.status = 'ACTIVE') AS entry_count
     FROM lottery_draws d
@@ -62,8 +69,13 @@ apiRouter.get("/site/summary", async (_req, res) => {
   `).all();
   res.json({
     rule: {
-      label: "1 gratis lot bij bestelling vanaf €70",
-      minimumCents: 7000
+      label: rule.LOT_RULE_MODE === "PER_AMOUNT"
+        ? `1 lot per ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(rule.LOT_PER_CENTS / 100)}`
+        : `1 gratis lot bij bestelling vanaf ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(rule.LOT_ORDER_MINIMUM_CENTS / 100)}`,
+      minimumCents: rule.LOT_ORDER_MINIMUM_CENTS,
+      perCents: rule.LOT_PER_CENTS,
+      mode: rule.LOT_RULE_MODE,
+      freeEntryEnabled: rule.FREE_ENTRY_ENABLED
     },
     liveDraw: draw ? {
       id: draw.id,
@@ -91,7 +103,8 @@ apiRouter.post("/free-entry", async (req, res) => {
     if (req.body?.website) {
       return res.status(400).json({ error: "Invalid request" });
     }
-    const attemptKey = String(req.body?.email || req.ip || "unknown").trim().toLowerCase();
+    const ipAddress = clientIp(req);
+    const attemptKey = String(req.body?.email || ipAddress || "unknown").trim().toLowerCase();
     if (!allowFreeEntryAttempt(attemptKey)) {
       return res.status(429).json({ error: "Te veel aanvragen. Probeer het later opnieuw." });
     }
@@ -99,7 +112,9 @@ apiRouter.post("/free-entry", async (req, res) => {
       email: req.body.email,
       firstName: req.body.firstName,
       lastName: req.body.lastName,
-      drawId: req.body.drawId
+      drawId: req.body.drawId,
+      ipAddress,
+      userAgent: req.get("user-agent") || ""
     });
     return res.status(201).json({
       ok: true,

@@ -3,6 +3,8 @@ import { db, nowIso } from "../db.js";
 import { createDraw, drawWinner } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
+import { getLotteryRule, updateLotteryRule } from "../services/settings.js";
+import { writeAuditLog } from "../services/audit.js";
 import { formatEuro } from "../utils.js";
 
 export const adminRouter = express.Router();
@@ -11,6 +13,10 @@ const urlencoded = express.urlencoded({ extended: false });
 const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
 const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
+
+function actor(req) {
+  return req.get("authorization") ? "admin" : "admin";
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -96,6 +102,17 @@ function maybeIsoDate(value) {
   return raw ? new Date(`${raw}T00:00:00.000Z`).toISOString() : null;
 }
 
+function euroInputToCents(value) {
+  const cents = moneyParamToCents(value);
+  return cents === null ? null : Math.max(1, cents);
+}
+
+function ruleLabel(rule) {
+  return rule.LOT_RULE_MODE === "PER_AMOUNT"
+    ? `1 lot per ${formatEuro(rule.LOT_PER_CENTS)}`
+    : `1 lot vanaf ${formatEuro(rule.LOT_ORDER_MINIMUM_CENTS)}`;
+}
+
 function page(title, active, body) {
   const menu = [
     ["overzicht", "/admin", "OV", "Overzicht"],
@@ -105,7 +122,7 @@ function page(title, active, body) {
     ["deelnemers", "/admin/deelnemers", "KL", "Deelnemers"],
     ["compliance", "/admin/compliance", "CP", "Compliance"],
     ["sync", "/admin/sync", "SY", "Synchronisatie"],
-    ["api", "/admin/api", "API", "API"],
+    ["regels", "/admin/regels", "RG", "Regels"],
     ["nieuw", "/admin/new-draw", "+", "Nieuwe winactie"],
     ["embed", "/admin/embed", "EM", "Embed voorbeeld"]
   ];
@@ -288,6 +305,7 @@ function topbar(eyebrow, title, copy, actions = "") {
 }
 
 function getMetrics() {
+  const rule = getLotteryRule();
   const totals = db.prepare(`
     SELECT
       COUNT(*) AS total_entries,
@@ -304,9 +322,9 @@ function getMetrics() {
       COUNT(*) AS total_orders,
       SUM(total_cents) AS gross_cents,
       AVG(total_cents) AS avg_cents,
-      SUM(CASE WHEN total_cents >= 7000 THEN 1 ELSE 0 END) AS eligible_orders
+      SUM(CASE WHEN total_cents >= ? THEN 1 ELSE 0 END) AS eligible_orders
     FROM orders
-  `).get();
+  `).get(rule.LOT_ORDER_MINIMUM_CENTS);
   const liveDraws = db.prepare("SELECT COUNT(*) AS count FROM lottery_draws WHERE status = 'LIVE'").get().count;
   const recentEntries = db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE datetime(created_at) >= datetime('now', '-7 days')").get().count;
   const todayOrders = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE date(created_at) = date('now')").get().count;
@@ -320,8 +338,8 @@ function getMetrics() {
     SELECT COUNT(*) AS count
     FROM orders o
     LEFT JOIN lottery_entries e ON e.order_id = o.id
-    WHERE o.total_cents >= 7000 AND e.id IS NULL
-  `).get().count;
+    WHERE o.total_cents >= ? AND e.id IS NULL
+  `).get(rule.LOT_ORDER_MINIMUM_CENTS).count;
   const liveDrawsWithoutEntries = db.prepare(`
     SELECT COUNT(*) AS count
     FROM lottery_draws d
@@ -374,6 +392,42 @@ function breakdownPanel(title, rows, total, keyName = "status") {
       </div>`).join("") : `<p class="empty">Nog geen data.</p>`}
     </div>
   </div>`;
+}
+
+function auditRows(limit = 10) {
+  return db.prepare(`
+    SELECT *
+    FROM audit_logs
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit);
+}
+
+function complianceAlerts(metrics) {
+  const alerts = [];
+  const blockedClaimCount = db.prepare("SELECT COUNT(*) AS count FROM free_entry_claims").get().count;
+  const multiDrawIpClaims = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT ip_hash
+      FROM free_entry_claims
+      GROUP BY ip_hash
+      HAVING COUNT(DISTINCT draw_id) >= 3
+    )
+  `).get().count;
+  if (metrics.eligibleWithoutEntry > 0) {
+    alerts.push(["OR", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, "Voer ordersynchronisatie uit.", "/admin/sync"]);
+  }
+  if (metrics.liveDrawsWithoutEntries > 0) {
+    alerts.push(["WA", `${metrics.liveDrawsWithoutEntries} live winactie(s) zonder loten`, "Controleer of de actie echt al live moet staan.", "/admin/winacties"]);
+  }
+  if (multiDrawIpClaims > 0) {
+    alerts.push(["IP", `${multiDrawIpClaims} IP-hash(es) actief in 3+ winacties`, "Controleer gratis deelnamepatronen.", "/admin/compliance"]);
+  }
+  if (!alerts.length) {
+    alerts.push(["OK", "Geen directe compliance-acties", `${blockedClaimCount} gratis deelnameclaims worden met IP-hash bewaakt.`, "/admin/compliance"]);
+  }
+  return alerts;
 }
 
 function entryFilter(req) {
@@ -448,6 +502,7 @@ function orderFilter(req) {
 
 adminRouter.get("/", (_req, res) => {
   const metrics = getMetrics();
+  const rule = getLotteryRule();
   const { totals, orderTotals } = metrics;
   const sourceRows = db.prepare("SELECT source, COUNT(*) AS count FROM lottery_entries GROUP BY source ORDER BY count DESC").all();
   const statusRows = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_entries GROUP BY status ORDER BY count DESC").all();
@@ -470,7 +525,7 @@ adminRouter.get("/", (_req, res) => {
     ${kpiGrid([
       { label: "Actieve loten", value: metrics.activeLiveEntries || 0, help: `${totals.total_entries || 0} loten totaal in de database.` },
       { label: "Deelnemers", value: totals.participating_customers || 0, help: `${percent(totals.free_entries || 0, totals.total_entries || 0)} via gratis deelname.` },
-      { label: "Geschikte orders", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: `${orderTotals.eligible_orders || 0} orders vanaf €70.` },
+      { label: "Geschikte orders", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: `${orderTotals.eligible_orders || 0} orders volgens ${ruleLabel(rule)}.` },
       { label: "Omzet in app", value: formatEuro(orderTotals.gross_cents || 0), help: `${formatEuro(Math.round(orderTotals.avg_cents || 0))} gemiddelde orderwaarde.` }
     ])}
     <section class="grid grid-2">
@@ -577,7 +632,7 @@ adminRouter.get("/new-draw", (_req, res) => {
 });
 
 adminRouter.post("/draws", urlencoded, async (req, res) => {
-  await createDraw({
+  const draw = await createDraw({
     title: textParam(req.body.title),
     slug: textParam(req.body.slug) || undefined,
     prizeName: textParam(req.body.prizeName),
@@ -587,6 +642,13 @@ adminRouter.post("/draws", urlencoded, async (req, res) => {
     endsAt: maybeIsoDate(req.body.endsAt),
     drawAt: maybeIsoDate(req.body.drawAt),
     status: drawStatuses.includes(req.body.status) ? req.body.status : "DRAFT"
+  });
+  writeAuditLog({
+    actor: actor(req),
+    action: "WINACTIE_AANGEMAAKT",
+    targetType: "lottery_draw",
+    targetId: draw.id,
+    message: `${draw.title} (${statusLabel(draw.status)})`
   });
   res.redirect("/admin/winacties");
 });
@@ -612,6 +674,13 @@ adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
     nowIso(),
     draw.id
   );
+  writeAuditLog({
+    actor: actor(req),
+    action: "WINACTIE_AANGEPAST",
+    targetType: "lottery_draw",
+    targetId: draw.id,
+    message: `${textParam(req.body.title)} (${statusLabel(status)})`
+  });
   res.redirect(`/admin/winacties/${draw.id}`);
 });
 
@@ -645,6 +714,7 @@ adminRouter.get("/loten", (req, res) => {
 });
 
 adminRouter.get("/orders", (req, res) => {
+  const rule = getLotteryRule();
   const filter = orderFilter(req);
   const orderStatuses = db.prepare("SELECT DISTINCT financial_status AS status FROM orders WHERE financial_status IS NOT NULL AND financial_status != '' ORDER BY financial_status ASC").all();
   const orders = db.prepare(`
@@ -665,7 +735,7 @@ adminRouter.get("/orders", (req, res) => {
   `).get(...filter.params);
 
   res.send(page("Orders | Meat For Free", "orders", `
-    ${topbar("Orders", "Orderkwaliteit en lottoekenning.", "Controleer of orders boven €70 correct loten krijgen.", `<form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders syncen</button></form>`)}
+    ${topbar("Orders", "Orderkwaliteit en lottoekenning.", `Controleer of orders volgens ${ruleLabel(rule)} correct loten krijgen.`, `<form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders syncen</button></form>`)}
     <section class="filters">
       <form method="get" action="/admin/orders" class="filter-grid">
         <label class="wide">Zoek order of klant<input name="orderQ" value="${escapeHtml(filter.filter.orderQ)}" placeholder="#1001 of email"></label>
@@ -713,7 +783,14 @@ adminRouter.get("/deelnemers", (_req, res) => {
 
 adminRouter.get("/compliance", (_req, res) => {
   const metrics = getMetrics();
+  const rule = getLotteryRule();
   const { totals, orderTotals } = metrics;
+  const alerts = complianceAlerts(metrics);
+  const logs = auditRows(12);
+  const claimStats = db.prepare(`
+    SELECT COUNT(*) AS total_claims, COUNT(DISTINCT ip_hash) AS unique_ips, COUNT(DISTINCT email) AS unique_emails
+    FROM free_entry_claims
+  `).get();
   const checks = [
     ["Gratis deelname aandeel", percent(totals.free_entries || 0, totals.total_entries || 0), totals.free_entries || 0, totals.total_entries || 0],
     ["Ongeldige loten", percent(totals.void_entries || 0, totals.total_entries || 0), totals.void_entries || 0, totals.total_entries || 0],
@@ -722,23 +799,85 @@ adminRouter.get("/compliance", (_req, res) => {
   ];
 
   res.send(page("Compliance | Meat For Free", "compliance", `
-    ${topbar("Compliance", "Eerlijke deelname aantoonbaar houden.", "Deze pagina is voor gratis deelname, refunds, eligible orders en auditchecks.", "")}
-    ${kpiGrid([{ label: "Gratis deelnames", value: totals.free_entries || 0, help: "Aparte deelname zonder aankoop." }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen." }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven." }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: "Orders boven €70." }])}
+    ${topbar("Compliance", "Alleen actiepunten en bewijs.", "IP's worden gehasht opgeslagen: genoeg om misbruik te blokkeren, zonder rauwe IP's in het dashboard.", "")}
+    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.` }, { label: "Ongeldige loten", value: totals.void_entries || 0, help: "Terugbetalingen en annuleringen." }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven." }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule) }])}
     <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><h2>Actiepunten</h2></div>
+        <div class="stack">${alerts.map(([icon, title, body, href]) => `<a class="ops-item" href="${href}" style="text-decoration:none"><span class="ops-icon">${escapeHtml(icon)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${icon === "OK" ? "Goed" : "Actie"}</span></a>`).join("")}</div>
+      </div>
       <div class="panel panel-pad">
         <div class="panel-title"><h2>Auditratio's</h2></div>
         <div class="stack">${checks.map(([label, value, part, total]) => `<div class="metric-row"><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div><div class="bar"><span style="width:${ratio(part, total)}%"></span></div></div>`).join("")}</div>
       </div>
-      <div class="panel panel-pad">
-        <div class="panel-title"><h2>Professionele verbeteringen</h2></div>
-        <div class="stack">
-          <div class="ops-item"><span class="ops-icon">1</span><span><strong>Auditlog per trekking</strong><br><span class="muted">Volgende logische stap: wie trok winnaar, wanneer, met welke pool.</span></span><span class="status">Aanrader</span></div>
-          <div class="ops-item"><span class="ops-icon">2</span><span><strong>Instelbare lotregels</strong><br><span class="muted">€70-grens later via admin beheren in plaats van code/config.</span></span><span class="status">Schaalbaar</span></div>
-          <div class="ops-item"><span class="ops-icon">3</span><span><strong>Fraudechecks</strong><br><span class="muted">Dubbele gratis deelnames, emaildomeinen en verdachte patronen markeren.</span></span><span class="status">Later</span></div>
-        </div>
-      </div>
+    </section>
+    <div class="section-head"><h2>Auditlog</h2><a class="button button--ghost" href="/admin/regels">Lotregels beheren</a></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Tijd</th><th>Actie</th><th>Doel</th><th>Bericht</th></tr></thead>
+        <tbody>${logs.length ? logs.map((log) => `<tr>
+          <td>${escapeHtml(log.created_at)}</td>
+          <td><strong>${escapeHtml(log.action)}</strong><span class="muted">${escapeHtml(log.actor)}</span></td>
+          <td>${escapeHtml(log.target_type)}<br><span class="muted">${escapeHtml(log.target_id || "-")}</span></td>
+          <td>${escapeHtml(log.message || "-")}</td>
+        </tr>`).join("") : `<tr><td colspan="4"><div class="empty">Nog geen beheeracties gelogd.</div></td></tr>`}</tbody>
+      </table>
+    </div>
+  `));
+});
+
+adminRouter.get("/regels", (_req, res) => {
+  const rule = getLotteryRule();
+  res.send(page("Regels | Meat For Free", "regels", `
+    ${topbar("Regels", "Lottoekenning beheren.", "Wijzig alleen wat operationeel nodig is: ordergrens, berekeningsmodus en gratis deelname.", "")}
+    ${kpiGrid([
+      { label: "Actieve regel", value: ruleLabel(rule), help: "Wordt gebruikt bij nieuwe orders." },
+      { label: "Modus", value: rule.LOT_RULE_MODE === "PER_AMOUNT" ? "Per bedrag" : "Ordergrens", help: "Bepaalt hoeveel loten een order krijgt." },
+      { label: "Gratis deelname", value: rule.FREE_ENTRY_ENABLED ? "Open" : "Gesloten", help: "Voor deelname zonder aankoop." },
+      { label: "Privacy", value: "IP-hash", help: "Geen rauwe IP's in dashboard." }
+    ])}
+    <section class="panel panel-pad">
+      <div class="panel-title"><h2>Instellingen</h2></div>
+      <form method="post" action="/admin/regels" class="form-grid">
+        <label>Modus
+          <select name="mode">
+            ${option("ORDER_MINIMUM", rule.LOT_RULE_MODE, "1 lot vanaf ordergrens")}
+            ${option("PER_AMOUNT", rule.LOT_RULE_MODE, "1 lot per bedrag")}
+          </select>
+        </label>
+        <label>Ordergrens €
+          <input name="minimumEuro" inputmode="decimal" value="${escapeHtml((rule.LOT_ORDER_MINIMUM_CENTS / 100).toFixed(2).replace(".", ","))}">
+        </label>
+        <label>Bedrag per lot €
+          <input name="perEuro" inputmode="decimal" value="${escapeHtml((rule.LOT_PER_CENTS / 100).toFixed(2).replace(".", ","))}">
+        </label>
+        <label>Gratis deelname
+          <select name="freeEntryEnabled">
+            ${option("true", String(rule.FREE_ENTRY_ENABLED), "Open")}
+            ${option("false", String(rule.FREE_ENTRY_ENABLED), "Gesloten")}
+          </select>
+        </label>
+        <div class="actions" style="justify-content:flex-start"><button type="submit">Regels opslaan</button></div>
+      </form>
     </section>
   `));
+});
+
+adminRouter.post("/regels", urlencoded, (req, res) => {
+  const rule = updateLotteryRule({
+    mode: req.body.mode,
+    minimumCents: euroInputToCents(req.body.minimumEuro),
+    perCents: euroInputToCents(req.body.perEuro),
+    freeEntryEnabled: req.body.freeEntryEnabled === "true"
+  });
+  writeAuditLog({
+    actor: actor(req),
+    action: "LOTREGELS_AANGEPAST",
+    targetType: "app_settings",
+    message: `Nieuwe regel: ${ruleLabel(rule)}`,
+    metadata: rule
+  });
+  res.redirect("/admin/regels");
 });
 
 adminRouter.get("/sync", (_req, res) => {
@@ -802,7 +941,15 @@ adminRouter.get("/draws/:id/export.csv", (req, res) => {
 
 adminRouter.post("/draws/:id/draw", async (req, res) => {
   try {
-    await drawWinner(req.params.id);
+    const winner = await drawWinner(req.params.id);
+    writeAuditLog({
+      actor: actor(req),
+      action: "WINNAAR_GETROKKEN",
+      targetType: "lottery_draw",
+      targetId: req.params.id,
+      message: `Winnaar ${winner.entry_number}`,
+      metadata: { winnerEntryId: winner.id }
+    });
     res.redirect(`/admin/winacties/${req.params.id}`);
   } catch (error) {
     res.status(400).send(page("Trekking fout", "winacties", topbar("Actie gestopt", "Kan geen winnaar trekken.", error.message, `<a class="button button--gold" href="/admin/winacties/${escapeHtml(req.params.id)}">Terug</a>`)));
@@ -810,12 +957,26 @@ adminRouter.post("/draws/:id/draw", async (req, res) => {
 });
 
 adminRouter.post("/reconcile", async (_req, res) => {
-  await reconcileActiveOrderEntries();
+  const result = await reconcileActiveOrderEntries();
+  writeAuditLog({
+    actor: "admin",
+    action: "ORDERS_GESYNCHRONISEERD",
+    targetType: "orders",
+    message: `${result.checked || 0} actieve orders gecontroleerd`,
+    metadata: result
+  });
   res.redirect("/admin/sync");
 });
 
 adminRouter.post("/sync-dashboards", async (_req, res) => {
-  await syncAllCustomerDashboardMetafields();
+  const result = await syncAllCustomerDashboardMetafields();
+  writeAuditLog({
+    actor: "admin",
+    action: "KLANTDASHBOARDS_GESYNCHRONISEERD",
+    targetType: "customer_metafields",
+    message: `${result.count || 0} klanten verwerkt`,
+    metadata: result
+  });
   res.redirect("/admin/sync");
 });
 

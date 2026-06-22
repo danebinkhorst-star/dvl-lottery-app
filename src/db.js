@@ -9,6 +9,7 @@ const dbPath = path.resolve(process.env.SQLITE_PATH || "./data/dvl-lottery.db");
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
+db.exec("PRAGMA busy_timeout = 5000");
 db.exec("PRAGMA foreign_keys = ON");
 
 export function initDb() {
@@ -71,6 +72,31 @@ export function initDb() {
       FOREIGN KEY (order_id) REFERENCES orders(id)
     );
 
+    CREATE TABLE IF NOT EXISTS free_entry_claims (
+      id TEXT PRIMARY KEY,
+      draw_id TEXT NOT NULL,
+      customer_id TEXT,
+      email TEXT NOT NULL,
+      ip_hash TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (draw_id) REFERENCES lottery_draws(id),
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      UNIQUE(draw_id, email),
+      UNIQUE(draw_id, ip_hash)
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id TEXT,
+      message TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -82,6 +108,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
     CREATE INDEX IF NOT EXISTS idx_entries_order ON lottery_entries(order_id);
     CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_free_claims_draw ON free_entry_claims(draw_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_free_claims_ip ON free_entry_claims(ip_hash, created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
   `);
 }
 

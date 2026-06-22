@@ -8,10 +8,13 @@ import { signCustomerToken } from "../src/auth.js";
 
 function resetDb() {
   db.exec(`
+    DELETE FROM free_entry_claims;
+    DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
     DELETE FROM orders;
     DELETE FROM customers;
     DELETE FROM lottery_draws;
+    DELETE FROM app_settings;
   `);
 }
 
@@ -43,6 +46,24 @@ test("free entry is one per live draw and later merges with Shopify customer", a
   const customer = db.prepare("SELECT * FROM customers WHERE email = ?").get("lot@example.com");
   assert.equal(customer.shopify_customer_id, "999");
   assert.equal(customer.total_entries, 2);
+});
+
+test("free entry allows one claim per IP per live draw", async () => {
+  resetDb();
+  await createDraw({
+    title: "IP test",
+    prizeName: "BBQ pakket",
+    status: "LIVE"
+  });
+
+  await createFreeEntry({ email: "eerste@example.com", ipAddress: "203.0.113.10" });
+  await assert.rejects(
+    () => createFreeEntry({ email: "tweede@example.com", ipAddress: "203.0.113.10" }),
+    /gratis deelname vanaf dit netwerk/
+  );
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'FREE_ENTRY'").get().count, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM free_entry_claims").get().count, 1);
 });
 
 test("customer entries endpoint requires a signed token", async () => {

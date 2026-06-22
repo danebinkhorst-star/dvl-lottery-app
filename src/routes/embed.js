@@ -462,19 +462,21 @@ function widgetRuntime() {
 
   function liveWidget(el, data) {
     const draw = data.liveDraw;
+    const ruleLabel = data.rule?.label || "1 lot bij bestelling";
+    const ruleShort = ruleLabel.replace(/^1 gratis lot bij bestelling vanaf /, "").replace(/^1 lot per /, "");
     const countdownTarget = nextDrawTimestamp(draw);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Live winacties</p>
       <h2 class="dvl-widget-title">${escapeHtml(draw ? draw.title : "Bestel vlees. Speel mee.")}</h2>
-      <p class="dvl-widget-copy">${escapeHtml(draw?.description || "Elke bestelling vanaf €70 speelt automatisch mee. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking live en transparant.")}</p>
+      <p class="dvl-widget-copy">${escapeHtml(draw?.description || `${ruleLabel}. Jij bestelt premium vlees, wij registreren je lot en tonen de trekking live en transparant.`)}</p>
       <div class="dvl-widget-steps" aria-label="Zo werkt Meat For Free">
-        <div class="dvl-widget-step"><b>1</b><span>Bestel vanaf €70</span></div>
+        <div class="dvl-widget-step"><b>1</b><span>${escapeHtml(ruleLabel)}</span></div>
         <div class="dvl-widget-step"><b>2</b><span>Ontvang je lot automatisch</span></div>
         <div class="dvl-widget-step"><b>3</b><span>Volg je kansen in je dashboard</span></div>
       </div>
       <div class="dvl-widget-grid">
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Actieve loten</span></div>
-        <div class="dvl-widget-card"><strong>€70</strong><span>1 automatisch lot</span></div>
+        <div class="dvl-widget-card"><strong>${escapeHtml(ruleShort)}</strong><span>Lotregel</span></div>
         <div class="dvl-widget-card"><strong>${escapeHtml(draw?.prizeName || "Premium prijs")}</strong><span>${escapeHtml(draw?.prizeValue || "Live hoofdprijs")}</span></div>
       </div>
       <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
@@ -530,13 +532,15 @@ function widgetRuntime() {
   }
 
   function customerWidget(el, data) {
+    const ruleLabel = data.rule?.label || "1 lot bij bestelling";
+    const ruleShort = ruleLabel.replace(/^1 gratis lot bij bestelling vanaf /, "").replace(/^1 lot per /, "");
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Mijn MFF</p>
       <h2 class="dvl-widget-title">Je loten. Je trekkingen.</h2>
       <p class="dvl-widget-copy">Log in met hetzelfde account waarmee je bestelt. In je dashboard zie je je actieve loten, recente deelnames en de winactie waar je nu voor meespeelt.</p>
       <div class="dvl-widget-grid">
         <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.entryCount ?? 0)}</strong><span>Loten in de live trekking</span></div>
-        <div class="dvl-widget-card"><strong>€70</strong><span>Bestelling = 1 lot</span></div>
+        <div class="dvl-widget-card"><strong>${escapeHtml(ruleShort)}</strong><span>${escapeHtml(ruleLabel)}</span></div>
         <div class="dvl-widget-card"><strong>${escapeHtml(data.liveDraw?.prizeName || "Prijs live")}</strong><span>${escapeHtml(data.liveDraw?.prizeValue || "Huidige winactie")}</span></div>
       </div>
       <p class="dvl-widget-note">Je persoonlijke lotnummers staan alleen achter je login. Zo blijft de trekking zichtbaar, maar klantdata afgeschermd.</p>
@@ -549,12 +553,14 @@ function widgetRuntime() {
 
   function liveWidget(el, data) {
     const draw = data.liveDraw;
+    const ruleLabel = data.rule?.label || "1 lot bij bestelling";
+    const ruleShort = ruleLabel.replace(/^1 gratis lot bij bestelling vanaf /, "").replace(/^1 lot per /, "");
     const countdownTarget = nextDrawTimestamp(draw);
     const entryCount = Number(draw?.entryCount || 0);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Live trekking</p>
       <h2 class="dvl-widget-title">Bestel. Pak je lot.</h2>
-      <p class="dvl-widget-copy">Vanaf EUR 70 krijgt je bestelling automatisch 1 lot voor de actieve winactie.</p>
+      <p class="dvl-widget-copy">${escapeHtml(ruleLabel)} voor de actieve winactie.</p>
       <div class="dvl-widget-compact">
         <div class="dvl-widget-hero-card">
           <small>Hoofdprijs nu</small>
@@ -569,8 +575,8 @@ function widgetRuntime() {
           </div>
           <div class="dvl-widget-side-card">
             <span class="dvl-widget-side-label">Lot regel</span>
-            <strong>EUR 70</strong>
-            <span>Bestelling vanaf dit bedrag = 1 lot.</span>
+            <strong>${escapeHtml(ruleShort)}</strong>
+            <span>${escapeHtml(ruleLabel)}</span>
           </div>
           <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
             <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
@@ -591,6 +597,8 @@ function widgetRuntime() {
 
   function customerWidget(el, data) {
     const draw = data.liveDraw;
+    const ruleLabel = data.rule?.label || "1 lot bij bestelling";
+    const ruleShort = ruleLabel.replace(/^1 gratis lot bij bestelling vanaf /, "").replace(/^1 lot per /, "");
     const countdownTarget = nextDrawTimestamp(draw);
     el.innerHTML = `<section class="dvl-lottery-widget dvl-widget-shell">
       <p class="dvl-widget-eyebrow">Mijn MFF</p>
@@ -604,7 +612,7 @@ function widgetRuntime() {
         </div>
         <div class="dvl-widget-side">
           <div class="dvl-widget-side-card"><span class="dvl-widget-side-label">Live trekking</span><strong>${escapeHtml(draw?.entryCount ?? 0)}</strong><span>Totaal gekoppelde loten.</span></div>
-          <div class="dvl-widget-side-card"><span class="dvl-widget-side-label">Meedoen</span><strong>EUR 70</strong><span>Elke qualifying order = 1 lot.</span></div>
+          <div class="dvl-widget-side-card"><span class="dvl-widget-side-label">Meedoen</span><strong>${escapeHtml(ruleShort)}</strong><span>${escapeHtml(ruleLabel)}</span></div>
           <div class="dvl-widget-countdown" data-dvl-countdown="${escapeHtml(countdownTarget)}" aria-label="Volgende trekking">
             <div class="dvl-widget-time"><strong data-time="days">00</strong><span>Dagen</span></div>
             <div class="dvl-widget-time"><strong data-time="hours">00</strong><span>Uur</span></div>

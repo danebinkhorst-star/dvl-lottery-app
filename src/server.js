@@ -45,7 +45,7 @@ export function createApp() {
   });
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, app: "dvl-lottery-app", dashboard: "multi-page-dutch-admin" });
+    res.json({ ok: true, app: "dvl-lottery-app", dashboard: "ip-locked-actionable-admin" });
   });
 
   app.use("/webhooks", webhookRouter);

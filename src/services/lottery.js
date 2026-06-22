@@ -1,13 +1,21 @@
 import { db, id, nowIso } from "../db.js";
 import { config } from "../config.js";
 import { syncCustomerDashboardMetafields } from "./customer-dashboard.js";
+import { getLotteryRule } from "./settings.js";
 import { centsFromMoney, makeEntryNumber, slugify } from "../utils.js";
+import crypto from "node:crypto";
 
 export function calculateEntryCount(totalCents, rule = config) {
   if (rule.LOT_RULE_MODE === "PER_AMOUNT") {
     return Math.floor(totalCents / rule.LOT_PER_CENTS);
   }
   return totalCents >= rule.LOT_ORDER_MINIMUM_CENTS ? 1 : 0;
+}
+
+function hashIp(ipAddress) {
+  const cleanIp = String(ipAddress || "unknown").trim().toLowerCase();
+  const secret = config.SHOPIFY_WEBHOOK_SECRET || config.ADMIN_PASSWORD || "dvl-free-entry-ip";
+  return crypto.createHmac("sha256", secret).update(cleanIp).digest("hex");
 }
 
 export async function getOrCreateLiveDraw() {
@@ -92,8 +100,9 @@ export async function getOrCreateCustomer({ shopifyCustomerId = null, email = nu
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
 }
 
-export async function createFreeEntry({ email, firstName = null, lastName = null, drawId = null }) {
-  if (!config.FREE_ENTRY_ENABLED) {
+export async function createFreeEntry({ email, firstName = null, lastName = null, drawId = null, ipAddress = "", userAgent = "" }) {
+  const rule = getLotteryRule();
+  if (!rule.FREE_ENTRY_ENABLED) {
     throw new Error("Gratis deelname is tijdelijk gesloten.");
   }
 
@@ -108,6 +117,18 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
   if (!draw) throw new Error("Er is geen actieve trekking gevonden.");
 
   const customer = await getOrCreateCustomer({ email: cleanEmail, firstName, lastName });
+  const ipHash = hashIp(ipAddress);
+  const existingIpClaim = db.prepare(`
+    SELECT fc.*, c.email AS claimed_email
+    FROM free_entry_claims fc
+    LEFT JOIN customers c ON c.id = fc.customer_id
+    WHERE fc.draw_id = ? AND fc.ip_hash = ?
+    LIMIT 1
+  `).get(draw.id, ipHash);
+  if (existingIpClaim && existingIpClaim.email !== cleanEmail) {
+    throw new Error("Er is al een gratis deelname vanaf dit netwerk geregistreerd voor deze winactie.");
+  }
+
   const existing = db.prepare(`
     SELECT e.*
     FROM lottery_entries e
@@ -115,6 +136,10 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
     LIMIT 1
   `).get(draw.id, customer.id);
   if (existing) {
+    db.prepare(`
+      INSERT OR IGNORE INTO free_entry_claims (id, draw_id, customer_id, email, ip_hash, user_agent, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id(), draw.id, customer.id, cleanEmail, ipHash, String(userAgent || "").slice(0, 260), nowIso());
     await syncCustomerDashboardMetafields(customer);
     return { entry: existing, customer, draw, skipped: "free_entry_already_exists" };
   }
@@ -133,6 +158,15 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
   db.prepare(`INSERT INTO lottery_entries
     (id, entry_number, draw_id, customer_id, order_id, source, status, reason, created_at)
     VALUES (@id, @entry_number, @draw_id, @customer_id, @order_id, @source, @status, @reason, @created_at)`).run(entry);
+  try {
+    db.prepare(`
+      INSERT INTO free_entry_claims (id, draw_id, customer_id, email, ip_hash, user_agent, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id(), draw.id, customer.id, cleanEmail, ipHash, String(userAgent || "").slice(0, 260), nowIso());
+  } catch (error) {
+    db.prepare("DELETE FROM lottery_entries WHERE id = ?").run(entry.id);
+    throw new Error("Er is al een gratis deelname geregistreerd voor deze winactie.");
+  }
   db.prepare("UPDATE customers SET total_entries = total_entries + 1, updated_at = ? WHERE id = ?").run(nowIso(), customer.id);
   await syncCustomerDashboardMetafields(customer);
 
@@ -142,7 +176,7 @@ export async function createFreeEntry({ email, firstName = null, lastName = null
 export async function assignEntriesForOrder(orderPayload) {
   const shopifyOrderId = String(orderPayload.id || orderPayload.admin_graphql_api_id);
   const totalCents = centsFromMoney(orderPayload.total_price);
-  const entryCount = calculateEntryCount(totalCents);
+  const entryCount = calculateEntryCount(totalCents, getLotteryRule());
   const email = orderPayload.email || orderPayload.contact_email || orderPayload.customer?.email || null;
   const shopifyCustomerId = orderPayload.customer?.id ? String(orderPayload.customer.id) : (orderPayload.customer?.admin_graphql_api_id || null);
 

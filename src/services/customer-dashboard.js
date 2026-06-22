@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { db, nowIso } from "../db.js";
 import { shopifyRest } from "../shopify/admin-api.js";
+import { getLotteryRule } from "./settings.js";
 import { formatEuro } from "../utils.js";
 
 const NAMESPACE = "dvl_lottery";
@@ -52,10 +53,14 @@ function publicEntry(entry) {
 }
 
 function publicOrder(order) {
+  const rule = getLotteryRule();
   const totalCents = Number(order.total_cents || 0);
   const entryCount = Number(order.entry_count || 0);
-  const remainingCents = Math.max(0, config.LOT_ORDER_MINIMUM_CENTS - totalCents);
-  const progress = Math.max(0, Math.min(100, Math.round((totalCents / config.LOT_ORDER_MINIMUM_CENTS) * 100)));
+  const threshold = rule.LOT_RULE_MODE === "PER_AMOUNT" ? rule.LOT_PER_CENTS : rule.LOT_ORDER_MINIMUM_CENTS;
+  const remainingCents = rule.LOT_RULE_MODE === "PER_AMOUNT"
+    ? Math.max(0, threshold - (totalCents % threshold || threshold))
+    : Math.max(0, threshold - totalCents);
+  const progress = Math.max(0, Math.min(100, Math.round((totalCents / threshold) * 100)));
 
   return {
     orderName: order.order_name || "",
@@ -72,6 +77,10 @@ function publicOrder(order) {
 }
 
 export function buildCustomerDashboardPayload(customer) {
+  const rule = getLotteryRule();
+  const ruleText = rule.LOT_RULE_MODE === "PER_AMOUNT"
+    ? `1 lot per ${formatEuro(rule.LOT_PER_CENTS)}`
+    : `1 lot bij elke bestelling vanaf ${formatEuro(rule.LOT_ORDER_MINIMUM_CENTS)}`;
   const liveDraw = db.prepare(`
     SELECT d.*, (SELECT COUNT(*) FROM lottery_entries e WHERE e.draw_id = d.id AND e.status = 'ACTIVE') AS entry_count
     FROM lottery_draws d
@@ -153,7 +162,7 @@ export function buildCustomerDashboardPayload(customer) {
       orderEntries: Number(stats.order_entries || 0),
       subscriptionEntries: Number(stats.subscription_entries || 0),
       liveDrawEntries: Number(activeDrawEntries?.count || 0),
-      ruleLabel: "1 lot bij elke bestelling vanaf EUR 70",
+      ruleLabel: ruleText,
       liveDrawTitle: liveDraw?.title || "",
       liveDrawPrizeName: liveDraw?.prize_name || "",
       liveDrawPrizeValue: liveDraw?.prize_value || "",
@@ -164,7 +173,7 @@ export function buildCustomerDashboardPayload(customer) {
       latestOrderName: latestOrderPublic?.orderName || "",
       latestOrderAt: latestOrderPublic?.createdAt || "",
       latestOrderTotalLabel: latestOrderPublic?.totalLabel || "",
-      nextLotRemainingLabel: latestOrderPublic?.nextLotRemainingLabel || formatEuro(config.LOT_ORDER_MINIMUM_CENTS),
+      nextLotRemainingLabel: latestOrderPublic?.nextLotRemainingLabel || formatEuro(rule.LOT_ORDER_MINIMUM_CENTS),
       nextLotProgress: latestOrderPublic?.nextLotProgress || 0,
       updatedAt: nowIso()
     },
