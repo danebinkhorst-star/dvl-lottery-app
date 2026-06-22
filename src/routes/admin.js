@@ -531,9 +531,11 @@ function complianceAlerts(metrics) {
 function entryFilter(req) {
   const filter = {
     q: textParam(req.query.q),
+    drawId: textParam(req.query.drawId),
     drawStatus: textParam(req.query.drawStatus),
     entryStatus: textParam(req.query.entryStatus),
     source: textParam(req.query.source),
+    hasOrder: textParam(req.query.hasOrder),
     from: isoDateParam(req.query.from),
     to: isoDateParam(req.query.to)
   };
@@ -548,6 +550,10 @@ function entryFilter(req) {
     where.push("d.status = ?");
     params.push(filter.drawStatus);
   }
+  if (filter.drawId) {
+    where.push("d.id = ?");
+    params.push(filter.drawId);
+  }
   if (filter.entryStatus) {
     where.push("e.status = ?");
     params.push(filter.entryStatus);
@@ -555,6 +561,12 @@ function entryFilter(req) {
   if (filter.source) {
     where.push("e.source = ?");
     params.push(filter.source);
+  }
+  if (filter.hasOrder === "yes") {
+    where.push("e.order_id IS NOT NULL");
+  }
+  if (filter.hasOrder === "no") {
+    where.push("e.order_id IS NULL");
   }
   if (filter.from) {
     where.push("date(e.created_at) >= date(?)");
@@ -571,9 +583,14 @@ function orderFilter(req) {
   const filter = {
     orderQ: textParam(req.query.orderQ),
     orderStatus: textParam(req.query.orderStatus),
+    eligible: textParam(req.query.eligible),
+    lotState: textParam(req.query.lotState),
     minTotal: textParam(req.query.minTotal),
-    maxTotal: textParam(req.query.maxTotal)
+    maxTotal: textParam(req.query.maxTotal),
+    from: isoDateParam(req.query.from),
+    to: isoDateParam(req.query.to)
   };
+  const rule = getLotteryRule();
   const minCents = moneyParamToCents(filter.minTotal);
   const maxCents = moneyParamToCents(filter.maxTotal);
   const where = [];
@@ -587,6 +604,20 @@ function orderFilter(req) {
     where.push("o.financial_status = ?");
     params.push(filter.orderStatus);
   }
+  if (filter.eligible === "yes") {
+    where.push("o.total_cents >= ?");
+    params.push(rule.LOT_ORDER_MINIMUM_CENTS);
+  }
+  if (filter.eligible === "no") {
+    where.push("o.total_cents < ?");
+    params.push(rule.LOT_ORDER_MINIMUM_CENTS);
+  }
+  if (filter.lotState === "with") {
+    where.push("EXISTS (SELECT 1 FROM lottery_entries e2 WHERE e2.order_id = o.id)");
+  }
+  if (filter.lotState === "without") {
+    where.push("NOT EXISTS (SELECT 1 FROM lottery_entries e2 WHERE e2.order_id = o.id)");
+  }
   if (minCents !== null) {
     where.push("o.total_cents >= ?");
     params.push(minCents);
@@ -595,7 +626,49 @@ function orderFilter(req) {
     where.push("o.total_cents <= ?");
     params.push(maxCents);
   }
+  if (filter.from) {
+    where.push("date(o.created_at) >= date(?)");
+    params.push(filter.from);
+  }
+  if (filter.to) {
+    where.push("date(o.created_at) <= date(?)");
+    params.push(filter.to);
+  }
   return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+}
+
+function customerFilter(req) {
+  const filter = {
+    q: textParam(req.query.q),
+    minEntries: textParam(req.query.minEntries),
+    winnersOnly: textParam(req.query.winnersOnly),
+    linkedOnly: textParam(req.query.linkedOnly)
+  };
+  const where = [];
+  const having = [];
+  const params = [];
+  if (filter.q) {
+    where.push("(c.email LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.shopify_customer_id LIKE ?)");
+    const like = `%${filter.q}%`;
+    params.push(like, like, like, like);
+  }
+  const minEntries = Number(filter.minEntries || 0);
+  if (Number.isFinite(minEntries) && minEntries > 0) {
+    having.push("COUNT(e.id) >= ?");
+    params.push(minEntries);
+  }
+  if (filter.winnersOnly === "true") {
+    having.push("SUM(CASE WHEN e.status = 'WINNER' THEN 1 ELSE 0 END) > 0");
+  }
+  if (filter.linkedOnly === "true") {
+    where.push("c.shopify_customer_id IS NOT NULL AND c.shopify_customer_id != ''");
+  }
+  return {
+    filter,
+    whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "",
+    havingSql: having.length ? `HAVING ${having.join(" AND ")}` : "",
+    params
+  };
 }
 
 adminRouter.get("/", (_req, res) => {
@@ -648,44 +721,57 @@ adminRouter.get("/", (_req, res) => {
 });
 
 adminRouter.get("/winacties", (req, res) => {
-  const status = textParam(req.query.status);
-  const q = textParam(req.query.q);
-  const where = [];
-  const params = [];
-  if (status) {
-    where.push("d.status = ?");
-    params.push(status);
-  }
-  if (q) {
-    where.push("(d.title LIKE ? OR d.slug LIKE ? OR d.prize_name LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-  }
+  const filter = drawFilter(req);
   const draws = db.prepare(`
     SELECT d.*, COUNT(e.id) AS entry_count, we.entry_number AS winner_entry_number, wc.email AS winner_email
     FROM lottery_draws d
     LEFT JOIN lottery_entries e ON e.draw_id = d.id
     LEFT JOIN lottery_entries we ON we.id = d.winner_entry_id
     LEFT JOIN customers wc ON wc.id = we.customer_id
-    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ${filter.whereSql}
     GROUP BY d.id
     ORDER BY d.created_at DESC
-  `).all(...params);
-  const rowsByStatus = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_draws GROUP BY status ORDER BY count DESC").all();
+  `).all(...filter.params);
+  const rowsByStatus = db.prepare(`
+    SELECT d.status AS status, COUNT(*) AS count
+    FROM lottery_draws d
+    ${filter.whereSql}
+    GROUP BY d.status
+    ORDER BY count DESC
+  `).all(...filter.params);
+  const totalEntries = draws.reduce((sum, draw) => sum + Number(draw.entry_count || 0), 0);
+  const avgEntries = draws.length ? Math.round(totalEntries / draws.length) : 0;
+  const upcoming = draws.filter((draw) => draw.status === "LIVE" || draw.status === "DRAFT").length;
+  const withWinner = draws.filter((draw) => draw.winner_entry_number).length;
 
   res.send(page("Winacties | Meat For Free", "winacties", `
     ${topbar("Winacties", "Beheer alle winacties.", "Maak acties aan, pas prijzen of timing aan, zet acties live en trek winnaars.", `<a class="button button--gold" href="/admin/new-draw">Nieuwe winactie</a>`)}
     ${kpiGrid([
       { label: "Winacties", value: draws.length, help: "Binnen de huidige filters.", icon: "Gift" },
-      { label: "Live acties", value: rowsByStatus.find((row) => row.status === "LIVE")?.count || 0, help: "Actief zichtbaar voor klanten.", icon: "Activity" },
-      { label: "Getrokken", value: rowsByStatus.find((row) => row.status === "DRAWN")?.count || 0, help: "Acties met winnaar.", icon: "BadgeCheck" },
-      { label: "Concepten", value: rowsByStatus.find((row) => row.status === "DRAFT")?.count || 0, help: "Nog niet live.", icon: "FilePenLine" }
+      { label: "Loten in selectie", value: totalEntries, help: `${avgEntries} gemiddeld per winactie.`, icon: "Tickets" },
+      { label: "Open of live", value: upcoming, help: "Nog operationeel relevant.", icon: "Activity" },
+      { label: "Met winnaar", value: withWinner, help: "Acties die volledig zijn afgerond.", icon: "BadgeCheck" }
     ])}
     <section class="filters">
       <form method="get" action="/admin/winacties" class="filter-grid">
-        <label class="wide">Zoek winactie<input name="q" value="${escapeHtml(q)}" placeholder="Titel, slug of prijs"></label>
-        <label>Status<select name="status">${option("", status, "Alle statussen")}${drawStatuses.map((item) => option(item, status, statusLabel(item))).join("")}</select></label>
+        <label class="wide">Zoek winactie<input name="q" value="${escapeHtml(filter.filter.q)}" placeholder="Titel, slug of prijs"></label>
+        <label>Status<select name="status">${option("", filter.filter.status, "Alle statussen")}${drawStatuses.map((item) => option(item, filter.filter.status, statusLabel(item))).join("")}</select></label>
+        <label>Winnaar<select name="winnerState">${option("", filter.filter.winnerState, "Met en zonder winnaar")}${option("yes", filter.filter.winnerState, "Met winnaar")}${option("no", filter.filter.winnerState, "Nog zonder winnaar")}</select></label>
+        <label>Vanaf<input type="date" name="from" value="${escapeHtml(filter.filter.from)}"></label>
+        <label>Tot<input type="date" name="to" value="${escapeHtml(filter.filter.to)}"></label>
         <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/winacties">Reset</a></div>
       </form>
+    </section>
+    <section class="grid grid-2">
+      ${breakdownPanel("Statusverdeling", rowsByStatus, Math.max(draws.length, 1))}
+      <div class="panel panel-pad">
+        <div class="panel-title"><h2>Operationeel beeld</h2></div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">${icon("Clock3")}</span><span><strong>${upcoming} actie(s) vragen nog opvolging</strong><br><span class="muted">Concepten en live acties blijven bovenaan voor planning en trekking.</span></span><span class="status">Focus</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("TrendingUp")}</span><span><strong>${avgEntries} loten gemiddeld per actie</strong><br><span class="muted">Handig om zwakke acties snel te spotten.</span></span><span class="status">${avgEntries > 0 ? "Data" : "Leeg"}</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("Trophy")}</span><span><strong>${withWinner} actie(s) afgerond</strong><br><span class="muted">Controleer of winnaar, communicatie en export rond zijn.</span></span><span class="status">${withWinner ? "Nazorg" : "Open"}</span></div>
+        </div>
+      </div>
     </section>
     <div class="panel">${drawTable(draws)}</div>
   `));
@@ -784,6 +870,7 @@ adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
 
 adminRouter.get("/loten", (req, res) => {
   const filter = entryFilter(req);
+  const drawOptions = db.prepare("SELECT id, title FROM lottery_draws ORDER BY created_at DESC LIMIT 50").all();
   const entries = db.prepare(`
     SELECT e.entry_number, e.source, e.status, e.created_at, d.title AS draw_title, c.email, o.order_name
     FROM lottery_entries e
@@ -802,11 +889,52 @@ adminRouter.get("/loten", (req, res) => {
     LEFT JOIN orders o ON o.id = e.order_id
     ${filter.whereSql}
   `).get(...filter.params).count;
+  const sourceRows = db.prepare(`
+    SELECT e.source, COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${filter.whereSql}
+    GROUP BY e.source
+    ORDER BY count DESC
+  `).all(...filter.params);
+  const statusRows = db.prepare(`
+    SELECT e.status, COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${filter.whereSql}
+    GROUP BY e.status
+    ORDER BY count DESC
+  `).all(...filter.params);
+  const uniqueCustomers = db.prepare(`
+    SELECT COUNT(DISTINCT e.customer_id) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${filter.whereSql}
+  `).get(...filter.params).count;
+  const linkedOrders = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_entries e
+    JOIN lottery_draws d ON d.id = e.draw_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    ${filter.whereSql}
+      ${filter.whereSql ? " AND " : "WHERE "}e.order_id IS NOT NULL
+  `).get(...filter.params).count;
 
   res.send(page("Loten | Meat For Free", "loten", `
     ${topbar("Loten", "Controleer alle loten.", "Filter op klant, order, bron, status en periode.", `<a class="button button--ghost" href="/admin/loten">Reset</a>`)}
-    ${entryFilters(filter.filter, "/admin/loten")}
-    ${kpiGrid([{ label: "Gevonden loten", value: count, help: "Binnen actieve filters.", icon: "Tickets" }, { label: "Getoond", value: entries.length, help: "Maximaal 120 regels.", icon: "ListFilter" }, { label: "Bronnen", value: entrySources.length, help: "Order, gratis, handmatig, abonnement.", icon: "Waypoints" }, { label: "Export", value: "CSV", help: "Per winactie beschikbaar.", icon: "FileSpreadsheet" }])}
+    ${entryFilters(filter.filter, "/admin/loten", drawOptions)}
+    ${kpiGrid([{ label: "Gevonden loten", value: count, help: "Binnen actieve filters.", icon: "Tickets" }, { label: "Unieke deelnemers", value: uniqueCustomers || 0, help: "Klanten achter deze selectie.", icon: "Users" }, { label: "Met order", value: linkedOrders || 0, help: "Direct gekoppeld aan een order.", icon: "ShoppingCart" }, { label: "Getoond", value: entries.length, help: "Maximaal 120 regels.", icon: "ListFilter" }])}
+    <section class="grid grid-2">
+      ${breakdownPanel("Loten per bron", sourceRows, Math.max(count, 1), "source")}
+      ${breakdownPanel("Loten per status", statusRows, Math.max(count, 1))}
+    </section>
     <div class="panel">${entriesTable(entries)}</div>
   `));
 });
@@ -831,6 +959,17 @@ adminRouter.get("/orders", (req, res) => {
     LEFT JOIN customers c ON c.id = o.customer_id
     ${filter.whereSql}
   `).get(...filter.params);
+  const eligibleCount = orders.filter((order) => Number(order.total_cents || 0) >= rule.LOT_ORDER_MINIMUM_CENTS).length;
+  const withEntries = orders.filter((order) => Number(order.entry_count || 0) > 0).length;
+  const missingEligible = orders.filter((order) => Number(order.total_cents || 0) >= rule.LOT_ORDER_MINIMUM_CENTS && Number(order.entry_count || 0) === 0).length;
+  const statusRows = db.prepare(`
+    SELECT o.financial_status AS status, COUNT(*) AS count
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    ${filter.whereSql}
+    GROUP BY o.financial_status
+    ORDER BY count DESC
+  `).all(...filter.params);
 
   res.send(page("Orders | Meat For Free", "orders", `
     ${topbar("Orders", "Orderkwaliteit en lottoekenning.", `Controleer of orders volgens ${ruleLabel(rule)} correct loten krijgen.`, `<form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders syncen</button></form>`)}
@@ -838,31 +977,62 @@ adminRouter.get("/orders", (req, res) => {
       <form method="get" action="/admin/orders" class="filter-grid">
         <label class="wide">Zoek order of klant<input name="orderQ" value="${escapeHtml(filter.filter.orderQ)}" placeholder="#1001 of email"></label>
         <label>Status<select name="orderStatus">${option("", filter.filter.orderStatus, "Alle statussen")}${orderStatuses.map((row) => option(row.status, filter.filter.orderStatus, statusLabel(row.status))).join("")}</select></label>
+        <label>Kwalificeert<select name="eligible">${option("", filter.filter.eligible, "Alle orders")}${option("yes", filter.filter.eligible, "Boven lotgrens")}${option("no", filter.filter.eligible, "Onder lotgrens")}</select></label>
+        <label>Lottoekenning<select name="lotState">${option("", filter.filter.lotState, "Met en zonder lot")}${option("with", filter.filter.lotState, "Met loten")}${option("without", filter.filter.lotState, "Zonder loten")}</select></label>
         <label>Min. order €<input name="minTotal" inputmode="decimal" value="${escapeHtml(filter.filter.minTotal)}" placeholder="70"></label>
         <label>Max. order €<input name="maxTotal" inputmode="decimal" value="${escapeHtml(filter.filter.maxTotal)}" placeholder="250"></label>
+        <label>Vanaf<input type="date" name="from" value="${escapeHtml(filter.filter.from)}"></label>
+        <label>Tot<input type="date" name="to" value="${escapeHtml(filter.filter.to)}"></label>
         <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/orders">Reset</a></div>
       </form>
     </section>
-    ${kpiGrid([{ label: "Orders", value: totals.count || 0, help: "Binnen actieve filters.", icon: "ShoppingCart" }, { label: "Waarde", value: formatEuro(totals.total_cents || 0), help: "Orderwaarde in app database.", icon: "Wallet" }, { label: "Gemiddeld", value: formatEuro(Math.round(totals.avg_cents || 0)), help: "Gemiddelde orderwaarde.", icon: "Scale" }, { label: "Getoond", value: orders.length, help: "Maximaal 120 regels.", icon: "Rows3" }])}
+    ${kpiGrid([{ label: "Orders", value: totals.count || 0, help: "Binnen actieve filters.", icon: "ShoppingCart" }, { label: "Kwalificerend", value: eligibleCount, help: `Volgens ${ruleLabel(rule)}.`, icon: "Target" }, { label: "Met loten", value: withEntries, help: "Orders waar toekenning al gebeurd is.", icon: "Tickets" }, { label: "Missend", value: missingEligible, help: "Kwalificerende orders zonder lot.", icon: "TriangleAlert" }])}
+    <section class="grid grid-2">
+      ${breakdownPanel("Orders per status", statusRows, Math.max(totals.count || 0, 1))}
+      <div class="panel panel-pad">
+        <div class="panel-title"><h2>Toekenningscontrole</h2></div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">${icon("Target")}</span><span><strong>${eligibleCount} order(s) kwalificeren</strong><br><span class="muted">Dit zijn de orders die minstens 1 lot horen te krijgen.</span></span><span class="status">Regel</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("Tickets")}</span><span><strong>${withEntries} order(s) hebben al loten</strong><br><span class="muted">Handig voor snelle coverage check binnen je selectie.</span></span><span class="status">Dekking</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("PackageSearch")}</span><span><strong>${missingEligible} order(s) missen nog loten</strong><br><span class="muted">Bij afwijking direct synchroniseren of orderdata nalopen.</span></span><span class="status">${missingEligible ? "Actie" : "Goed"}</span></div>
+        </div>
+      </div>
+    </section>
     <div class="panel">${ordersTable(orders)}</div>
   `));
 });
 
-adminRouter.get("/deelnemers", (_req, res) => {
+adminRouter.get("/deelnemers", (req, res) => {
+  const filter = customerFilter(req);
   const customers = db.prepare(`
     SELECT c.*, COUNT(e.id) AS entry_count,
       SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_count,
       SUM(CASE WHEN e.status = 'WINNER' THEN 1 ELSE 0 END) AS winner_count
     FROM customers c
     LEFT JOIN lottery_entries e ON e.customer_id = c.id
+    ${filter.whereSql}
     GROUP BY c.id
+    ${filter.havingSql}
     ORDER BY entry_count DESC, c.updated_at DESC
     LIMIT 120
-  `).all();
+  `).all(...filter.params);
+  const totalEntries = customers.reduce((sum, row) => sum + Number(row.entry_count || 0), 0);
+  const avgEntries = customers.length ? (totalEntries / customers.length).toFixed(1) : "0.0";
+  const winners = customers.filter((row) => Number(row.winner_count || 0) > 0).length;
+  const linked = customers.filter((row) => row.shopify_customer_id).length;
 
   res.send(page("Deelnemers | Meat For Free", "deelnemers", `
     ${topbar("Deelnemers", "Klanten en deelnamewaarde.", "Zie wie de meeste loten heeft, wie actief is en waar winnaars zitten.", "")}
-    ${kpiGrid([{ label: "Deelnemers", value: customers.length, help: "Top 120 zichtbaar.", icon: "Users" }, { label: "Actieve loten", value: customers.reduce((sum, row) => sum + Number(row.active_count || 0), 0), help: "Geldige deelname.", icon: "Tickets" }, { label: "Winnaars", value: customers.reduce((sum, row) => sum + Number(row.winner_count || 0), 0), help: "Historische winnaars.", icon: "Trophy" }, { label: "Shopify koppeling", value: customers.filter((row) => row.shopify_customer_id).length, help: "Met klant-ID.", icon: "Link2" }])}
+    <section class="filters">
+      <form method="get" action="/admin/deelnemers" class="filter-grid">
+        <label class="wide">Zoek deelnemer<input name="q" value="${escapeHtml(filter.filter.q)}" placeholder="Email, naam of Shopify klant-ID"></label>
+        <label>Min. loten<input name="minEntries" inputmode="numeric" value="${escapeHtml(filter.filter.minEntries)}" placeholder="3"></label>
+        <label>Winnaars<select name="winnersOnly">${option("", filter.filter.winnersOnly, "Iedereen")}${option("true", filter.filter.winnersOnly, "Alleen winnaars")}</select></label>
+        <label>Shopify koppeling<select name="linkedOnly">${option("", filter.filter.linkedOnly, "Met en zonder koppeling")}${option("true", filter.filter.linkedOnly, "Alleen gekoppeld")}</select></label>
+        <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/deelnemers">Reset</a></div>
+      </form>
+    </section>
+    ${kpiGrid([{ label: "Deelnemers", value: customers.length, help: "Top 120 zichtbaar.", icon: "Users" }, { label: "Actieve loten", value: customers.reduce((sum, row) => sum + Number(row.active_count || 0), 0), help: "Geldige deelname.", icon: "Tickets" }, { label: "Gem. loten", value: avgEntries, help: "Gemiddeld per deelnemer in deze selectie.", icon: "BarChart3" }, { label: "Shopify koppeling", value: linked, help: `${winners} klant(en) wonnen minstens 1 keer.`, icon: "Link2" }])}
     <div class="panel">
       <table>
         <thead><tr><th>Klant</th><th>Email</th><th>Totaal loten</th><th>Actief</th><th>Winnaars</th><th>Laatste update</th></tr></thead>
@@ -1098,6 +1268,41 @@ function drawForm(draw, action, submitLabel) {
   </form>`;
 }
 
+function drawFilter(req) {
+  const filter = {
+    q: textParam(req.query.q),
+    status: textParam(req.query.status),
+    winnerState: textParam(req.query.winnerState),
+    from: isoDateParam(req.query.from),
+    to: isoDateParam(req.query.to)
+  };
+  const where = [];
+  const params = [];
+  if (filter.status) {
+    where.push("d.status = ?");
+    params.push(filter.status);
+  }
+  if (filter.q) {
+    where.push("(d.title LIKE ? OR d.slug LIKE ? OR d.prize_name LIKE ?)");
+    params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`);
+  }
+  if (filter.winnerState === "yes") {
+    where.push("d.winner_entry_id IS NOT NULL");
+  }
+  if (filter.winnerState === "no") {
+    where.push("d.winner_entry_id IS NULL");
+  }
+  if (filter.from) {
+    where.push("date(COALESCE(d.starts_at, d.created_at)) >= date(?)");
+    params.push(filter.from);
+  }
+  if (filter.to) {
+    where.push("date(COALESCE(d.ends_at, d.created_at)) <= date(?)");
+    params.push(filter.to);
+  }
+  return { filter, whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+}
+
 function drawTable(draws) {
   return `<table>
     <thead><tr><th>Titel</th><th>Status</th><th>Prijs</th><th>Loten</th><th>Timing</th><th>Winnaar</th><th>Acties</th></tr></thead>
@@ -1117,13 +1322,15 @@ function drawTable(draws) {
   </table>`;
 }
 
-function entryFilters(filter, action) {
+function entryFilters(filter, action, drawOptions = []) {
   return `<section class="filters">
     <form method="get" action="${action}" class="filter-grid">
       <label class="wide">Zoek lot, klant, order of winactie<input name="q" value="${escapeHtml(filter.q)}" placeholder="Email, lotnummer, ordernummer"></label>
+      <label>Winactie<select name="drawId">${option("", filter.drawId, "Alle winacties")}${drawOptions.map((draw) => option(draw.id, filter.drawId, draw.title)).join("")}</select></label>
       <label>Lotstatus<select name="entryStatus">${option("", filter.entryStatus, "Alle lotstatussen")}${entryStatuses.map((status) => option(status, filter.entryStatus, statusLabel(status))).join("")}</select></label>
       <label>Bron<select name="source">${option("", filter.source, "Alle bronnen")}${entrySources.map((source) => option(source, filter.source, statusLabel(source))).join("")}</select></label>
       <label>Winactie status<select name="drawStatus">${option("", filter.drawStatus, "Alle winacties")}${drawStatuses.map((status) => option(status, filter.drawStatus, statusLabel(status))).join("")}</select></label>
+      <label>Orderkoppeling<select name="hasOrder">${option("", filter.hasOrder, "Met en zonder order")}${option("yes", filter.hasOrder, "Met order")}${option("no", filter.hasOrder, "Zonder order")}</select></label>
       <label>Vanaf<input type="date" name="from" value="${escapeHtml(filter.from)}"></label>
       <label>Tot<input type="date" name="to" value="${escapeHtml(filter.to)}"></label>
       <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="${action}">Reset</a></div>
