@@ -10,7 +10,7 @@ export const brandPalette = {
   muted: "#6d5a42"
 };
 
-export const storefrontLogoUrl = "/assets/meat-for-free-logo.png";
+export const storefrontLogoUrl = "/assets/brand/mff-logo-shield.png";
 
 export function brandMarkSvg(className = "") {
   return `<img class="${className}" src="${storefrontLogoUrl}" alt="Meat For Free logo" loading="eager" decoding="async">`;

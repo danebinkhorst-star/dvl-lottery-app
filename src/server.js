@@ -198,6 +198,7 @@ export function createApp() {
   }));
   app.use(morgan("dev"));
   app.use("/assets", express.static(resolve("public"), { maxAge: "1d" }));
+  app.use("/brand", express.static(resolve("public", "brand"), { maxAge: "1d" }));
   app.use((req, res, next) => {
     if (req.path.startsWith("/admin")) {
       res.setHeader("Cache-Control", "no-store");
@@ -214,7 +215,7 @@ export function createApp() {
   });
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, app: "dvl-lottery-app", dashboard: "brand-secure-admin-v2" });
+    res.json({ ok: true, app: "mff-lottery-app", dashboard: "brand-secure-admin-v2" });
   });
 
   app.get("/admin/login", (req, res) => {

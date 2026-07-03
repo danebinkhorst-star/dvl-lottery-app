@@ -488,7 +488,7 @@ function widgetRuntime() {
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Bekijk winacties</a>
         <a class="dvl-widget-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Shop vlees</a>
-        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-mff-dashboard"))}" target="_top">Mijn dashboard</a>
       </div>
     </section>`;
     initCountdowns(el);
@@ -545,7 +545,7 @@ function widgetRuntime() {
       </div>
       <p class="dvl-widget-note">Je persoonlijke lotnummers staan alleen achter je login. Zo blijft de trekking zichtbaar, maar klantdata afgeschermd.</p>
       <div class="dvl-widget-actions">
-        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-mff-dashboard"))}" target="_top">Mijn dashboard</a>
         <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
       </div>
     </section>`;
@@ -589,7 +589,7 @@ function widgetRuntime() {
       <div class="dvl-widget-actions">
         <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Bekijk winacties</a>
         <a class="dvl-widget-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Shop vlees</a>
-        <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
+        <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/mijn-mff-dashboard"))}" target="_top">Mijn dashboard</a>
       </div>
     </section>`;
     initCountdowns(el);
@@ -627,7 +627,7 @@ function widgetRuntime() {
         <div class="dvl-widget-row"><span>Winnaars historie</span><b>Open</b></div>
       </div>
       <div class="dvl-widget-actions">
-        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-dvl-dashboard"))}" target="_top">Mijn dashboard</a>
+        <a class="dvl-widget-button dvl-widget-button--gold" href="${escapeHtml(storeHref("/pages/mijn-mff-dashboard"))}" target="_top">Mijn dashboard</a>
         <a class="dvl-widget-button dvl-widget-button--ghost" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winacties</a>
       </div>
     </section>`;
