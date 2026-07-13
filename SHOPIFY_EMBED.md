@@ -35,7 +35,19 @@ Gratis deelname:
 Klantdashboard voorbereiding:
 
 ```html
-<div data-dvl-lottery="customer"></div>
+<div
+  data-dvl-lottery="customer"
+  data-shopify-customer-id="{{ customer.id }}"
+  data-customer-token="{{ customer.metafields.mff.dashboard_token }}"
+></div>
 ```
 
 The personal customer entry endpoint is protected with a signed token. Do not expose customer lot numbers from Liquid without a Shopify app proxy or a Customer Account extension that can safely sign requests.
+
+Productpagina mini-blok:
+
+```html
+<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>
+```
+
+Use this near the product form to show whether the current product already qualifies the order for a free lottery ticket.

@@ -1,13 +1,13 @@
 import express from "express";
-import { db, nowIso } from "../db.js";
-import { createDraw, drawWinner } from "../services/lottery.js";
-import { syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
+import { db, id, nowIso } from "../db.js";
+import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery.js";
+import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, updateLotteryRule } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
-import { formatEuro } from "../utils.js";
+import { formatEuro, makeEntryNumber } from "../utils.js";
 
 export const adminRouter = express.Router();
 adminRouter.use((_req, res, next) => {
@@ -380,6 +380,55 @@ function titleBlock(eyebrow, title, copy = "") {
 
 function topbar(eyebrow, title, copy, actions = "") {
   return `<div class="topbar">${titleBlock(eyebrow, title, copy)}<div class="actions">${actions}</div></div>`;
+}
+
+async function createManualEntry({ drawId, email, firstName, lastName, reason }) {
+  const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(drawId);
+  if (!draw) throw new Error("Winactie niet gevonden.");
+  if (!["DRAFT", "LIVE"].includes(draw.status)) throw new Error("Handmatige loten kunnen alleen op concept of live winacties.");
+  const cleanEmail = textParam(email).toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) throw new Error("Vul een geldig e-mailadres in.");
+
+  const customer = await getOrCreateCustomer({
+    email: cleanEmail,
+    firstName: textParam(firstName),
+    lastName: textParam(lastName)
+  });
+  const entry = {
+    id: id("entry"),
+    entry_number: makeEntryNumber("MFF"),
+    draw_id: draw.id,
+    customer_id: customer.id,
+    order_id: null,
+    source: "MANUAL",
+    status: "ACTIVE",
+    reason: textParam(reason) || "Handmatig toegevoegd door admin.",
+    created_at: nowIso()
+  };
+  db.prepare(`
+    INSERT INTO lottery_entries (id, entry_number, draw_id, customer_id, order_id, source, status, reason, created_at)
+    VALUES (@id, @entry_number, @draw_id, @customer_id, @order_id, @source, @status, @reason, @created_at)
+  `).run(entry);
+  db.prepare("UPDATE customers SET total_entries = total_entries + 1, updated_at = ? WHERE id = ?").run(nowIso(), customer.id);
+  await syncCustomerDashboardMetafields(customer);
+  return { draw, customer, entry };
+}
+
+async function setEntryStatus(entryId, status, reason) {
+  if (!["ACTIVE", "VOID"].includes(status)) throw new Error("Deze status kan niet handmatig gezet worden.");
+  const entry = db.prepare("SELECT * FROM lottery_entries WHERE id = ?").get(entryId);
+  if (!entry) throw new Error("Lot niet gevonden.");
+  if (entry.status === "WINNER") throw new Error("Een winnend lot kan niet met deze snelle actie aangepast worden.");
+  if (entry.status === status) return { entry, changed: false };
+  const previousStatus = entry.status;
+
+  db.prepare("UPDATE lottery_entries SET status = ?, reason = ? WHERE id = ?").run(status, textParam(reason), entry.id);
+  const delta = previousStatus === "VOID" && status === "ACTIVE" ? 1 : previousStatus === "ACTIVE" && status === "VOID" ? -1 : 0;
+  if (entry.customer_id && delta !== 0) {
+    db.prepare("UPDATE customers SET total_entries = MAX(0, total_entries + ?), updated_at = ? WHERE id = ?").run(delta, nowIso(), entry.customer_id);
+    await syncCustomerDashboardMetafields(entry.customer_id);
+  }
+  return { entry: { ...entry, status, previousStatus }, changed: true };
 }
 
 function getMetrics() {
@@ -1130,7 +1179,7 @@ adminRouter.get("/winacties/:id", (req, res) => {
   if (!draw) return res.status(404).send(page("Niet gevonden", "winacties", topbar("Niet gevonden", "Winactie niet gevonden.", "", `<a class="button button--ghost" href="/admin/winacties">Terug</a>`)));
   const counts = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_entries WHERE draw_id = ? GROUP BY status").all(draw.id);
   const entries = db.prepare(`
-    SELECT e.entry_number, e.status, e.source, e.created_at, c.email, o.order_name
+    SELECT e.id, e.entry_number, e.status, e.source, e.reason, e.created_at, c.email, o.order_name
     FROM lottery_entries e
     LEFT JOIN customers c ON c.id = e.customer_id
     LEFT JOIN orders o ON o.id = e.order_id
@@ -1138,6 +1187,14 @@ adminRouter.get("/winacties/:id", (req, res) => {
     ORDER BY e.created_at DESC
     LIMIT 40
   `).all(draw.id);
+  const logs = db.prepare(`
+    SELECT *
+    FROM audit_logs
+    WHERE (target_type = 'lottery_draw' AND target_id = ?)
+       OR (metadata LIKE ?)
+    ORDER BY created_at DESC
+    LIMIT 12
+  `).all(draw.id, `%"drawId":"${draw.id}"%`);
 
   res.send(page(`${draw.title} | Meat For Free`, "winacties", `
     ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a><a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`)}
@@ -1151,8 +1208,28 @@ adminRouter.get("/winacties/:id", (req, res) => {
       <div class="panel-title"><h2>Instellingen</h2></div>
       ${drawForm(draw, `/admin/winacties/${escapeHtml(draw.id)}/update`, "Wijzigingen opslaan")}
     </section>
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Admin control</p><h2>Handmatig lot toevoegen</h2></div></div>
+        <form method="post" action="/admin/winacties/${escapeHtml(draw.id)}/manual-entry">
+          <div class="form-grid">
+            <label>Email<input name="email" type="email" autocomplete="email" required placeholder="klant@email.nl"></label>
+            <label>Voornaam<input name="firstName" autocomplete="given-name" placeholder="Optioneel"></label>
+            <label>Achternaam<input name="lastName" autocomplete="family-name" placeholder="Optioneel"></label>
+            <label class="wide">Reden<input name="reason" placeholder="Bijv. klantenservice correctie"></label>
+          </div>
+          <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="submit">${icon("Plus")}Lot toevoegen</button></div>
+        </form>
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Audit</p><h2>Laatste wijzigingen</h2></div></div>
+        <div class="stack">
+          ${logs.length ? logs.map((log) => `<div class="ops-item"><span class="ops-icon">${icon("ClipboardList")}</span><span><strong>${escapeHtml(log.action)}</strong><br><span class="muted">${escapeHtml(log.message || log.created_at)}</span></span><span class="status">${escapeHtml(String(log.created_at || "").slice(0, 10))}</span></div>`).join("") : `<div class="empty">Nog geen auditregels voor deze winactie.</div>`}
+        </div>
+      </div>
+    </section>
     <div class="section-head"><h2>Recente loten</h2>${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek winnaar</button></form>` : ""}</div>
-    <div class="panel">${entriesTable(entries)}</div>
+    <div class="panel">${entriesTable(entries, { controls: true })}</div>
   `));
 });
 
@@ -1216,11 +1293,34 @@ adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
   res.redirect(`/admin/winacties/${draw.id}`);
 });
 
+adminRouter.post("/winacties/:id/manual-entry", urlencoded, async (req, res) => {
+  try {
+    const result = await createManualEntry({
+      drawId: req.params.id,
+      email: req.body.email,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      reason: req.body.reason
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "HANDMATIG_LOT_AANGEMAAKT",
+      targetType: "lottery_entry",
+      targetId: result.entry.id,
+      message: `${result.entry.entry_number} voor ${result.customer.email}`,
+      metadata: { drawId: result.draw.id, email: result.customer.email, entryNumber: result.entry.entry_number }
+    });
+    res.redirect(`/admin/winacties/${result.draw.id}`);
+  } catch (error) {
+    res.status(400).send(page("Lot toevoegen fout", "winacties", topbar("Actie gestopt", "Kan geen handmatig lot toevoegen.", error.message, `<a class="button button--gold" href="/admin/winacties/${escapeHtml(req.params.id)}">Terug</a>`)));
+  }
+});
+
 adminRouter.get("/loten", (req, res) => {
   const filter = entryFilter(req);
   const drawOptions = db.prepare("SELECT id, title FROM lottery_draws ORDER BY created_at DESC LIMIT 50").all();
   const entries = db.prepare(`
-    SELECT e.entry_number, e.source, e.status, e.created_at, d.title AS draw_title, c.email, o.order_name
+    SELECT e.id, e.entry_number, e.source, e.status, e.reason, e.created_at, d.title AS draw_title, c.email, o.order_name
     FROM lottery_entries e
     JOIN lottery_draws d ON d.id = e.draw_id
     LEFT JOIN customers c ON c.id = e.customer_id
@@ -1283,7 +1383,7 @@ adminRouter.get("/loten", (req, res) => {
       ${breakdownPanel("Loten per bron", sourceRows, Math.max(count, 1), "source")}
       ${breakdownPanel("Loten per status", statusRows, Math.max(count, 1))}
     </section>
-    <div class="panel">${entriesTable(entries)}</div>
+    <div class="panel">${entriesTable(entries, { controls: true })}</div>
   `));
 });
 
@@ -1541,8 +1641,14 @@ adminRouter.get("/embed", (_req, res) => {
     ["cart", "Cart gratis-lot progress", "Toont hoeveel er nog nodig is tot een gratis lot. Gebruik liefst als directe Shopify script embed."],
     ["winners", "Laatste winnaars", "Compact bewijsblok met recente winnaars."],
     ["customer", "Mijn MFF teaser", "Klantdashboard entrypoint met live status."],
+    ["pdp", "PDP lot-progress", "Compact productblok: laat zien of dit product al richting een gratis lot telt."],
     ["free-entry", "Gratis deelname", "Formulier voor 1 keer gratis meedoen."]
   ];
+  const widgetSnippet = (type) => {
+    if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>';
+    if (type === "customer") return '<div data-dvl-lottery="customer" data-shopify-customer-id="{{ customer.id }}" data-customer-token="{{ customer.metafields.mff.dashboard_token }}"></div>';
+    return `<div data-dvl-lottery="${type}"></div>`;
+  };
   const scriptUrl = "https://dvl-lottery-app.onrender.com/embed/dvl-lottery.js";
   res.send(page("Embed | Meat For Free", "embed", `
     ${topbar("Embed control", "Plaats MFF op de site.", "Een widget per plek: live winactie, cart progress, winnaars, dashboard of gratis deelname.", `<a class="button button--gold" href="/embed/demo">Open demo</a>`)}
@@ -1556,7 +1662,7 @@ adminRouter.get("/embed", (_req, res) => {
         <div class="panel panel-pad">
           <div class="panel-title"><div><h2>${escapeHtml(title)}</h2><p class="helper">${escapeHtml(help)}</p></div><span class="status status--active">${escapeHtml(type)}</span></div>
           <label>Direct script div</label>
-          <input readonly value='<div data-dvl-lottery="${escapeHtml(type)}"></div>' onclick="this.select()">
+          <input readonly value='${escapeHtml(widgetSnippet(type))}' onclick="this.select()">
           <label style="margin-top:12px">Iframe preview</label>
           <input readonly value='https://dvl-lottery-app.onrender.com/embed/frame?widget=${escapeHtml(type)}' onclick="this.select()">
           <p style="margin-top:12px"><a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(type)}">Open preview</a></p>
@@ -1609,6 +1715,44 @@ adminRouter.post("/draws/:id/draw", async (req, res) => {
     res.redirect(`/admin/winacties/${req.params.id}`);
   } catch (error) {
     res.status(400).send(page("Trekking fout", "winacties", topbar("Actie gestopt", "Kan geen winnaar trekken.", error.message, `<a class="button button--gold" href="/admin/winacties/${escapeHtml(req.params.id)}">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/loten/:id/void", urlencoded, async (req, res) => {
+  try {
+    const result = await setEntryStatus(req.params.id, "VOID", textParam(req.body.reason) || "Handmatig ongeldig gemaakt door admin.");
+    if (result.changed) {
+      writeAuditLog({
+        actor: actor(req),
+        action: "LOT_ONGELDIG_GEMAAKT",
+        targetType: "lottery_entry",
+        targetId: req.params.id,
+        message: result.entry.entry_number,
+        metadata: { entryNumber: result.entry.entry_number, previousStatus: result.entry.previousStatus, newStatus: "VOID" }
+      });
+    }
+    res.redirect(req.get("referer") || "/admin/loten");
+  } catch (error) {
+    res.status(400).send(page("Lot fout", "loten", topbar("Actie gestopt", "Kan lot niet ongeldig maken.", error.message, `<a class="button button--gold" href="/admin/loten">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/loten/:id/activate", urlencoded, async (req, res) => {
+  try {
+    const result = await setEntryStatus(req.params.id, "ACTIVE", textParam(req.body.reason) || "Handmatig hersteld door admin.");
+    if (result.changed) {
+      writeAuditLog({
+        actor: actor(req),
+        action: "LOT_HERSTELD",
+        targetType: "lottery_entry",
+        targetId: req.params.id,
+        message: result.entry.entry_number,
+        metadata: { entryNumber: result.entry.entry_number, newStatus: "ACTIVE" }
+      });
+    }
+    res.redirect(req.get("referer") || "/admin/loten");
+  } catch (error) {
+    res.status(400).send(page("Lot fout", "loten", topbar("Actie gestopt", "Kan lot niet herstellen.", error.message, `<a class="button button--gold" href="/admin/loten">Terug</a>`)));
   }
 });
 
@@ -1726,9 +1870,10 @@ function entryFilters(filter, action, drawOptions = []) {
   </section>`;
 }
 
-function entriesTable(entries) {
+function entriesTable(entries, options = {}) {
+  const controls = Boolean(options.controls);
   return `<table>
-    <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th><th>Datum</th></tr></thead>
+    <thead><tr><th>Lot</th><th>Bron</th><th>Klant</th><th>Winactie</th><th>Status</th><th>Datum</th>${controls ? "<th>Controle</th>" : ""}</tr></thead>
     <tbody>${entries.length ? entries.map((entry) => `<tr>
       <td><strong>${escapeHtml(entry.entry_number)}</strong><span class="muted">${escapeHtml(entry.order_name || "-")}</span></td>
       <td>${escapeHtml(statusLabel(entry.source))}</td>
@@ -1736,8 +1881,18 @@ function entriesTable(entries) {
       <td>${escapeHtml(entry.draw_title || "-")}</td>
       <td>${statusBadge(entry.status)}</td>
       <td>${escapeHtml(entry.created_at)}</td>
-    </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen loten gevonden.</div></td></tr>`}</tbody>
+      ${controls ? `<td>${entryControl(entry)}</td>` : ""}
+    </tr>`).join("") : `<tr><td colspan="${controls ? 7 : 6}"><div class="empty">Geen loten gevonden.</div></td></tr>`}</tbody>
   </table>`;
+}
+
+function entryControl(entry) {
+  if (!entry.id) return `<span class="muted">-</span>`;
+  if (entry.status === "WINNER") return `<span class="muted">Winnaar vastgelegd</span>`;
+  if (entry.status === "VOID") {
+    return `<form class="inline-form" method="post" action="/admin/loten/${escapeHtml(entry.id)}/activate"><button class="button--ghost" type="submit">${icon("RotateCcw")}Herstel</button></form>`;
+  }
+  return `<form class="inline-form" method="post" action="/admin/loten/${escapeHtml(entry.id)}/void"><button class="button--ghost" type="submit">${icon("Ban")}Ongeldig</button></form>`;
 }
 
 function ordersTable(orders) {

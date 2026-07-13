@@ -31,7 +31,8 @@ function sourceLabel(source) {
     ORDER_THRESHOLD: "Bestelling",
     FREE_ENTRY: "Gratis deelname",
     SUBSCRIPTION: "Abonnement",
-    ADMIN: "Handmatig"
+    ADMIN: "Handmatig",
+    MANUAL: "Handmatig"
   };
   return labels[source] || "Loterij";
 }
@@ -138,6 +139,19 @@ export function buildCustomerDashboardPayload(customer) {
   `).get(liveDraw.id, customer.id) : { count: 0 };
 
   const latestOrderPublic = latestOrder ? publicOrder(latestOrder) : null;
+  const activeEntries = entries.filter((entry) => entry.status === "ACTIVE");
+  const winningEntries = entries.filter((entry) => entry.status === "WINNER");
+  const nextAction = latestOrderPublic?.nextLotRemainingCents
+    ? {
+        type: "cart_progress",
+        label: `Nog ${latestOrderPublic.nextLotRemainingLabel} tot je volgende lot`,
+        progress: latestOrderPublic.nextLotProgress
+      }
+    : {
+        type: "ready",
+        label: activeEntries.length ? "Je speelt mee met de actieve trekking" : "Plaats een bestelling vanaf de lotgrens",
+        progress: activeEntries.length ? 100 : 0
+      };
   const activeDraw = liveDraw ? {
     id: liveDraw.id,
     title: liveDraw.title,
@@ -175,9 +189,14 @@ export function buildCustomerDashboardPayload(customer) {
       latestOrderTotalLabel: latestOrderPublic?.totalLabel || "",
       nextLotRemainingLabel: latestOrderPublic?.nextLotRemainingLabel || formatEuro(rule.LOT_ORDER_MINIMUM_CENTS),
       nextLotProgress: latestOrderPublic?.nextLotProgress || 0,
+      nextActionLabel: nextAction.label,
+      nextActionProgress: nextAction.progress,
       updatedAt: nowIso()
     },
     activeDraw,
+    ticketWallet: activeEntries.slice(0, 12).map(publicEntry),
+    winnerHistory: winningEntries.slice(0, 8).map(publicEntry),
+    nextAction,
     orders: latestOrders.map(publicOrder),
     entries: entries.map(publicEntry)
   };

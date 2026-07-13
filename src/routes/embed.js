@@ -215,6 +215,16 @@ function widgetRuntime() {
     </div>`;
   }
 
+  function sourceLabel(source) {
+    const labels = {
+      ORDER_THRESHOLD: "Order",
+      FREE_ENTRY: "Gratis",
+      MANUAL: "Admin",
+      SUBSCRIPTION: "Abonnement"
+    };
+    return labels[source] || source || "Lot";
+  }
+
   function liveWidget(el, data) {
     const draw = data.liveDraw;
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf €70";
@@ -290,7 +300,53 @@ function widgetRuntime() {
     </section>`;
   }
 
+  function renderCustomerDashboard(el, payload) {
+    const wallet = Array.isArray(payload.ticketWallet) ? payload.ticketWallet.slice(0, 6) : [];
+    const winners = Array.isArray(payload.winnerHistory) ? payload.winnerHistory.slice(0, 3) : [];
+    const summary = payload.summary || {};
+    const draw = payload.activeDraw;
+    const nextAction = payload.nextAction || {};
+    el.innerHTML = `<section class="mff-widget mff-shell">
+      <div class="mff-hero">
+        <div>
+          <p class="mff-kicker">Mijn MFF</p>
+          <h2 class="mff-title">Je loten. Je trekkingen.</h2>
+          <p class="mff-copy">${escapeHtml(nextAction.label || "Bestel, spaar loten en volg elke trekking transparant.")}</p>
+          <div class="mff-progress" aria-label="Voortgang naar volgend lot" style="--progress:${Number(nextAction.progress || 0)}%"><i></i></div>
+        </div>
+        <div class="mff-panel">
+          <span class="mff-badge">${escapeHtml(draw?.status || "Dashboard")}</span>
+          <div class="mff-list">
+            <div class="mff-row"><span>Actieve loten</span><b>${escapeHtml(summary.activeEntries ?? 0)}</b></div>
+            <div class="mff-row"><span>Live trekking</span><b>${escapeHtml(summary.liveDrawEntries ?? 0)}</b></div>
+            <div class="mff-row"><span>Gewonnen</span><b>${escapeHtml(summary.winningEntries ?? 0)}</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="mff-card-grid">
+        <div class="mff-mini"><strong>${escapeHtml(draw?.prizeName || "Hoofdprijs")}</strong><span>${escapeHtml(draw?.title || "Actieve winactie")}</span></div>
+        <div class="mff-mini"><strong>${escapeHtml(summary.totalEntries ?? 0)}</strong><span>Totaal loten</span></div>
+        <div class="mff-mini"><strong>${escapeHtml(wallet.length)}</strong><span>In wallet</span></div>
+      </div>
+      <div class="mff-list">
+        ${wallet.length ? wallet.map((entry) => `<div class="mff-row"><span>${escapeHtml(entry.entryNumber)}</span><b>${escapeHtml(sourceLabel(entry.source))}</b></div>`).join("") : `<div class="mff-row"><span>Nog geen actieve loten</span><b>Shop</b></div>`}
+        ${winners.length ? winners.map((entry) => `<div class="mff-row"><span>${escapeHtml(entry.entryNumber)}</span><b>Gewonnen</b></div>`).join("") : ""}
+      </div>
+    </section>`;
+  }
+
   function customerWidget(el, data) {
+    const customerId = el.getAttribute("data-shopify-customer-id") || el.getAttribute("data-customer-id") || "";
+    const token = el.getAttribute("data-customer-token") || "";
+    if (customerId && token) {
+      el.innerHTML = `<section class="mff-widget mff-shell"><p class="mff-kicker">Mijn MFF</p><h2 class="mff-title mff-title--ink">Dashboard laden.</h2></section>`;
+      fetchJson(`/api/customers/${encodeURIComponent(customerId)}/entries`, { headers: { "x-dvl-customer-token": token } })
+        .then((payload) => renderCustomerDashboard(el, payload))
+        .catch((error) => {
+          el.innerHTML = `<section class="mff-widget mff-shell"><p class="mff-kicker">Mijn MFF</p><h2 class="mff-title mff-title--ink">Log opnieuw in.</h2><p class="mff-copy">${escapeHtml(error.message)}</p></section>`;
+        });
+      return;
+    }
     const draw = data.liveDraw;
     el.innerHTML = `<section class="mff-widget mff-shell">
       <div class="mff-hero">
@@ -310,6 +366,25 @@ function widgetRuntime() {
             <div class="mff-row"><span>Persoonlijke loten</span><b>Na login</b></div>
           </div>
         </div>
+      </div>
+    </section>`;
+  }
+
+  function pdpWidget(el, data) {
+    const threshold = Number(data.rule?.minimumCents || 7000);
+    const rawPrice = el.getAttribute("data-product-price-cents") || el.getAttribute("data-price-cents") || "0";
+    const price = Math.max(0, Number(rawPrice) || 0);
+    const remaining = Math.max(0, threshold - price);
+    const progress = threshold > 0 ? Math.min(100, Math.round((price / threshold) * 100)) : 0;
+    const qualifies = price >= threshold;
+    el.innerHTML = `<section class="mff-widget mff-shell">
+      <p class="mff-kicker">Lot bij je bestelling</p>
+      <h2 class="mff-title mff-title--ink">${qualifies ? "Dit product pakt een lot." : "Dichter bij je lot."}</h2>
+      <p class="mff-copy">${qualifies ? "Bestel dit product en je krijgt automatisch 1 gratis lot voor de actieve winactie." : `${formatEuro(remaining)} extra in je mandje en je bestelling pakt automatisch een gratis lot.`}</p>
+      <div class="mff-progress" aria-label="Productbijdrage naar gratis lot" style="--progress:${progress}%"><i></i></div>
+      <div class="mff-actions">
+        <a class="mff-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Verder shoppen</a>
+        <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref("/pages/actieve-loterijen"))}" target="_top">Winactie</a>
       </div>
     </section>`;
   }
@@ -358,6 +433,7 @@ function widgetRuntime() {
       if (type === "customer") return customerWidget(el, data);
       if (type === "cart") return cartWidget(el, data);
       if (type === "winners") return winnersWidget(el, data);
+      if (type === "pdp") return pdpWidget(el, data);
       return liveWidget(el, data);
     } catch (error) {
       el.innerHTML = '<section class="mff-widget mff-shell"><p class="mff-kicker">Fout</p><h2 class="mff-title mff-title--ink">Niet geladen.</h2><p class="mff-copy">' + escapeHtml(error.message) + '</p></section>';
@@ -410,6 +486,7 @@ embedRouter.get("/demo", (_req, res) => {
       <div data-dvl-lottery="cart"></div>
       <div data-dvl-lottery="winners"></div>
       <div data-dvl-lottery="customer"></div>
+      <div data-dvl-lottery="pdp" data-product-price-cents="2549"></div>
       <div data-dvl-lottery="free-entry"></div>
     </main>
     <script async src="/embed/dvl-lottery.js"></script>
@@ -418,7 +495,7 @@ embedRouter.get("/demo", (_req, res) => {
 });
 
 embedRouter.get("/frame", (req, res) => {
-  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners"]);
+  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "pdp"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
   const sectionId = String(req.query.section_id || "");
 
