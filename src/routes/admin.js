@@ -3,7 +3,7 @@ import { db, id, nowIso } from "../db.js";
 import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
-import { getLotteryRule, updateLotteryRule } from "../services/settings.js";
+import { getLotteryRule, updateLotteryRule, getWidgetSettings, updateWidgetSettings, widgetDefinitions } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -131,6 +131,7 @@ function page(title, active, body) {
     ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
     ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
     ["regels", "/admin/regels", "SlidersHorizontal", "Regels"],
+    ["widgets", "/admin/widgets", "PanelTop", "Widgets"],
     ["nieuw", "/admin/new-draw", "Plus", "Nieuwe winactie"],
     ["embed", "/admin/embed", "ExternalLink", "Embed voorbeeld"]
   ];
@@ -267,6 +268,13 @@ function page(title, active, body) {
         .more-link { min-height:86px; display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-decoration:none; }
         .more-link:hover, .more-link:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
         .more-link strong { display:block; font-size:14px; font-weight:900; }
+        .widget-editor { display:grid; gap:16px; }
+        .widget-editor-card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,#fffdf9,#faf7ef); overflow:hidden; }
+        .widget-editor-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start; padding:18px; border-bottom:1px solid var(--line-soft); background:#fff; }
+        .widget-editor-head h2 { font-size:22px; }
+        .widget-editor-body { padding:18px; }
+        .widget-editor-body .form-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .widget-field-help { display:block; margin-top:6px; color:var(--muted); font-size:11px; font-weight:650; letter-spacing:0; text-transform:none; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:900px) {
           html, body { background:#f4f1e8; }
@@ -302,6 +310,8 @@ function page(title, active, body) {
           .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
+          .widget-editor-head { grid-template-columns:1fr; }
+          .widget-editor-body .form-grid { grid-template-columns:1fr; }
           table { min-width:760px; }
         }
         @media (max-width:560px) {
@@ -1090,7 +1100,8 @@ adminRouter.get("/menu", (_req, res) => {
     ["Controle", [
       ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
       ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
-      ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."]
+      ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
+      ["Widgets", "/admin/widgets", "PanelTop", "Teksten en knoppen per widget."]
     ]],
     ["Acties", [
       ["Nieuwe winactie", "/admin/new-draw", "Plus", "Maak een actie aan of zet hem live."],
@@ -1633,6 +1644,103 @@ adminRouter.get("/api", (_req, res) => {
       <div class="panel panel-pad"><h2>Embed script</h2><p class="helper">Shopify embed startpunt.</p><p style="margin-top:12px"><a class="button button--ghost" href="/embed/dvl-lottery.js">/embed/dvl-lottery.js</a></p></div>
     </section>
   `));
+});
+
+const widgetFieldLabels = {
+  kicker: ["Label boven titel", "Kleine tekst boven de heading."],
+  heading: ["Heading", "De grote titel in de widget."],
+  body: ["Korte tekst", "Hou dit kort. Gebruik {rule}, {remaining} of {threshold} waar aangegeven."],
+  primaryLabel: ["Primaire knop", "Tekst op de hoofdknop."],
+  primaryUrl: ["Primaire knop link", "Bijv. /collections/all of /pages/actieve-loterijen."],
+  secondaryLabel: ["Tweede knop", "Tekst op de tweede knop."],
+  secondaryUrl: ["Tweede knop link", "Bijv. /pages/actieve-loterijen."],
+  prizeLabel: ["Prijslabel", "Kleine tekst boven de hoofdprijs."],
+  fallbackPrize: ["Fallback prijs", "Wordt gebruikt als er geen live prijs is."],
+  fallbackPrizeValue: ["Fallback prijswaarde", "Korte fallback onder de prijs."],
+  badge: ["Badge", "Kleine badge boven de cart-progress."],
+  reachedHeading: ["Titel als lot actief is", "Als de klant over de grens zit."],
+  remainingHeading: ["Titel onder grens", "Gebruik {remaining} voor het resterende bedrag."],
+  emptyBody: ["Tekst lege winkelwagen", "Gebruik {threshold} voor de lotgrens."],
+  reachedBody: ["Tekst lot bereikt", "Als de klant genoeg in de cart heeft."],
+  remainingBody: ["Tekst nog niet genoeg", "Onder de lotgrens."],
+  cartLabel: ["Cart label", "Label voor het cartbedrag."],
+  thresholdLabel: ["Drempel label", "Label voor de lotgrens."],
+  primaryLabelFilled: ["Knop met items", "Primaire knop als cart gevuld is."],
+  primaryLabelEmpty: ["Knop lege cart", "Primaire knop als cart leeg is."],
+  primaryUrlFilled: ["Link met items", "Meestal /checkout."],
+  primaryUrlEmpty: ["Link lege cart", "Meestal /collections/all."],
+  emptyLabel: ["Lege staat tekst", "Als er nog geen winnaars zijn."],
+  emptyValue: ["Lege staat waarde", "Rechter label in lege staat."],
+  loggedInFallback: ["Dashboard fallback", "Tekst in ingelogde dashboard als er geen actie is."],
+  buttonLabel: ["Knoptekst", "Tekst op de knop."],
+  buttonUrl: ["Knoplink", "Waar de knop naartoe gaat."],
+  panelBadge: ["Panel badge", "Kleine badge in het dashboardpaneel."],
+  personalLabel: ["Persoonlijke regel", "Label voor persoonlijke loten."],
+  personalValue: ["Persoonlijke waarde", "Waarde voordat klant is ingelogd."],
+  qualifiesHeading: ["Titel product haalt lot", "Als productprijs boven de lotgrens zit."],
+  qualifiesBody: ["Tekst product haalt lot", "Uitleg bij kwalificerend product."],
+  firstNamePlaceholder: ["Placeholder voornaam", "Formulier placeholder."],
+  lastNamePlaceholder: ["Placeholder achternaam", "Formulier placeholder."],
+  emailPlaceholder: ["Placeholder e-mail", "Formulier placeholder."],
+  loadingText: ["Laadtekst", "Tekst tijdens verzenden."],
+  duplicateText: ["Dubbele deelname", "Tekst als deelname al bestaat."],
+  successPrefix: ["Succes tekst", "Tekst voor het lotnummer."]
+};
+
+function widgetField(key, value) {
+  const [labelText, help] = widgetFieldLabels[key] || [key, ""];
+  const isLong = /body|text/i.test(key) || String(value || "").length > 80;
+  const input = isLong
+    ? `<textarea name="${escapeHtml(key)}">${escapeHtml(value)}</textarea>`
+    : `<input name="${escapeHtml(key)}" value="${escapeHtml(value)}">`;
+  return `<label${isLong ? ' class="wide"' : ""}>${escapeHtml(labelText)}${input}${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+}
+
+function widgetEditorCard(definition) {
+  const settings = getWidgetSettings(definition.key);
+  return `<article class="widget-editor-card">
+    <div class="widget-editor-head">
+      <div>
+        <h2>${escapeHtml(definition.label)}</h2>
+        <p class="helper">${escapeHtml(definition.description)}</p>
+      </div>
+      <span class="status status--active">${escapeHtml(definition.key)}</span>
+    </div>
+    <div class="widget-editor-body">
+      <form method="post" action="/admin/widgets/${escapeHtml(definition.key)}" class="form-grid">
+        ${Object.keys(definition.defaults).map((key) => widgetField(key, settings[key])).join("")}
+        <div class="actions wide">
+          <button class="button--gold" type="submit">${icon("Save")}Opslaan</button>
+          <a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(definition.key)}" target="_blank" rel="noreferrer">${icon("ExternalLink")}Preview</a>
+        </div>
+      </form>
+    </div>
+  </article>`;
+}
+
+adminRouter.get("/widgets", (_req, res) => {
+  res.send(page("Widgets | Meat For Free", "widgets", `
+    ${topbar("Widgets", "Pas elk embed los aan.", "Gewoon invullen wat bezoekers zien: titels, korte tekst, knoppen en links. Geen code nodig.", `<a class="button button--gold" href="/embed/demo" target="_blank" rel="noreferrer">${icon("ExternalLink")}Open demo</a>`)}
+    <section class="widget-editor">
+      ${widgetDefinitions.map(widgetEditorCard).join("")}
+    </section>
+  `));
+});
+
+adminRouter.post("/widgets/:widgetKey", urlencoded, (req, res) => {
+  try {
+    updateWidgetSettings(req.params.widgetKey, req.body || {});
+    writeAuditLog({
+      actor: "admin",
+      action: "UPDATE_WIDGET_SETTINGS",
+      targetType: "widget",
+      targetId: req.params.widgetKey,
+      message: `Widget ${req.params.widgetKey} bijgewerkt.`
+    });
+    res.redirect("/admin/widgets");
+  } catch (error) {
+    res.status(400).send(page("Widget fout | Meat For Free", "widgets", topbar("Niet opgeslagen", "Widget kon niet worden opgeslagen.", error.message, `<a class="button button--gold" href="/admin/widgets">Terug</a>`)));
+  }
 });
 
 adminRouter.get("/embed", (_req, res) => {

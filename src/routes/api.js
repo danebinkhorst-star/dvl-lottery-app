@@ -5,7 +5,7 @@ import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
 import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
-import { getLotteryRule } from "../services/settings.js";
+import { getAllWidgetSettings, getLotteryRule } from "../services/settings.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -117,7 +117,8 @@ apiRouter.get("/site/summary", async (_req, res) => {
       prizeName: winner.prize_name,
       name: winner.first_name || (winner.email ? `${winner.email.slice(0, 2)}***` : "Winnaar"),
       createdAt: winner.created_at
-    }))
+    })),
+    widgets: getAllWidgetSettings()
   });
 });
 
@@ -166,7 +167,7 @@ apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {
 });
 
 apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
-  const suppliedToken = req.get("x-dvl-customer-token") || req.query.token || "";
+  const suppliedToken = req.get("x-dvl-customer-token") || "";
   if (!verifyCustomerToken(req.params.shopifyCustomerId, suppliedToken)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
