@@ -12,6 +12,20 @@ Live winacties:
 <div data-dvl-lottery="live"></div>
 ```
 
+Cart voortgang naar gratis lot:
+
+```html
+<div data-dvl-lottery="cart"></div>
+```
+
+This widget reads Shopify's same-origin `/cart.js`. Use it as a direct script embed in the Shopify cart/cart drawer, not inside a cross-origin iframe.
+
+Laatste winnaars:
+
+```html
+<div data-dvl-lottery="winners"></div>
+```
+
 Gratis deelname:
 
 ```html

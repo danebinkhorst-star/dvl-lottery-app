@@ -1536,9 +1536,33 @@ adminRouter.get("/api", (_req, res) => {
 });
 
 adminRouter.get("/embed", (_req, res) => {
+  const widgets = [
+    ["live", "Homepage live winactie", "Hero/section met hoofdprijs, lotregel en countdown."],
+    ["cart", "Cart gratis-lot progress", "Toont hoeveel er nog nodig is tot een gratis lot. Gebruik liefst als directe Shopify script embed."],
+    ["winners", "Laatste winnaars", "Compact bewijsblok met recente winnaars."],
+    ["customer", "Mijn MFF teaser", "Klantdashboard entrypoint met live status."],
+    ["free-entry", "Gratis deelname", "Formulier voor 1 keer gratis meedoen."]
+  ];
+  const scriptUrl = "https://dvl-lottery-app.onrender.com/embed/dvl-lottery.js";
   res.send(page("Embed | Meat For Free", "embed", `
-    ${topbar("Embed voorbeeld", "Controleer de Shopify embed.", "Gebruik deze pagina om de klant-facing widget snel te openen.", `<a class="button button--gold" href="/embed/demo">Open embed demo</a>`)}
-    <section class="panel panel-pad"><h2>Embed URL</h2><p class="helper">Plaats deze in Shopify waar de app wordt ingeladen.</p><input readonly value="https://dvl-lottery-app.onrender.com/embed/dvl-lottery.js" onclick="this.select()"></section>
+    ${topbar("Embed control", "Plaats MFF op de site.", "Een widget per plek: live winactie, cart progress, winnaars, dashboard of gratis deelname.", `<a class="button button--gold" href="/embed/demo">Open demo</a>`)}
+    <section class="panel panel-pad">
+      <div class="panel-title"><div><h2>Script</h2><p class="helper">Plaats dit script een keer op de pagina waar je MFF widgets gebruikt.</p></div></div>
+      <input readonly value="${scriptUrl}" onclick="this.select()">
+      <pre style="white-space:pre-wrap;margin:12px 0 0;padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px;line-height:1.45;overflow:auto">&lt;script async src="${scriptUrl}"&gt;&lt;/script&gt;</pre>
+    </section>
+    <section class="grid grid-2" style="margin-top:18px">
+      ${widgets.map(([type, title, help]) => `
+        <div class="panel panel-pad">
+          <div class="panel-title"><div><h2>${escapeHtml(title)}</h2><p class="helper">${escapeHtml(help)}</p></div><span class="status status--active">${escapeHtml(type)}</span></div>
+          <label>Direct script div</label>
+          <input readonly value='<div data-dvl-lottery="${escapeHtml(type)}"></div>' onclick="this.select()">
+          <label style="margin-top:12px">Iframe preview</label>
+          <input readonly value='https://dvl-lottery-app.onrender.com/embed/frame?widget=${escapeHtml(type)}' onclick="this.select()">
+          <p style="margin-top:12px"><a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(type)}">Open preview</a></p>
+        </div>
+      `).join("")}
+    </section>
   `));
 });
 
