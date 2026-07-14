@@ -126,6 +126,104 @@ function widgetRuntime() {
       .mff-message{margin-top:12px;color:var(--mff-red);font-weight:900}
       .mff-cart-lines{display:grid;gap:8px;margin-top:12px;color:var(--mff-muted);font-size:13px;font-weight:850}
       .mff-badge{display:inline-flex;width:max-content;align-items:center;gap:8px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-gold);padding:8px 11px;color:var(--mff-ink);font-size:11px;font-weight:950;text-transform:uppercase}
+      .mff-cart{
+        padding:clamp(16px,2.4vw,24px);
+      }
+      .mff-cart-head{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:14px;
+        align-items:start;
+      }
+      .mff-cart .mff-title{
+        font-size:clamp(30px,4vw,54px);
+        line-height:.9;
+      }
+      .mff-cart-reward{
+        position:relative;
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr);
+        gap:12px;
+        align-items:center;
+        margin-top:16px;
+        border:2px solid var(--mff-line);
+        border-radius:20px 7px 20px 7px;
+        background:linear-gradient(135deg,#fff9ec 0%,#ffe3a2 58%,#efb12c 100%);
+        box-shadow:5px 5px 0 rgba(33,21,15,.2);
+        padding:14px;
+        overflow:hidden;
+      }
+      .mff-cart-reward:before{
+        content:"";
+        position:absolute;
+        inset:-35% auto -35% -28%;
+        width:42%;
+        transform:skewX(-18deg);
+        background:linear-gradient(90deg,transparent,rgba(255,255,255,.68),transparent);
+        opacity:0;
+      }
+      .mff-cart--reached .mff-cart-reward:before{animation:mffRewardSweep 1100ms cubic-bezier(.22,1,.36,1) 160ms 1}
+      .mff-reward-medal{
+        position:relative;
+        width:54px;
+        height:54px;
+        display:grid;
+        place-items:center;
+        border:2px solid var(--mff-line);
+        border-radius:17px 6px 17px 6px;
+        background:var(--mff-paper);
+        box-shadow:4px 4px 0 var(--mff-line);
+        color:var(--mff-red);
+        font-size:26px;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-reward-medal:after{
+        content:"LOT";
+        position:absolute;
+        right:-10px;
+        bottom:-8px;
+        border:2px solid var(--mff-line);
+        border-radius:10px 3px 10px 3px;
+        background:var(--mff-gold);
+        color:var(--mff-ink);
+        padding:3px 5px;
+        font-size:8px;
+        font-weight:950;
+      }
+      .mff-reward-status{
+        min-width:0;
+      }
+      .mff-reward-status strong{
+        display:block;
+        color:var(--mff-ink);
+        font-size:clamp(18px,2.2vw,30px);
+        font-weight:950;
+        line-height:.95;
+        text-transform:uppercase;
+      }
+      .mff-reward-status span{
+        display:block;
+        margin-top:5px;
+        color:#4a3324;
+        font-size:13px;
+        font-weight:900;
+        line-height:1.25;
+      }
+      .mff-cart--reached .mff-progress i{
+        background:linear-gradient(90deg,var(--mff-gold),#fff0b9,var(--mff-gold));
+        background-size:180% 100%;
+        animation:mffRewardBar 1500ms ease-in-out 1;
+      }
+      @keyframes mffRewardSweep{
+        0%{opacity:0;transform:translateX(0) skewX(-18deg)}
+        20%{opacity:.9}
+        100%{opacity:0;transform:translateX(360%) skewX(-18deg)}
+      }
+      @keyframes mffRewardBar{
+        0%{background-position:0 0}
+        100%{background-position:180% 0}
+      }
       .mff-pdp{
         padding:14px 16px;
         border-width:2px;
@@ -204,6 +302,12 @@ function widgetRuntime() {
         .mff-actions{gap:8px}
         .mff-button,.mff-form button{width:100%}
         .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .mff-cart-head{grid-template-columns:1fr}
+        .mff-cart .mff-title{font-size:clamp(26px,9vw,42px)}
+        .mff-cart-reward{margin-top:14px;padding:12px;gap:10px}
+        .mff-reward-medal{width:48px;height:48px;font-size:23px}
+        .mff-reward-status strong{font-size:clamp(17px,5vw,23px)}
+        .mff-reward-status span{font-size:12px}
         .mff-pdp{padding:12px 12px;border-radius:18px 6px 18px 6px;box-shadow:4px 4px 0 rgba(33,21,15,.18)}
         .mff-pdp-layout{grid-template-columns:auto minmax(0,1fr);gap:12px}
         .mff-pdp-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;min-width:0}
@@ -211,7 +315,7 @@ function widgetRuntime() {
         .mff-pdp .mff-title{font-size:clamp(20px,6vw,26px)}
         .mff-pdp .mff-copy{font-size:13px}
       }
-      @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}}
+      @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i{animation:none}}
     `;
     document.head.appendChild(style);
   }
@@ -347,10 +451,33 @@ function widgetRuntime() {
       const remaining = Math.max(0, threshold - total);
       const progress = threshold > 0 ? Math.min(100, Math.round((total / threshold) * 100)) : 0;
       const reached = remaining === 0 && itemCount > 0;
-      el.innerHTML = `<section class="mff-widget mff-shell">
-        <span class="mff-badge">${escapeHtml(copy.badge || "Gratis lot")}</span>
-        <h2 class="mff-title mff-title--ink">${escapeHtml(reached ? (copy.reachedHeading || "Lot actief.") : copyText(copy.remainingHeading || "Nog {remaining}", { remaining: formatEuro(remaining) }))}</h2>
-        <p class="mff-copy">${escapeHtml(itemCount === 0 ? copyText(copy.emptyBody || "Je winkelwagen is leeg. Voeg vlees toe en speel mee vanaf {threshold}.", { threshold: formatEuro(threshold) }) : reached ? (copy.reachedBody || "Je bestelling haalt de grens. Na checkout koppelen we je gratis lot automatisch.") : (copy.remainingBody || "Tot je gratis lot bij de actieve winactie."))}</p>
+      const statusHeading = reached
+        ? (copy.reachedHeading || "Gratis lot unlocked.")
+        : itemCount === 0
+          ? (copy.emptyHeading || "Pak je gratis lot.")
+          : copyText(copy.remainingHeading || "Nog {remaining}", { remaining: formatEuro(remaining) });
+      const statusBody = itemCount === 0
+        ? copyText(copy.emptyBody || "Je winkelwagen is leeg. Voeg vlees toe en speel mee vanaf {threshold}.", { threshold: formatEuro(threshold) })
+        : reached
+          ? (copy.reachedBody || "Je bestelling zit boven de grens. Na checkout staat je lot automatisch klaar.")
+          : (copy.remainingBody || "Tot je gratis lot bij de actieve winactie.");
+      const rewardLabel = reached ? "Gehaald" : itemCount === 0 ? "Vanaf " + formatEuro(threshold) : "Nog " + formatEuro(remaining);
+      const rewardText = reached ? "1 gratis lot staat klaar bij checkout." : itemCount === 0 ? "Vul je mandje en speel automatisch mee." : "Voeg nog iets toe en unlock je lot.";
+      el.innerHTML = `<section class="mff-widget mff-shell mff-cart ${reached ? "mff-cart--reached" : ""}">
+        <div class="mff-cart-head">
+          <div>
+            <span class="mff-badge">${escapeHtml(copy.badge || "Gratis lot")}</span>
+            <h2 class="mff-title mff-title--ink">${escapeHtml(statusHeading)}</h2>
+            <p class="mff-copy">${escapeHtml(statusBody)}</p>
+          </div>
+        </div>
+        <div class="mff-cart-reward" aria-live="polite">
+          <div class="mff-reward-medal" aria-hidden="true">${reached ? "✓" : "1"}</div>
+          <div class="mff-reward-status">
+            <strong>${escapeHtml(rewardLabel)}</strong>
+            <span>${escapeHtml(rewardText)}</span>
+          </div>
+        </div>
         <div class="mff-progress" aria-label="Voortgang naar gratis lot" style="--progress:${progress}%"><i></i></div>
         <div class="mff-cart-lines">
           <span>${escapeHtml(copy.cartLabel || "Winkelwagen")}: ${formatEuro(total)}</span>
