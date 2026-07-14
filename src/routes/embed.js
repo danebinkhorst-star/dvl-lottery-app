@@ -126,6 +126,76 @@ function widgetRuntime() {
       .mff-message{margin-top:12px;color:var(--mff-red);font-weight:900}
       .mff-cart-lines{display:grid;gap:8px;margin-top:12px;color:var(--mff-muted);font-size:13px;font-weight:850}
       .mff-badge{display:inline-flex;width:max-content;align-items:center;gap:8px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-gold);padding:8px 11px;color:var(--mff-ink);font-size:11px;font-weight:950;text-transform:uppercase}
+      .mff-pdp{
+        padding:14px 16px;
+        border-width:2px;
+        border-radius:18px 6px 18px 6px;
+        box-shadow:4px 4px 0 rgba(33,21,15,.2);
+        background:linear-gradient(135deg,#fffdf7 0%,#fff6e6 100%);
+      }
+      .mff-pdp-layout{
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr) auto;
+        align-items:center;
+        gap:14px;
+      }
+      .mff-pdp-mark{
+        width:42px;
+        height:42px;
+        display:grid;
+        place-items:center;
+        flex:0 0 auto;
+        border:2px solid var(--mff-line);
+        border-radius:14px 5px 14px 5px;
+        background:var(--mff-gold);
+        box-shadow:3px 3px 0 var(--mff-line);
+        color:var(--mff-ink);
+        font-size:17px;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-pdp .mff-kicker{
+        margin:0 0 4px;
+        font-size:10px;
+        letter-spacing:.08em;
+      }
+      .mff-pdp .mff-title{
+        color:var(--mff-ink);
+        font-size:clamp(19px,2.2vw,28px);
+        line-height:.98;
+        -webkit-text-stroke:0;
+        text-shadow:none;
+      }
+      .mff-pdp .mff-copy{
+        margin-top:6px;
+        max-width:560px;
+        font-size:clamp(13px,1.15vw,15px);
+        line-height:1.34;
+        font-weight:850;
+      }
+      .mff-pdp .mff-progress{
+        height:10px;
+        max-width:280px;
+        margin-top:9px;
+        border-width:2px;
+      }
+      .mff-pdp-actions{
+        display:flex;
+        flex-direction:column;
+        align-items:stretch;
+        gap:8px;
+        min-width:138px;
+      }
+      .mff-pdp .mff-button{
+        min-height:36px;
+        width:auto;
+        padding:0 13px;
+        border-width:2px;
+        border-radius:14px 5px 14px 5px;
+        box-shadow:3px 3px 0 var(--mff-line);
+        font-size:10px;
+      }
+      .mff-pdp .mff-button:hover,.mff-pdp .mff-button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line)}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 rgba(33,21,15,.16)}
         .mff-hero{grid-template-columns:1fr;gap:14px}
@@ -134,6 +204,12 @@ function widgetRuntime() {
         .mff-actions{gap:8px}
         .mff-button,.mff-form button{width:100%}
         .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .mff-pdp{padding:12px 12px;border-radius:18px 6px 18px 6px;box-shadow:4px 4px 0 rgba(33,21,15,.18)}
+        .mff-pdp-layout{grid-template-columns:auto minmax(0,1fr);gap:12px}
+        .mff-pdp-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;min-width:0}
+        .mff-pdp .mff-button{width:100%;min-height:38px}
+        .mff-pdp .mff-title{font-size:clamp(20px,6vw,26px)}
+        .mff-pdp .mff-copy{font-size:13px}
       }
       @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}}
     `;
@@ -393,14 +469,19 @@ function widgetRuntime() {
     const remaining = Math.max(0, threshold - price);
     const progress = threshold > 0 ? Math.min(100, Math.round((price / threshold) * 100)) : 0;
     const qualifies = price >= threshold;
-    el.innerHTML = `<section class="mff-widget mff-shell">
-      <p class="mff-kicker">${escapeHtml(copy.kicker || "Lot bij je bestelling")}</p>
-      <h2 class="mff-title mff-title--ink">${escapeHtml(qualifies ? (copy.qualifiesHeading || "Dit product pakt een lot.") : (copy.remainingHeading || "Dichter bij je lot."))}</h2>
-      <p class="mff-copy">${escapeHtml(qualifies ? (copy.qualifiesBody || "Bestel dit product en je krijgt automatisch 1 gratis lot voor de actieve winactie.") : copyText(copy.remainingBody || "{remaining} extra in je mandje en je bestelling pakt automatisch een gratis lot.", { remaining: formatEuro(remaining) }))}</p>
-      <div class="mff-progress" aria-label="Productbijdrage naar gratis lot" style="--progress:${progress}%"><i></i></div>
-      <div class="mff-actions">
-        <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.primaryLabel || "Verder shoppen")}</a>
-        <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Winactie")}</a>
+    el.innerHTML = `<section class="mff-widget mff-shell mff-pdp">
+      <div class="mff-pdp-layout">
+        <div class="mff-pdp-mark" aria-hidden="true">1</div>
+        <div class="mff-pdp-copy">
+          <p class="mff-kicker">${escapeHtml(copy.kicker || "Lot bij je bestelling")}</p>
+          <h2 class="mff-title">${escapeHtml(qualifies ? (copy.qualifiesHeading || "Dit product pakt een lot.") : (copy.remainingHeading || "Dichter bij je lot."))}</h2>
+          <p class="mff-copy">${escapeHtml(qualifies ? (copy.qualifiesBody || "Bestel dit product en je krijgt automatisch 1 gratis lot voor de actieve winactie.") : copyText(copy.remainingBody || "{remaining} extra in je mandje en je bestelling pakt automatisch een gratis lot.", { remaining: formatEuro(remaining) }))}</p>
+          <div class="mff-progress" aria-label="Productbijdrage naar gratis lot" style="--progress:${progress}%"><i></i></div>
+        </div>
+        <div class="mff-pdp-actions">
+          <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.primaryLabel || "Verder shoppen")}</a>
+          <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Winactie")}</a>
+        </div>
       </div>
     </section>`;
   }
