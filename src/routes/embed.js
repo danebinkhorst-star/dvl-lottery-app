@@ -499,8 +499,26 @@ function widgetRuntime() {
       }
     };
     refresh();
-    window.addEventListener("cart:updated", refresh);
-    window.addEventListener("mff:cart-updated", refresh);
+    const refreshSoon = () => window.setTimeout(refresh, 450);
+    [
+      "cart:updated",
+      "cart:update",
+      "cart:refresh",
+      "theme:cart:change",
+      "ajaxCart:updated",
+      "mff:cart-updated",
+    ].forEach((eventName) => window.addEventListener(eventName, refresh));
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('form[action*="/cart/add"], [name="add"], [data-add-to-cart], cart-remove-button, [href="/cart"], [href^="/cart?"], .quantity, .cart-item, .cart-drawer')) {
+        refreshSoon();
+      }
+    }, true);
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refresh();
+    });
   }
 
   function winnersWidget(el, data) {
