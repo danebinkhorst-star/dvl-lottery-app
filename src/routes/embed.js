@@ -54,6 +54,32 @@ function widgetRuntime() {
         box-shadow:7px 7px 0 rgba(33,21,15,.18);
         padding:clamp(18px,3vw,34px);
       }
+      .mff-shell:before{
+        content:"";
+        position:absolute;
+        inset:0;
+        z-index:0;
+        pointer-events:none;
+        background-image:var(--mff-bg-image,none);
+        background-position:var(--mff-bg-position,center center);
+        background-size:cover;
+        background-repeat:no-repeat;
+        opacity:var(--mff-bg-opacity,0);
+        mix-blend-mode:multiply;
+      }
+      .mff-shell > *{position:relative;z-index:1}
+      .mff-shell--sharp{border-radius:0}
+      .mff-shell--soft{border-radius:24px}
+      .mff-shell--no-shadow{box-shadow:none}
+      .mff-shell--soft-shadow{box-shadow:0 18px 42px rgba(33,21,15,.12)}
+      .mff-visual{
+        width:100%;
+        max-height:220px;
+        object-fit:contain;
+        object-position:center;
+        align-self:end;
+        filter:drop-shadow(6px 8px 0 rgba(33,21,15,.16));
+      }
       .mff-hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr);gap:clamp(16px,3vw,32px);align-items:end}
       .mff-kicker{margin:0 0 10px;color:var(--mff-red);font-size:11px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
       .mff-title{
@@ -474,6 +500,38 @@ function widgetRuntime() {
     return data?.widgets?.[key] || {};
   }
 
+  function cssUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "none";
+    return `url("${raw.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}")`;
+  }
+
+  function visualAttrs(copy, extraClass = "") {
+    const cornerClass = copy.cornerStyle === "sharp" ? "mff-shell--sharp" : copy.cornerStyle === "soft" ? "mff-shell--soft" : "";
+    const shadowClass = copy.shadowStyle === "none" ? "mff-shell--no-shadow" : copy.shadowStyle === "soft" ? "mff-shell--soft-shadow" : "";
+    const opacity = Math.max(0, Math.min(1, Number(copy.backgroundImageOpacity || 0) / 100));
+    const classes = ["mff-widget", "mff-shell", extraClass, cornerClass, shadowClass].filter(Boolean).join(" ");
+    const style = [
+      `--mff-cream:${copy.backgroundColor || "#fff7ea"}`,
+      `--mff-paper:${copy.surfaceColor || "#fffdf7"}`,
+      `--mff-ink:${copy.textColor || "#21150f"}`,
+      `--mff-muted:${copy.mutedColor || "#765f4d"}`,
+      `--mff-gold:${copy.accentColor || "#efb12c"}`,
+      `--mff-red:${copy.secondaryColor || "#b72b22"}`,
+      `--mff-line:${copy.borderColor || "#21150f"}`,
+      `--mff-bg-image:${cssUrl(copy.backgroundImageUrl)}`,
+      `--mff-bg-opacity:${opacity}`,
+      `--mff-bg-position:${copy.backgroundImagePosition || "center center"}`
+    ].join(";");
+    return `class="${escapeHtml(classes)}" style="${escapeHtml(style)}"`;
+  }
+
+  function visualImage(copy) {
+    const src = String(copy.visualImageUrl || "").trim();
+    if (!src) return "";
+    return `<img class="mff-visual" src="${escapeHtml(src)}" alt="${escapeHtml(copy.visualImageAlt || "")}" loading="lazy">`;
+  }
+
   function copyText(template, replacements = {}) {
     return String(template == null ? "" : template).replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, token) => {
       return replacements[token] == null ? "" : String(replacements[token]);
@@ -555,7 +613,7 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "live");
     const draw = data.liveDraw;
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf €70";
-    el.innerHTML = `<section class="mff-widget mff-shell">
+    el.innerHTML = `<section ${visualAttrs(copy)}>
       <div class="mff-hero">
         <div>
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Live winactie")}</p>
@@ -566,6 +624,7 @@ function widgetRuntime() {
             <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Shop vlees")}</a>
           </div>
         </div>
+        ${visualImage(copy)}
         <div class="mff-panel mff-panel--gold">
           <span class="mff-label">${escapeHtml(copy.prizeLabel || "Hoofdprijs nu")}</span>
           <strong class="mff-number">${escapeHtml(draw?.prizeName || copy.fallbackPrize || "Vleespakket")}</strong>
@@ -599,7 +658,7 @@ function widgetRuntime() {
           : (copy.remainingBody || "Tot je gratis lot bij de actieve winactie.");
       const rewardLabel = reached ? "Gehaald" : itemCount === 0 ? "Vanaf " + formatEuro(threshold) : "Nog " + formatEuro(remaining);
       const rewardText = reached ? "1 gratis lot staat klaar bij checkout." : itemCount === 0 ? "Vul je mandje en speel automatisch mee." : "Voeg nog iets toe en unlock je lot.";
-      el.innerHTML = `<section class="mff-widget mff-shell mff-cart ${reached ? "mff-cart--reached" : ""}">
+      el.innerHTML = `<section ${visualAttrs(copy, `mff-cart ${reached ? "mff-cart--reached" : ""}`)}>
         <div class="mff-cart-head">
           <div>
             <span class="mff-badge">${escapeHtml(copy.badge || "Gratis lot")}</span>
@@ -614,6 +673,7 @@ function widgetRuntime() {
             <span>${escapeHtml(rewardText)}</span>
           </div>
         </div>
+        ${visualImage(copy)}
         <div class="mff-progress" aria-label="Voortgang naar gratis lot" style="--progress:${progress}%"><i></i></div>
         <div class="mff-cart-lines">
           <span>${escapeHtml(copy.cartLabel || "Winkelwagen")}: ${formatEuro(total)}</span>
@@ -660,10 +720,11 @@ function widgetRuntime() {
   function winnersWidget(el, data) {
     const copy = widgetCopy(data, "winners");
     const winners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 5) : [];
-    el.innerHTML = `<section class="mff-widget mff-shell">
+    el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Echte trekkingen.")}</h2>
       <p class="mff-copy">${escapeHtml(copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.")}</p>
+      ${visualImage(copy)}
       <div class="mff-list">
         ${winners.length ? winners.map((winner) => `<div class="mff-row"><span>${escapeHtml(winner.customerName || winner.email || winner.name || "MFF winnaar")}</span><b>${escapeHtml(winner.prizeName || "Prijs")}</b></div>`).join("") : `<div class="mff-row"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
       </div>
@@ -677,7 +738,7 @@ function widgetRuntime() {
     const summary = payload.summary || {};
     const draw = payload.activeDraw;
     const nextAction = payload.nextAction || {};
-    el.innerHTML = `<section class="mff-widget mff-shell">
+    el.innerHTML = `<section ${visualAttrs(copy)}>
       <div class="mff-hero">
         <div>
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Mijn MFF")}</p>
@@ -685,6 +746,7 @@ function widgetRuntime() {
           <p class="mff-copy">${escapeHtml(nextAction.label || copy.loggedInFallback || "Bestel, spaar loten en volg elke trekking transparant.")}</p>
           <div class="mff-progress" aria-label="Voortgang naar volgend lot" style="--progress:${Number(nextAction.progress || 0)}%"><i></i></div>
         </div>
+        ${visualImage(copy)}
         <div class="mff-panel">
           <span class="mff-badge">${escapeHtml(draw?.status || copy.panelBadge || "Dashboard")}</span>
           <div class="mff-list">
@@ -720,7 +782,7 @@ function widgetRuntime() {
       return;
     }
     const draw = data.liveDraw;
-    el.innerHTML = `<section class="mff-widget mff-shell">
+    el.innerHTML = `<section ${visualAttrs(copy)}>
       <div class="mff-hero">
         <div>
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Mijn MFF")}</p>
@@ -730,6 +792,7 @@ function widgetRuntime() {
             <a class="mff-button" href="${escapeHtml(storeHref(copy.buttonUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.buttonLabel || "Open dashboard")}</a>
           </div>
         </div>
+        ${visualImage(copy)}
         <div class="mff-panel">
           <span class="mff-badge">${escapeHtml(copy.panelBadge || "Dashboard")}</span>
           <div class="mff-list">
@@ -750,7 +813,7 @@ function widgetRuntime() {
     const remaining = Math.max(0, threshold - price);
     const progress = threshold > 0 ? Math.min(100, Math.round((price / threshold) * 100)) : 0;
     const qualifies = price >= threshold;
-    el.innerHTML = `<section class="mff-widget mff-shell mff-pdp">
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-pdp")}>
       <div class="mff-pdp-layout">
         <div class="mff-pdp-mark" aria-hidden="true">1</div>
         <div class="mff-pdp-copy">
@@ -770,7 +833,7 @@ function widgetRuntime() {
   function howItWorksWidget(el, data) {
     const copy = widgetCopy(data, "how-it-works");
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf EUR 70";
-    el.innerHTML = `<section class="mff-widget mff-shell mff-flow">
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-flow")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Zo werkt het")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Vlees kopen. Loten sparen.")}</h2>
@@ -780,6 +843,7 @@ function widgetRuntime() {
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Bekijk winacties")}</a>
         </div>
       </div>
+      ${visualImage(copy)}
       <div class="mff-steps">
         <div class="mff-step"><i>1</i><strong>${escapeHtml(copy.stepOneTitle || "Bestel vlees")}</strong><span>${escapeHtml(copy.stepOneText || "Vanaf EUR 70 telt je bestelling mee.")}</span></div>
         <div class="mff-step"><i>2</i><strong>${escapeHtml(copy.stepTwoTitle || "Pak je lot")}</strong><span>${escapeHtml(copy.stepTwoText || "Je lot wordt automatisch gekoppeld.")}</span></div>
@@ -796,11 +860,12 @@ function widgetRuntime() {
       [copy.proofThreeValue || "NL", copy.proofThreeLabel || "Heldere herkomst", "⌂"],
       [copy.proofFourValue || "Live", copy.proofFourLabel || "Trekkingen", "✓"],
     ];
-    el.innerHTML = `<section class="mff-widget mff-shell mff-proof-grid">
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-proof-grid")}>
       <div class="mff-proof-intro">
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Waarom MFF")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Duidelijk vlees. Eerlijke kansen.")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Minder praat, meer bewijs: gekoeld geleverd, helder verpakt en transparante winacties.")}</p>
+        ${visualImage(copy)}
       </div>
       ${proofs.map(([value, label, icon]) => `<div class="mff-proof"><i aria-hidden="true">${escapeHtml(icon)}</i><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
     </section>`;
@@ -810,7 +875,7 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "membership");
     const draw = data.liveDraw;
     const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
-    el.innerHTML = `<section class="mff-widget mff-shell mff-membership">
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-membership")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
         <h2 class="mff-title">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
@@ -823,6 +888,7 @@ function widgetRuntime() {
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Mijn MFF")}</a>
         </div>
       </div>
+      ${visualImage(copy)}
       <div class="mff-ticket">
         <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
         <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
@@ -833,7 +899,7 @@ function widgetRuntime() {
   function communityWidget(el, data) {
     const copy = widgetCopy(data, "community");
     const notes = [copy.noteOne, copy.noteTwo, copy.noteThree].filter(Boolean);
-    el.innerHTML = `<section class="mff-widget mff-shell mff-editorial">
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-editorial")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "BBQ inspiratie")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Wat zet jij op het vuur?")}</h2>
@@ -843,6 +909,7 @@ function widgetRuntime() {
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/community"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Community")}</a>
         </div>
       </div>
+      ${visualImage(copy)}
       <div class="mff-editorial-rail">
         ${(notes.length ? notes : ["Recepten", "Klantfoto's", "Challenges"]).map((note) => `<div class="mff-note">${escapeHtml(note)}</div>`).join("")}
       </div>
@@ -852,9 +919,10 @@ function widgetRuntime() {
   function freeEntryWidget(el, data) {
     const copy = widgetCopy(data, "free-entry");
     const drawId = data.liveDraw?.id || "";
-    el.innerHTML = `<section class="mff-widget mff-shell">
+    el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Gratis deelname")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Een keer gratis meedoen.")}</h2>
+      ${visualImage(copy)}
       <form class="mff-form">
         <input name="firstName" autocomplete="given-name" placeholder="${escapeHtml(copy.firstNamePlaceholder || "Voornaam")}">
         <input name="lastName" autocomplete="family-name" placeholder="${escapeHtml(copy.lastNamePlaceholder || "Achternaam")}">
@@ -890,6 +958,10 @@ function widgetRuntime() {
     try {
       const data = await fetchJson("/api/site/summary");
       const type = el.getAttribute("data-dvl-lottery") || "live";
+      const preview = window.DVL_WIDGET_PREVIEW;
+      if (preview && preview.key === type && preview.settings && typeof preview.settings === "object") {
+        data.widgets = { ...(data.widgets || {}), [type]: { ...((data.widgets || {})[type] || {}), ...preview.settings } };
+      }
       if (type === "free-entry") return freeEntryWidget(el, data);
       if (type === "customer") return customerWidget(el, data);
       if (type === "cart") return cartWidget(el, data);
@@ -967,6 +1039,20 @@ embedRouter.get("/frame", (req, res) => {
   const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "pdp", "how-it-works", "trust", "membership", "community"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
   const sectionId = String(req.query.section_id || "");
+  let previewPayload = null;
+  const preview = String(req.query.preview || "");
+  if (preview) {
+    try {
+      const normalized = preview.replaceAll("-", "+").replaceAll("_", "/");
+      const decoded = Buffer.from(normalized, "base64").toString("utf8");
+      const parsed = JSON.parse(decoded);
+      if (parsed && typeof parsed === "object" && parsed.key === widget && parsed.settings && typeof parsed.settings === "object") {
+        previewPayload = parsed;
+      }
+    } catch (_error) {
+      previewPayload = null;
+    }
+  }
 
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.setHeader("x-frame-options", "ALLOWALL");
@@ -985,6 +1071,7 @@ embedRouter.get("/frame", (req, res) => {
   <body>
     <div data-dvl-lottery="${widget}"></div>
     <script>
+      window.DVL_WIDGET_PREVIEW = ${JSON.stringify(previewPayload)};
       (() => {
         const sectionId = ${JSON.stringify(sectionId)};
         const sendHeight = () => {

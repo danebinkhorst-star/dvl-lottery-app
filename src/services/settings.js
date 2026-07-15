@@ -35,6 +35,24 @@ export function updateLotteryRule({ mode, minimumCents, perCents, freeEntryEnabl
   return getLotteryRule();
 }
 
+export const widgetVisualDefaults = {
+  visualTheme: "mff",
+  backgroundColor: "#fff7ea",
+  surfaceColor: "#fffdf7",
+  textColor: "#21150f",
+  mutedColor: "#765f4d",
+  accentColor: "#efb12c",
+  secondaryColor: "#b72b22",
+  borderColor: "#21150f",
+  backgroundImageUrl: "",
+  backgroundImageOpacity: "18",
+  backgroundImagePosition: "center center",
+  visualImageUrl: "",
+  visualImageAlt: "",
+  cornerStyle: "mff",
+  shadowStyle: "hard"
+};
+
 export const widgetDefinitions = [
   {
     key: "live",
@@ -232,6 +250,7 @@ export function getWidgetSettings(widgetKey) {
   const definition = widgetDefinitionMap.get(widgetKey);
   if (!definition) return null;
   return {
+    ...widgetVisualDefaults,
     ...definition.defaults,
     ...parseWidgetSetting(widgetKey)
   };
@@ -247,7 +266,7 @@ export function updateWidgetSettings(widgetKey, fields) {
   const definition = widgetDefinitionMap.get(widgetKey);
   if (!definition) throw new Error("Onbekende widget.");
   const next = {};
-  for (const key of Object.keys(definition.defaults)) {
+  for (const key of [...Object.keys(widgetVisualDefaults), ...Object.keys(definition.defaults)]) {
     next[key] = String(fields?.[key] ?? "").trim();
   }
   setSetting(widgetSettingKey(widgetKey), JSON.stringify(next));

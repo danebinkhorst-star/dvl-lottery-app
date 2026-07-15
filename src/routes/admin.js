@@ -3,7 +3,7 @@ import { db, id, nowIso } from "../db.js";
 import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
-import { getLotteryRule, updateLotteryRule, getWidgetSettings, updateWidgetSettings, widgetDefinitions } from "../services/settings.js";
+import { getLotteryRule, updateLotteryRule, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -16,7 +16,7 @@ adminRouter.use((_req, res, next) => {
   next();
 });
 
-const urlencoded = express.urlencoded({ extended: false, limit: "16kb" });
+const urlencoded = express.urlencoded({ extended: false, limit: "64kb" });
 const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
 const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
@@ -272,9 +272,20 @@ function page(title, active, body) {
         .widget-editor-card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,#fffdf9,#faf7ef); overflow:hidden; }
         .widget-editor-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start; padding:18px; border-bottom:1px solid var(--line-soft); background:#fff; }
         .widget-editor-head h2 { font-size:22px; }
-        .widget-editor-body { padding:18px; }
-        .widget-editor-body .form-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .widget-editor-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(360px,.72fr); gap:18px; padding:18px; align-items:start; }
+        .widget-editor-body .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .widget-fieldset { display:grid; gap:12px; padding:14px; border:1px solid var(--line-soft); border-radius:12px; background:rgba(255,255,255,.62); }
+        .widget-fieldset + .widget-fieldset { margin-top:12px; }
+        .widget-fieldset-title { display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--ink); font-size:12px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
         .widget-field-help { display:block; margin-top:6px; color:var(--muted); font-size:11px; font-weight:650; letter-spacing:0; text-transform:none; }
+        .widget-color-row { display:grid; grid-template-columns:44px minmax(0,1fr); gap:8px; align-items:end; }
+        input[type="color"] { min-height:40px; padding:3px; cursor:pointer; }
+        input[type="range"] { padding:0; }
+        .widget-preview { position:sticky; top:86px; display:grid; gap:10px; min-width:0; }
+        .widget-preview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .widget-preview-frame { width:100%; min-height:360px; border:1px solid var(--line); border-radius:14px; background:#fff7ea; box-shadow:0 12px 34px rgba(33,21,15,.08); }
+        .widget-preview-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+        .widget-live-note { color:var(--muted); font-size:11px; font-weight:750; text-transform:none; letter-spacing:0; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:900px) {
           html, body { background:#f4f1e8; }
@@ -311,7 +322,9 @@ function page(title, active, body) {
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
           .widget-editor-head { grid-template-columns:1fr; }
+          .widget-editor-body { grid-template-columns:1fr; }
           .widget-editor-body .form-grid { grid-template-columns:1fr; }
+          .widget-preview { position:static; }
           table { min-width:760px; }
         }
         @media (max-width:560px) {
@@ -1687,6 +1700,26 @@ const widgetFieldLabels = {
   successPrefix: ["Succes tekst", "Tekst voor het lotnummer."]
 };
 
+const widgetVisualLabels = {
+  visualTheme: ["Visuele basis", "Bewaar als MFF tenzij je bewust afwijkt."],
+  backgroundColor: ["Achtergrond", "Buitenste kleur van de widget."],
+  surfaceColor: ["Vlak kleur", "Kaarten, velden en lichte panelen."],
+  textColor: ["Tekstkleur", "Hoofdkleur voor titels en tekst."],
+  mutedColor: ["Subtekst", "Kleur voor rustige ondersteunende tekst."],
+  accentColor: ["Accent", "Knoppen, badges en beloningen."],
+  secondaryColor: ["Tweede accent", "Meestal rood voor urgentie of live."],
+  borderColor: ["Lijnen", "Randen, harde schaduw en outline."],
+  backgroundImageUrl: ["Achtergrondafbeelding URL", "Gebruik een Shopify CDN of externe image URL."],
+  backgroundImageOpacity: ["Afbeelding dekking", "0 is uit. 100 is volledig zichtbaar."],
+  backgroundImagePosition: ["Achtergrondpositie", "Bijv. center center, center bottom of 80% 50%."],
+  visualImageUrl: ["Los beeld / PNG URL", "Product, prijs of sfeerbeeld dat in de widget meeloopt."],
+  visualImageAlt: ["Alt tekst beeld", "Korte beschrijving voor toegankelijkheid."],
+  cornerStyle: ["Hoekstijl", "MFF is de huidige branded vorm."],
+  shadowStyle: ["Schaduw", "Harde MFF-schaduw, zacht of uit."]
+};
+
+const visualFieldKeys = Object.keys(widgetVisualDefaults);
+
 function widgetField(key, value) {
   const [labelText, help] = widgetFieldLabels[key] || [key, ""];
   const isLong = /body|text/i.test(key) || String(value || "").length > 80;
@@ -1696,8 +1729,76 @@ function widgetField(key, value) {
   return `<label${isLong ? ' class="wide"' : ""}>${escapeHtml(labelText)}${input}${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
 }
 
+function widgetVisualField(key, value) {
+  const [labelText, help] = widgetVisualLabels[key] || [key, ""];
+  if (/Color$/.test(key)) {
+    const clean = /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : widgetVisualDefaults[key];
+    return `<label>${escapeHtml(labelText)}<div class="widget-color-row"><input type="color" name="${escapeHtml(key)}" value="${escapeHtml(clean)}"><input name="${escapeHtml(key)}_text" value="${escapeHtml(clean)}" data-color-text="${escapeHtml(key)}"></div>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "backgroundImageOpacity") {
+    return `<label>${escapeHtml(labelText)}<input type="range" name="${escapeHtml(key)}" min="0" max="100" step="1" value="${escapeHtml(value || "0")}"><span class="widget-field-help">${escapeHtml(help)}</span></label>`;
+  }
+  if (key === "cornerStyle") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("mff", value, "MFF hoek")}${option("sharp", value, "Strak vierkant")}${option("soft", value, "Rustiger rond")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "shadowStyle") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("hard", value, "Harde MFF-schaduw")}${option("soft", value, "Zachte schaduw")}${option("none", value, "Geen schaduw")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "visualTheme") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("mff", value, "Meat For Free")}${option("clean", value, "Schoon licht")}${option("promo", value, "Promotie")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  const isUrl = /Url$/i.test(key);
+  const isLong = key === "backgroundImagePosition";
+  return `<label${isLong || isUrl ? ' class="wide"' : ""}>${escapeHtml(labelText)}<input name="${escapeHtml(key)}" value="${escapeHtml(value)}"${isUrl ? ' inputmode="url" placeholder="https://cdn.shopify.com/..."' : ""}>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+}
+
+function widgetPreviewScript() {
+  return `<script>
+    (() => {
+      const enc = (value) => {
+        const bytes = new TextEncoder().encode(JSON.stringify(value));
+        let binary = "";
+        bytes.forEach((byte) => binary += String.fromCharCode(byte));
+        return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+      };
+      const updatePreview = (form) => {
+        const key = form.dataset.widgetKey;
+        const frame = document.querySelector('[data-widget-preview="' + key + '"]');
+        if (!frame) return;
+        const settings = {};
+        new FormData(form).forEach((value, field) => {
+          if (field.endsWith("_text")) return;
+          settings[field] = value;
+        });
+        frame.src = "/embed/frame?widget=" + encodeURIComponent(key) + "&preview=" + encodeURIComponent(enc({ key, settings })) + "&ts=" + Date.now();
+      };
+      document.querySelectorAll("[data-widget-form]").forEach((form) => {
+        const refresh = () => updatePreview(form);
+        form.addEventListener("input", (event) => {
+          const target = event.target;
+          if (target && target.matches('input[type="color"]')) {
+            const pair = form.querySelector('[data-color-text="' + target.name + '"]');
+            if (pair) pair.value = target.value;
+          }
+          window.clearTimeout(form._previewTimer);
+          form._previewTimer = window.setTimeout(refresh, 180);
+        });
+        form.addEventListener("change", refresh);
+        form.querySelectorAll("[data-color-text]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const color = form.querySelector('input[type="color"][name="' + input.dataset.colorText + '"]');
+            if (color && /^#[0-9a-f]{6}$/i.test(input.value)) color.value = input.value;
+          });
+        });
+        refresh();
+      });
+    })();
+  </script>`;
+}
+
 function widgetEditorCard(definition) {
   const settings = getWidgetSettings(definition.key);
+  const contentKeys = Object.keys(definition.defaults);
   return `<article class="widget-editor-card">
     <div class="widget-editor-head">
       <div>
@@ -1707,13 +1808,35 @@ function widgetEditorCard(definition) {
       <span class="status status--active">${escapeHtml(definition.key)}</span>
     </div>
     <div class="widget-editor-body">
-      <form method="post" action="/admin/widgets/${escapeHtml(definition.key)}" class="form-grid">
-        ${Object.keys(definition.defaults).map((key) => widgetField(key, settings[key])).join("")}
-        <div class="actions wide">
+      <form method="post" action="/admin/widgets/${escapeHtml(definition.key)}" class="stack" data-widget-form data-widget-key="${escapeHtml(definition.key)}">
+        <div class="widget-fieldset">
+          <div class="widget-fieldset-title"><span>Content</span><span class="widget-live-note">Tekst, knoppen en links</span></div>
+          <div class="form-grid">
+            ${contentKeys.map((key) => widgetField(key, settings[key])).join("")}
+          </div>
+        </div>
+        <div class="widget-fieldset">
+          <div class="widget-fieldset-title"><span>Visuals</span><span class="widget-live-note">Kleuren, beelden en vorm</span></div>
+          <div class="form-grid">
+            ${visualFieldKeys.map((key) => widgetVisualField(key, settings[key])).join("")}
+          </div>
+        </div>
+        <div class="actions">
           <button class="button--gold" type="submit">${icon("Save")}Opslaan</button>
-          <a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(definition.key)}" target="_blank" rel="noreferrer">${icon("ExternalLink")}Preview</a>
+          <a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(definition.key)}" target="_blank" rel="noreferrer">${icon("ExternalLink")}Open groot</a>
         </div>
       </form>
+      <aside class="widget-preview" aria-label="Live preview ${escapeHtml(definition.label)}">
+        <div class="widget-preview-head">
+          <div>
+            <p class="eyebrow">Live preview</p>
+            <h3>${escapeHtml(definition.label)}</h3>
+          </div>
+          <span class="status status--active">Unsaved</span>
+        </div>
+        <iframe class="widget-preview-frame" data-widget-preview="${escapeHtml(definition.key)}" title="${escapeHtml(definition.label)} preview"></iframe>
+        <p class="widget-live-note">Deze preview gebruikt je huidige velden voordat je opslaat.</p>
+      </aside>
     </div>
   </article>`;
 }
@@ -1724,6 +1847,7 @@ adminRouter.get("/widgets", (_req, res) => {
     <section class="widget-editor">
       ${widgetDefinitions.map(widgetEditorCard).join("")}
     </section>
+    ${widgetPreviewScript()}
   `));
 });
 
@@ -1750,7 +1874,11 @@ adminRouter.get("/embed", (_req, res) => {
     ["winners", "Laatste winnaars", "Compact bewijsblok met recente winnaars."],
     ["customer", "Mijn MFF teaser", "Klantdashboard entrypoint met live status."],
     ["pdp", "PDP lot-progress", "Compact productblok: laat zien of dit product al richting een gratis lot telt."],
-    ["free-entry", "Gratis deelname", "Formulier voor 1 keer gratis meedoen."]
+    ["free-entry", "Gratis deelname", "Formulier voor 1 keer gratis meedoen."],
+    ["how-it-works", "Hoe het werkt", "Homepage uitleg: bestellen, lot krijgen en trekking volgen."],
+    ["trust", "Trust en bewijs", "Herkomst, levering, reviews en transparantie."],
+    ["membership", "Membership", "Abonnement, clubvoordeel en Mijn MFF route."],
+    ["community", "Community en inspiratie", "BBQ inspiratie, klantcontent en challenges."]
   ];
   const widgetSnippet = (type) => {
     if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>';
