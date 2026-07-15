@@ -72,6 +72,30 @@ function widgetRuntime() {
       .mff-shell--soft{border-radius:24px}
       .mff-shell--no-shadow{box-shadow:none}
       .mff-shell--soft-shadow{box-shadow:0 18px 42px rgba(33,21,15,.12)}
+      .mff-section{
+        position:relative;
+        width:100%;
+        max-width:100%;
+        min-width:0;
+        overflow:hidden;
+        background:var(--mff-cream);
+        color:var(--mff-ink);
+        padding:clamp(22px,4vw,54px);
+      }
+      .mff-section:before{
+        content:"";
+        position:absolute;
+        inset:0;
+        z-index:0;
+        pointer-events:none;
+        background-image:var(--mff-bg-image,none);
+        background-position:var(--mff-bg-position,center center);
+        background-size:cover;
+        background-repeat:no-repeat;
+        opacity:var(--mff-bg-opacity,0);
+        mix-blend-mode:multiply;
+      }
+      .mff-section > *{position:relative;z-index:1}
       .mff-visual{
         width:100%;
         max-height:220px;
@@ -146,28 +170,24 @@ function widgetRuntime() {
       .mff-row:last-child{border-bottom:0}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
-      .mff-flow{display:grid;gap:clamp(18px,3vw,34px)}
-      .mff-strip{
-        border:2px solid var(--mff-line);
-        border-radius:22px 7px 22px 7px;
-        background:var(--mff-paper);
-        box-shadow:6px 6px 0 rgba(33,21,15,.14);
-        padding:clamp(16px,2.8vw,28px);
-      }
+      .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;border-top:3px solid var(--mff-line);border-bottom:3px solid var(--mff-line)}
+      .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
       .mff-steps{
         display:grid;
         grid-template-columns:repeat(3,minmax(0,1fr));
-        border-top:2px solid rgba(33,21,15,.18);
-        margin-top:22px;
+        gap:0;
+        min-height:260px;
       }
       .mff-step{
         display:grid;
         gap:8px;
-        align-content:start;
-        padding:18px 18px 0 0;
-        min-height:122px;
+        align-content:space-between;
+        padding:clamp(18px,3vw,34px);
+        border-left:2px solid rgba(33,21,15,.2);
+        background:linear-gradient(180deg,rgba(255,253,247,.72),rgba(255,247,234,.28));
       }
-      .mff-step + .mff-step{border-left:2px solid rgba(33,21,15,.18);padding-left:18px}
+      .mff-step:first-child{border-left:0;background:var(--mff-gold)}
+      .mff-step + .mff-step{border-left:2px solid rgba(33,21,15,.2);padding-left:clamp(18px,3vw,34px)}
       .mff-step i,.mff-proof i,.mff-chip i{
         width:36px;
         height:36px;
@@ -186,28 +206,36 @@ function widgetRuntime() {
       .mff-step span{color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
       .mff-proof-grid{
         display:grid;
-        grid-template-columns:minmax(320px,1.15fr) repeat(4,minmax(130px,.72fr));
-        gap:0;
-        align-items:stretch;
+        grid-template-columns:minmax(260px,.82fr) minmax(0,1.18fr);
+        gap:clamp(20px,4vw,60px);
+        align-items:center;
         overflow:hidden;
+        border-top:3px solid var(--mff-line);
       }
-      .mff-proof-intro{padding:clamp(18px,3vw,32px);background:var(--mff-gold)}
+      .mff-proof-intro{padding:0;background:transparent}
       .mff-proof-intro .mff-title{font-size:clamp(34px,4vw,62px)}
+      .mff-proof-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(14px,2vw,24px);padding-top:clamp(18px,3vw,30px)}
       .mff-proof{
         display:grid;
-        align-content:center;
-        gap:10px;
-        padding:clamp(16px,2vw,24px);
-        border-left:2px solid rgba(33,21,15,.18);
-        background:var(--mff-paper);
+        grid-template-columns:auto minmax(0,1fr);
+        align-items:center;
+        column-gap:12px;
+        row-gap:4px;
+        padding:0 0 clamp(12px,2vw,18px);
+        border-bottom:2px solid rgba(33,21,15,.2);
+        background:transparent;
       }
+      .mff-proof i{grid-row:1/3}
       .mff-proof strong{font-size:clamp(20px,2.25vw,34px);font-weight:950;line-height:.92;text-transform:uppercase}
       .mff-proof span{color:var(--mff-muted);font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
       .mff-membership{
         display:grid;
-        grid-template-columns:minmax(0,1fr) minmax(260px,.75fr);
-        gap:clamp(18px,3vw,38px);
+        grid-template-columns:minmax(0,.9fr) minmax(280px,1.1fr);
+        gap:clamp(24px,5vw,72px);
         align-items:center;
+        background:linear-gradient(90deg,var(--mff-paper) 0 54%,var(--mff-gold) 54% 100%);
+        border-top:3px solid var(--mff-line);
+        border-bottom:3px solid var(--mff-line);
       }
       .mff-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
       .mff-chip{
@@ -226,12 +254,12 @@ function widgetRuntime() {
       .mff-chip i{width:28px;height:28px;font-size:11px;box-shadow:2px 2px 0 var(--mff-line)}
       .mff-ticket{
         position:relative;
-        min-height:250px;
-        border:2px solid var(--mff-line);
-        border-radius:30px 8px 30px 8px;
-        background:linear-gradient(135deg,var(--mff-gold),#fff0b9 72%,var(--mff-paper));
-        box-shadow:8px 8px 0 rgba(33,21,15,.18);
-        padding:22px;
+        min-height:300px;
+        border:3px solid var(--mff-line);
+        border-radius:0;
+        background:var(--mff-paper);
+        box-shadow:10px 10px 0 var(--mff-line);
+        padding:clamp(18px,3vw,30px);
         overflow:hidden;
       }
       .mff-ticket:after{
@@ -247,31 +275,47 @@ function widgetRuntime() {
       .mff-ticket strong{position:relative;z-index:1;display:block;font-size:clamp(34px,5vw,72px);font-weight:950;line-height:.84;text-transform:uppercase}
       .mff-editorial{
         display:grid;
-        grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
-        gap:clamp(18px,3vw,36px);
-        align-items:end;
+        grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);
+        gap:clamp(24px,5vw,72px);
+        align-items:center;
+        border-left:3px solid var(--mff-line);
       }
       .mff-editorial-rail{
         display:grid;
-        grid-template-columns:repeat(3,minmax(0,1fr));
-        gap:10px;
+        grid-template-columns:1.15fr .85fr;
+        grid-auto-rows:minmax(150px,1fr);
+        gap:0;
+        border:3px solid var(--mff-line);
+        background:var(--mff-paper);
       }
       .mff-note{
-        min-height:150px;
+        min-height:170px;
         display:flex;
         align-items:flex-end;
-        border:2px solid var(--mff-line);
-        border-radius:22px 6px 22px 6px;
-        background:linear-gradient(135deg,var(--mff-soft),var(--mff-paper));
-        box-shadow:5px 5px 0 rgba(33,21,15,.16);
-        padding:13px;
+        border-right:2px solid rgba(33,21,15,.2);
+        border-bottom:2px solid rgba(33,21,15,.2);
+        background:transparent;
+        box-shadow:none;
+        padding:clamp(16px,2vw,24px);
         color:var(--mff-ink);
-        font-size:clamp(16px,1.65vw,24px);
+        font-size:clamp(22px,3vw,44px);
         font-weight:950;
         line-height:.95;
         text-transform:uppercase;
         overflow:hidden;
         overflow-wrap:anywhere;
+      }
+      .mff-note:first-child{grid-row:span 2;background:var(--mff-gold)}
+      .mff-editorial-rail .mff-visual{
+        grid-row:span 2;
+        width:100%;
+        height:100%;
+        min-height:340px;
+        max-height:none;
+        object-fit:cover;
+        filter:none;
+        background:var(--mff-gold);
+        border-right:2px solid rgba(33,21,15,.2);
       }
       .mff-form{display:grid;gap:10px;margin-top:20px;max-width:680px}
       .mff-form input{width:100%;min-height:48px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-paper);padding:12px 14px;color:var(--mff-ink);font:inherit;font-weight:850}
@@ -449,18 +493,23 @@ function widgetRuntime() {
       .mff-pdp .mff-button:hover,.mff-pdp .mff-button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line)}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 rgba(33,21,15,.16)}
+        .mff-section{padding:22px 14px}
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(36px,11vw,52px)}
         .mff-card-grid{grid-template-columns:1fr}
+        .mff-flow{grid-template-columns:1fr;gap:18px}
         .mff-steps{grid-template-columns:1fr}
         .mff-step{min-height:0;padding:16px 0}
-        .mff-step + .mff-step{border-left:0;border-top:2px solid rgba(33,21,15,.18);padding-left:0}
-        .mff-proof-grid{grid-template-columns:1fr 1fr}
-        .mff-proof-intro{grid-column:1/-1}
-        .mff-proof{border-left:0;border-top:2px solid rgba(33,21,15,.18)}
-        .mff-membership,.mff-editorial{grid-template-columns:1fr}
-        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
+        .mff-step,.mff-step + .mff-step{border-left:0;border-top:2px solid rgba(33,21,15,.18);padding-left:0;padding-right:0;background:transparent}
+        .mff-step:first-child{border-top:0;background:transparent}
+        .mff-proof-grid{grid-template-columns:1fr;gap:16px}
+        .mff-proof-board{grid-template-columns:1fr 1fr}
+        .mff-proof{border-left:0}
+        .mff-membership{grid-template-columns:1fr;background:var(--mff-paper)}
+        .mff-editorial{grid-template-columns:1fr;border-left:0;border-top:3px solid var(--mff-line)}
+        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;border-width:2px}
         .mff-note{min-width:72%;scroll-snap-align:start}
+        .mff-editorial-rail .mff-visual{min-width:78%;min-height:260px;scroll-snap-align:start}
         .mff-actions{gap:8px}
         .mff-button,.mff-form button{width:100%}
         .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -506,12 +555,9 @@ function widgetRuntime() {
     return `url("${raw.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}")`;
   }
 
-  function visualAttrs(copy, extraClass = "") {
-    const cornerClass = copy.cornerStyle === "sharp" ? "mff-shell--sharp" : copy.cornerStyle === "soft" ? "mff-shell--soft" : "";
-    const shadowClass = copy.shadowStyle === "none" ? "mff-shell--no-shadow" : copy.shadowStyle === "soft" ? "mff-shell--soft-shadow" : "";
+  function visualStyle(copy) {
     const opacity = Math.max(0, Math.min(1, Number(copy.backgroundImageOpacity || 0) / 100));
-    const classes = ["mff-widget", "mff-shell", extraClass, cornerClass, shadowClass].filter(Boolean).join(" ");
-    const style = [
+    return [
       `--mff-cream:${copy.backgroundColor || "#fff7ea"}`,
       `--mff-paper:${copy.surfaceColor || "#fffdf7"}`,
       `--mff-ink:${copy.textColor || "#21150f"}`,
@@ -523,6 +569,19 @@ function widgetRuntime() {
       `--mff-bg-opacity:${opacity}`,
       `--mff-bg-position:${copy.backgroundImagePosition || "center center"}`
     ].join(";");
+  }
+
+  function visualAttrs(copy, extraClass = "") {
+    const cornerClass = copy.cornerStyle === "sharp" ? "mff-shell--sharp" : copy.cornerStyle === "soft" ? "mff-shell--soft" : "";
+    const shadowClass = copy.shadowStyle === "none" ? "mff-shell--no-shadow" : copy.shadowStyle === "soft" ? "mff-shell--soft-shadow" : "";
+    const classes = ["mff-widget", "mff-shell", extraClass, cornerClass, shadowClass].filter(Boolean).join(" ");
+    const style = visualStyle(copy);
+    return `class="${escapeHtml(classes)}" style="${escapeHtml(style)}"`;
+  }
+
+  function sectionAttrs(copy, extraClass = "") {
+    const classes = ["mff-widget", "mff-section", extraClass].filter(Boolean).join(" ");
+    const style = visualStyle(copy);
     return `class="${escapeHtml(classes)}" style="${escapeHtml(style)}"`;
   }
 
@@ -833,7 +892,7 @@ function widgetRuntime() {
   function howItWorksWidget(el, data) {
     const copy = widgetCopy(data, "how-it-works");
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf EUR 70";
-    el.innerHTML = `<section ${visualAttrs(copy, "mff-flow")}>
+    el.innerHTML = `<section ${sectionAttrs(copy, "mff-flow")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Zo werkt het")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Vlees kopen. Loten sparen.")}</h2>
@@ -842,8 +901,8 @@ function widgetRuntime() {
           <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.primaryLabel || "Shop vlees")}</a>
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Bekijk winacties")}</a>
         </div>
+        ${visualImage(copy)}
       </div>
-      ${visualImage(copy)}
       <div class="mff-steps">
         <div class="mff-step"><i>1</i><strong>${escapeHtml(copy.stepOneTitle || "Bestel vlees")}</strong><span>${escapeHtml(copy.stepOneText || "Vanaf EUR 70 telt je bestelling mee.")}</span></div>
         <div class="mff-step"><i>2</i><strong>${escapeHtml(copy.stepTwoTitle || "Pak je lot")}</strong><span>${escapeHtml(copy.stepTwoText || "Je lot wordt automatisch gekoppeld.")}</span></div>
@@ -860,14 +919,16 @@ function widgetRuntime() {
       [copy.proofThreeValue || "NL", copy.proofThreeLabel || "Heldere herkomst", "⌂"],
       [copy.proofFourValue || "Live", copy.proofFourLabel || "Trekkingen", "✓"],
     ];
-    el.innerHTML = `<section ${visualAttrs(copy, "mff-proof-grid")}>
+    el.innerHTML = `<section ${sectionAttrs(copy, "mff-proof-grid")}>
       <div class="mff-proof-intro">
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Waarom MFF")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Duidelijk vlees. Eerlijke kansen.")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Minder praat, meer bewijs: gekoeld geleverd, helder verpakt en transparante winacties.")}</p>
         ${visualImage(copy)}
       </div>
-      ${proofs.map(([value, label, icon]) => `<div class="mff-proof"><i aria-hidden="true">${escapeHtml(icon)}</i><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
+      <div class="mff-proof-board">
+        ${proofs.map(([value, label, icon]) => `<div class="mff-proof"><i aria-hidden="true">${escapeHtml(icon)}</i><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
+      </div>
     </section>`;
   }
 
@@ -875,10 +936,10 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "membership");
     const draw = data.liveDraw;
     const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
-    el.innerHTML = `<section ${visualAttrs(copy, "mff-membership")}>
+    el.innerHTML = `<section ${sectionAttrs(copy, "mff-membership")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
-        <h2 class="mff-title">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
+        <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.")}</p>
         <div class="mff-chip-list">
           ${(features.length ? features : ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"]).map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
@@ -891,6 +952,7 @@ function widgetRuntime() {
       ${visualImage(copy)}
       <div class="mff-ticket">
         <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
+        ${visualImage(copy)}
         <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
       </div>
     </section>`;
@@ -899,7 +961,7 @@ function widgetRuntime() {
   function communityWidget(el, data) {
     const copy = widgetCopy(data, "community");
     const notes = [copy.noteOne, copy.noteTwo, copy.noteThree].filter(Boolean);
-    el.innerHTML = `<section ${visualAttrs(copy, "mff-editorial")}>
+    el.innerHTML = `<section ${sectionAttrs(copy, "mff-editorial")}>
       <div>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "BBQ inspiratie")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Wat zet jij op het vuur?")}</h2>
@@ -909,8 +971,8 @@ function widgetRuntime() {
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/community"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Community")}</a>
         </div>
       </div>
-      ${visualImage(copy)}
       <div class="mff-editorial-rail">
+        ${visualImage(copy)}
         ${(notes.length ? notes : ["Recepten", "Klantfoto's", "Challenges"]).map((note) => `<div class="mff-note">${escapeHtml(note)}</div>`).join("")}
       </div>
     </section>`;
