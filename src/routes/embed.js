@@ -120,6 +120,133 @@ function widgetRuntime() {
       .mff-row:last-child{border-bottom:0}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
+      .mff-flow{display:grid;gap:clamp(18px,3vw,34px)}
+      .mff-strip{
+        border:2px solid var(--mff-line);
+        border-radius:22px 7px 22px 7px;
+        background:var(--mff-paper);
+        box-shadow:6px 6px 0 rgba(33,21,15,.14);
+        padding:clamp(16px,2.8vw,28px);
+      }
+      .mff-steps{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        border-top:2px solid rgba(33,21,15,.18);
+        margin-top:22px;
+      }
+      .mff-step{
+        display:grid;
+        gap:8px;
+        align-content:start;
+        padding:18px 18px 0 0;
+        min-height:122px;
+      }
+      .mff-step + .mff-step{border-left:2px solid rgba(33,21,15,.18);padding-left:18px}
+      .mff-step i,.mff-proof i,.mff-chip i{
+        width:36px;
+        height:36px;
+        display:grid;
+        place-items:center;
+        border:2px solid var(--mff-line);
+        border-radius:13px 4px 13px 4px;
+        background:var(--mff-gold);
+        box-shadow:3px 3px 0 var(--mff-line);
+        color:var(--mff-ink);
+        font-style:normal;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-step strong{font-size:clamp(20px,2.4vw,36px);font-weight:950;line-height:.95;text-transform:uppercase}
+      .mff-step span{color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
+      .mff-proof-grid{
+        display:grid;
+        grid-template-columns:minmax(320px,1.15fr) repeat(4,minmax(130px,.72fr));
+        gap:0;
+        align-items:stretch;
+        overflow:hidden;
+      }
+      .mff-proof-intro{padding:clamp(18px,3vw,32px);background:var(--mff-gold)}
+      .mff-proof-intro .mff-title{font-size:clamp(34px,4vw,62px)}
+      .mff-proof{
+        display:grid;
+        align-content:center;
+        gap:10px;
+        padding:clamp(16px,2vw,24px);
+        border-left:2px solid rgba(33,21,15,.18);
+        background:var(--mff-paper);
+      }
+      .mff-proof strong{font-size:clamp(20px,2.25vw,34px);font-weight:950;line-height:.92;text-transform:uppercase}
+      .mff-proof span{color:var(--mff-muted);font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
+      .mff-membership{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) minmax(260px,.75fr);
+        gap:clamp(18px,3vw,38px);
+        align-items:center;
+      }
+      .mff-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+      .mff-chip{
+        display:inline-flex;
+        align-items:center;
+        gap:9px;
+        border:2px solid var(--mff-line);
+        border-radius:14px 5px 14px 5px;
+        background:var(--mff-paper);
+        box-shadow:4px 4px 0 rgba(33,21,15,.16);
+        padding:8px 10px;
+        font-size:12px;
+        font-weight:950;
+        text-transform:uppercase;
+      }
+      .mff-chip i{width:28px;height:28px;font-size:11px;box-shadow:2px 2px 0 var(--mff-line)}
+      .mff-ticket{
+        position:relative;
+        min-height:250px;
+        border:2px solid var(--mff-line);
+        border-radius:30px 8px 30px 8px;
+        background:linear-gradient(135deg,var(--mff-gold),#fff0b9 72%,var(--mff-paper));
+        box-shadow:8px 8px 0 rgba(33,21,15,.18);
+        padding:22px;
+        overflow:hidden;
+      }
+      .mff-ticket:after{
+        content:"MFF";
+        position:absolute;
+        right:-18px;
+        bottom:-22px;
+        color:rgba(33,21,15,.08);
+        font-size:112px;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-ticket strong{position:relative;z-index:1;display:block;font-size:clamp(34px,5vw,72px);font-weight:950;line-height:.84;text-transform:uppercase}
+      .mff-editorial{
+        display:grid;
+        grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+        gap:clamp(18px,3vw,36px);
+        align-items:end;
+      }
+      .mff-editorial-rail{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:10px;
+      }
+      .mff-note{
+        min-height:150px;
+        display:flex;
+        align-items:flex-end;
+        border:2px solid var(--mff-line);
+        border-radius:22px 6px 22px 6px;
+        background:linear-gradient(135deg,var(--mff-soft),var(--mff-paper));
+        box-shadow:5px 5px 0 rgba(33,21,15,.16);
+        padding:13px;
+        color:var(--mff-ink);
+        font-size:clamp(16px,1.65vw,24px);
+        font-weight:950;
+        line-height:.95;
+        text-transform:uppercase;
+        overflow:hidden;
+        overflow-wrap:anywhere;
+      }
       .mff-form{display:grid;gap:10px;margin-top:20px;max-width:680px}
       .mff-form input{width:100%;min-height:48px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-paper);padding:12px 14px;color:var(--mff-ink);font:inherit;font-weight:850}
       .mff-hidden{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important}
@@ -299,6 +426,15 @@ function widgetRuntime() {
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(36px,11vw,52px)}
         .mff-card-grid{grid-template-columns:1fr}
+        .mff-steps{grid-template-columns:1fr}
+        .mff-step{min-height:0;padding:16px 0}
+        .mff-step + .mff-step{border-left:0;border-top:2px solid rgba(33,21,15,.18);padding-left:0}
+        .mff-proof-grid{grid-template-columns:1fr 1fr}
+        .mff-proof-intro{grid-column:1/-1}
+        .mff-proof{border-left:0;border-top:2px solid rgba(33,21,15,.18)}
+        .mff-membership,.mff-editorial{grid-template-columns:1fr}
+        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
+        .mff-note{min-width:72%;scroll-snap-align:start}
         .mff-actions{gap:8px}
         .mff-button,.mff-form button{width:100%}
         .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -631,6 +767,88 @@ function widgetRuntime() {
     </section>`;
   }
 
+  function howItWorksWidget(el, data) {
+    const copy = widgetCopy(data, "how-it-works");
+    const ruleLabel = data.rule?.label || "1 gratis lot vanaf EUR 70";
+    el.innerHTML = `<section class="mff-widget mff-shell mff-flow">
+      <div>
+        <p class="mff-kicker">${escapeHtml(copy.kicker || "Zo werkt het")}</p>
+        <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Vlees kopen. Loten sparen.")}</h2>
+        <p class="mff-copy">${escapeHtml(copyText(copy.body || "Hou het simpel: bestel goed vlees, ontvang automatisch loten en volg elke trekking in Mijn MFF.", { rule: ruleLabel }))}</p>
+        <div class="mff-actions">
+          <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.primaryLabel || "Shop vlees")}</a>
+          <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Bekijk winacties")}</a>
+        </div>
+      </div>
+      <div class="mff-steps">
+        <div class="mff-step"><i>1</i><strong>${escapeHtml(copy.stepOneTitle || "Bestel vlees")}</strong><span>${escapeHtml(copy.stepOneText || "Vanaf EUR 70 telt je bestelling mee.")}</span></div>
+        <div class="mff-step"><i>2</i><strong>${escapeHtml(copy.stepTwoTitle || "Pak je lot")}</strong><span>${escapeHtml(copy.stepTwoText || "Je lot wordt automatisch gekoppeld.")}</span></div>
+        <div class="mff-step"><i>3</i><strong>${escapeHtml(copy.stepThreeTitle || "Volg de trekking")}</strong><span>${escapeHtml(copy.stepThreeText || "Alles zichtbaar in Mijn MFF.")}</span></div>
+      </div>
+    </section>`;
+  }
+
+  function trustWidget(el, data) {
+    const copy = widgetCopy(data, "trust");
+    const proofs = [
+      [copy.proofOneValue || "4.8/5", copy.proofOneLabel || "Beoordeling", "★"],
+      [copy.proofTwoValue || "Gekoeld", copy.proofTwoLabel || "Vers verpakt", "❄"],
+      [copy.proofThreeValue || "NL", copy.proofThreeLabel || "Heldere herkomst", "⌂"],
+      [copy.proofFourValue || "Live", copy.proofFourLabel || "Trekkingen", "✓"],
+    ];
+    el.innerHTML = `<section class="mff-widget mff-shell mff-proof-grid">
+      <div class="mff-proof-intro">
+        <p class="mff-kicker">${escapeHtml(copy.kicker || "Waarom MFF")}</p>
+        <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Duidelijk vlees. Eerlijke kansen.")}</h2>
+        <p class="mff-copy">${escapeHtml(copy.body || "Minder praat, meer bewijs: gekoeld geleverd, helder verpakt en transparante winacties.")}</p>
+      </div>
+      ${proofs.map(([value, label, icon]) => `<div class="mff-proof"><i aria-hidden="true">${escapeHtml(icon)}</i><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
+    </section>`;
+  }
+
+  function membershipWidget(el, data) {
+    const copy = widgetCopy(data, "membership");
+    const draw = data.liveDraw;
+    const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
+    el.innerHTML = `<section class="mff-widget mff-shell mff-membership">
+      <div>
+        <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
+        <h2 class="mff-title">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
+        <p class="mff-copy">${escapeHtml(copy.body || "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.")}</p>
+        <div class="mff-chip-list">
+          ${(features.length ? features : ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"]).map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
+        </div>
+        <div class="mff-actions">
+          <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/memberships"))}" target="_top">${escapeHtml(copy.primaryLabel || "Word lid")}</a>
+          <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Mijn MFF")}</a>
+        </div>
+      </div>
+      <div class="mff-ticket">
+        <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
+        <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
+      </div>
+    </section>`;
+  }
+
+  function communityWidget(el, data) {
+    const copy = widgetCopy(data, "community");
+    const notes = [copy.noteOne, copy.noteTwo, copy.noteThree].filter(Boolean);
+    el.innerHTML = `<section class="mff-widget mff-shell mff-editorial">
+      <div>
+        <p class="mff-kicker">${escapeHtml(copy.kicker || "BBQ inspiratie")}</p>
+        <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Wat zet jij op het vuur?")}</h2>
+        <p class="mff-copy">${escapeHtml(copy.body || "Laat recepten, klantfoto's en BBQ challenges zien zonder de shop uit het oog te verliezen.")}</p>
+        <div class="mff-actions">
+          <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/bbq-inspiratie"))}" target="_top">${escapeHtml(copy.primaryLabel || "Bekijk inspiratie")}</a>
+          <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/community"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Community")}</a>
+        </div>
+      </div>
+      <div class="mff-editorial-rail">
+        ${(notes.length ? notes : ["Recepten", "Klantfoto's", "Challenges"]).map((note) => `<div class="mff-note">${escapeHtml(note)}</div>`).join("")}
+      </div>
+    </section>`;
+  }
+
   function freeEntryWidget(el, data) {
     const copy = widgetCopy(data, "free-entry");
     const drawId = data.liveDraw?.id || "";
@@ -677,6 +895,10 @@ function widgetRuntime() {
       if (type === "cart") return cartWidget(el, data);
       if (type === "winners") return winnersWidget(el, data);
       if (type === "pdp") return pdpWidget(el, data);
+      if (type === "how-it-works") return howItWorksWidget(el, data);
+      if (type === "trust") return trustWidget(el, data);
+      if (type === "membership") return membershipWidget(el, data);
+      if (type === "community") return communityWidget(el, data);
       return liveWidget(el, data);
     } catch (error) {
       el.innerHTML = '<section class="mff-widget mff-shell"><p class="mff-kicker">Fout</p><h2 class="mff-title mff-title--ink">Niet geladen.</h2><p class="mff-copy">' + escapeHtml(error.message) + '</p></section>';
@@ -728,6 +950,10 @@ embedRouter.get("/demo", (_req, res) => {
       <div data-dvl-lottery="live"></div>
       <div data-dvl-lottery="cart"></div>
       <div data-dvl-lottery="winners"></div>
+      <div data-dvl-lottery="how-it-works"></div>
+      <div data-dvl-lottery="trust"></div>
+      <div data-dvl-lottery="membership"></div>
+      <div data-dvl-lottery="community"></div>
       <div data-dvl-lottery="customer"></div>
       <div data-dvl-lottery="pdp" data-product-price-cents="2549"></div>
       <div data-dvl-lottery="free-entry"></div>
@@ -738,7 +964,7 @@ embedRouter.get("/demo", (_req, res) => {
 });
 
 embedRouter.get("/frame", (req, res) => {
-  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "pdp"]);
+  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "pdp", "how-it-works", "trust", "membership", "community"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
   const sectionId = String(req.query.section_id || "");
 

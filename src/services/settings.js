@@ -133,6 +133,79 @@ export const widgetDefinitions = [
       duplicateText: "Je gratis deelname stond al geregistreerd.",
       successPrefix: "Gelukt. Lotnummer:"
     }
+  },
+  {
+    key: "how-it-works",
+    label: "Hoe Meat For Free werkt",
+    description: "Korte uitleg voor homepage: bestellen, lot krijgen, trekking volgen.",
+    defaults: {
+      kicker: "Zo werkt het",
+      heading: "Vlees kopen. Loten sparen.",
+      body: "Hou het simpel: bestel goed vlees, ontvang automatisch loten en volg elke trekking in Mijn MFF.",
+      stepOneTitle: "Bestel vlees",
+      stepOneText: "Vanaf EUR 70 telt je bestelling mee.",
+      stepTwoTitle: "Pak je lot",
+      stepTwoText: "Je lot wordt automatisch gekoppeld.",
+      stepThreeTitle: "Volg de trekking",
+      stepThreeText: "Alles zichtbaar in Mijn MFF.",
+      primaryLabel: "Shop vlees",
+      primaryUrl: "/collections/all",
+      secondaryLabel: "Bekijk winacties",
+      secondaryUrl: "/pages/actieve-loterijen"
+    }
+  },
+  {
+    key: "trust",
+    label: "Trust / herkomst / levering",
+    description: "Rustige bewijs-sectie voor gekoelde levering, reviews en herkomst.",
+    defaults: {
+      kicker: "Waarom MFF",
+      heading: "Duidelijk vlees. Eerlijke kansen.",
+      body: "Minder praat, meer bewijs: gekoeld geleverd, helder verpakt en transparante winacties.",
+      proofOneValue: "4.8/5",
+      proofOneLabel: "Beoordeling",
+      proofTwoValue: "Gekoeld",
+      proofTwoLabel: "Vers verpakt",
+      proofThreeValue: "NL",
+      proofThreeLabel: "Heldere herkomst",
+      proofFourValue: "Live",
+      proofFourLabel: "Trekkingen"
+    }
+  },
+  {
+    key: "membership",
+    label: "Membership / abonnement",
+    description: "Retentie-blok voor abonnement, automatische deelname en Mijn MFF.",
+    defaults: {
+      kicker: "Meat For Free club",
+      heading: "Altijd meedoen.",
+      body: "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.",
+      featureOne: "Automatische loten",
+      featureTwo: "Vroege toegang",
+      featureThree: "Clubvoordeel",
+      featureFour: "Mijn MFF dashboard",
+      primaryLabel: "Word lid",
+      primaryUrl: "/pages/memberships",
+      secondaryLabel: "Mijn MFF",
+      secondaryUrl: "/pages/mijn-mff-dashboard"
+    }
+  },
+  {
+    key: "community",
+    label: "Community / BBQ inspiratie",
+    description: "Editorial blok voor recepten, BBQ inspiratie en klantcontent.",
+    defaults: {
+      kicker: "BBQ inspiratie",
+      heading: "Wat zet jij op het vuur?",
+      body: "Laat recepten, klantfoto's en BBQ challenges zien zonder de shop uit het oog te verliezen.",
+      noteOne: "Recepten",
+      noteTwo: "Klantfoto's",
+      noteThree: "Challenges",
+      primaryLabel: "Bekijk inspiratie",
+      primaryUrl: "/pages/bbq-inspiratie",
+      secondaryLabel: "Community",
+      secondaryUrl: "/pages/community"
+    }
   }
 ];
 
