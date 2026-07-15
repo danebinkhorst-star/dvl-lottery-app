@@ -230,6 +230,7 @@ function page(title, active, body) {
         tbody tr:hover { background:#faf8f2; }
         .status { display:inline-flex; align-items:center; justify-content:center; min-width:0; padding:5px 9px; border:1px solid var(--line); border-radius:999px; background:#f8fafc; color:#374151; font-size:11px; font-weight:850; }
         .status--live, .status--active, .status--paid { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--pending { background:#fff6df; border-color:#e5cb73; color:#9a6700; }
         .status--drawn, .status--winner { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
         .status--void, .status--cancelled, .status--refunded, .status--archived { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
         .status--goed, .status--laag { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
@@ -283,7 +284,13 @@ function page(title, active, body) {
         input[type="range"] { padding:0; }
         .widget-preview { position:sticky; top:86px; display:grid; gap:10px; min-width:0; }
         .widget-preview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-        .widget-preview-frame { width:100%; min-height:360px; border:1px solid var(--line); border-radius:14px; background:#fff7ea; box-shadow:0 12px 34px rgba(33,21,15,.08); }
+        .widget-preview-tools { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+        .widget-preview-toggle { min-height:30px; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:0 10px; color:var(--ink); font:inherit; font-size:11px; font-weight:900; text-transform:uppercase; cursor:pointer; }
+        .widget-preview-toggle[aria-pressed="true"] { background:var(--gold); box-shadow:2px 2px 0 var(--ink); }
+        .widget-preview-shell { display:grid; justify-items:center; padding:10px; border:1px solid var(--line); border-radius:14px; background:#efe8d9; box-shadow:0 12px 34px rgba(33,21,15,.08); transition:background 160ms ease; }
+        .widget-preview[data-preview-size="mobile"] .widget-preview-shell { background:#d7d0c3; }
+        .widget-preview-frame { width:100%; max-width:1180px; min-height:360px; border:1px solid var(--line); border-radius:10px; background:#fff7ea; }
+        .widget-preview[data-preview-size="mobile"] .widget-preview-frame { max-width:390px; min-height:560px; }
         .widget-preview-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
         .widget-live-note { color:var(--muted); font-size:11px; font-weight:750; text-transform:none; letter-spacing:0; }
         @media (max-width:1100px) { .grid, .grid-3, .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
@@ -1755,6 +1762,21 @@ function widgetVisualField(key, value) {
 function widgetPreviewScript() {
   return `<script>
     (() => {
+      const readSettings = (form) => {
+        const settings = {};
+        new FormData(form).forEach((value, field) => {
+          if (field.startsWith("_")) return;
+          if (field.endsWith("_text")) return;
+          settings[field] = value;
+        });
+        return settings;
+      };
+      const normalize = (settings) => {
+        return JSON.stringify(Object.keys(settings).sort().reduce((acc, key) => {
+          acc[key] = String(settings[key] == null ? "" : settings[key]);
+          return acc;
+        }, {}));
+      };
       const enc = (value) => {
         const bytes = new TextEncoder().encode(JSON.stringify(value));
         let binary = "";
@@ -1764,15 +1786,27 @@ function widgetPreviewScript() {
       const updatePreview = (form) => {
         const key = form.dataset.widgetKey;
         const frame = document.querySelector('[data-widget-preview="' + key + '"]');
+        const state = document.querySelector('[data-widget-preview-state="' + key + '"]');
         if (!frame) return;
-        const settings = {};
-        new FormData(form).forEach((value, field) => {
-          if (field.endsWith("_text")) return;
-          settings[field] = value;
-        });
-        frame.src = "/embed/frame?widget=" + encodeURIComponent(key) + "&preview=" + encodeURIComponent(enc({ key, settings })) + "&ts=" + Date.now();
+        const settings = readSettings(form);
+        const saved = form.dataset.savedSettings || "{}";
+        const isSaved = normalize(settings) === saved;
+        if (state) {
+          state.textContent = isSaved ? "Saved live" : "Draft";
+          state.classList.toggle("status--active", isSaved);
+          state.classList.toggle("status--pending", !isSaved);
+        }
+        frame.src = isSaved
+          ? "/embed/frame?widget=" + encodeURIComponent(key) + "&ts=" + Date.now()
+          : "/embed/frame?widget=" + encodeURIComponent(key) + "&preview=" + encodeURIComponent(enc({ key, settings })) + "&ts=" + Date.now();
       };
       document.querySelectorAll("[data-widget-form]").forEach((form) => {
+        try {
+          const parsed = JSON.parse(form.dataset.savedSettings || "{}");
+          form.dataset.savedSettings = normalize(parsed);
+        } catch (_error) {
+          form.dataset.savedSettings = normalize({});
+        }
         const refresh = () => updatePreview(form);
         form.addEventListener("input", (event) => {
           const target = event.target;
@@ -1792,6 +1826,17 @@ function widgetPreviewScript() {
         });
         refresh();
       });
+      document.querySelectorAll("[data-preview-size]").forEach((preview) => {
+        preview.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-preview-size-button]");
+          if (!button) return;
+          const size = button.dataset.previewSizeButton || "desktop";
+          preview.dataset.previewSize = size;
+          preview.querySelectorAll("[data-preview-size-button]").forEach((item) => {
+            item.setAttribute("aria-pressed", String(item === button));
+          });
+        });
+      });
     })();
   </script>`;
 }
@@ -1799,6 +1844,7 @@ function widgetPreviewScript() {
 function widgetEditorCard(definition) {
   const settings = getWidgetSettings(definition.key);
   const contentKeys = Object.keys(definition.defaults);
+  const savedSettings = escapeHtml(JSON.stringify(settings));
   return `<article class="widget-editor-card">
     <div class="widget-editor-head">
       <div>
@@ -1808,7 +1854,7 @@ function widgetEditorCard(definition) {
       <span class="status status--active">${escapeHtml(definition.key)}</span>
     </div>
     <div class="widget-editor-body">
-      <form method="post" action="/admin/widgets/${escapeHtml(definition.key)}" class="stack" data-widget-form data-widget-key="${escapeHtml(definition.key)}">
+      <form method="post" action="/admin/widgets/${escapeHtml(definition.key)}" class="stack" data-widget-form data-widget-key="${escapeHtml(definition.key)}" data-saved-settings="${savedSettings}">
         <div class="widget-fieldset">
           <div class="widget-fieldset-title"><span>Content</span><span class="widget-live-note">Tekst, knoppen en links</span></div>
           <div class="form-grid">
@@ -1826,16 +1872,22 @@ function widgetEditorCard(definition) {
           <a class="button button--ghost" href="/embed/frame?widget=${escapeHtml(definition.key)}" target="_blank" rel="noreferrer">${icon("ExternalLink")}Open groot</a>
         </div>
       </form>
-      <aside class="widget-preview" aria-label="Live preview ${escapeHtml(definition.label)}">
+      <aside class="widget-preview" data-preview-size="desktop" aria-label="Live preview ${escapeHtml(definition.label)}">
         <div class="widget-preview-head">
           <div>
             <p class="eyebrow">Live preview</p>
             <h3>${escapeHtml(definition.label)}</h3>
           </div>
-          <span class="status status--active">Unsaved</span>
+          <span class="status status--active" data-widget-preview-state="${escapeHtml(definition.key)}">Saved live</span>
         </div>
-        <iframe class="widget-preview-frame" data-widget-preview="${escapeHtml(definition.key)}" title="${escapeHtml(definition.label)} preview"></iframe>
-        <p class="widget-live-note">Deze preview gebruikt je huidige velden voordat je opslaat.</p>
+        <div class="widget-preview-tools" aria-label="Preview formaat">
+          <button class="widget-preview-toggle" type="button" data-preview-size-button="desktop" aria-pressed="true">Desktop</button>
+          <button class="widget-preview-toggle" type="button" data-preview-size-button="mobile" aria-pressed="false">Mobiel</button>
+        </div>
+        <div class="widget-preview-shell">
+          <iframe class="widget-preview-frame" data-widget-preview="${escapeHtml(definition.key)}" title="${escapeHtml(definition.label)} preview"></iframe>
+        </div>
+        <p class="widget-live-note">Saved live gebruikt exact de opgeslagen embed. Draft verschijnt alleen wanneer je velden wijzigt.</p>
       </aside>
     </div>
   </article>`;
