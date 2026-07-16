@@ -412,6 +412,66 @@ function widgetRuntime() {
         background-size:180% 100%;
         animation:mffRewardBar 1500ms ease-in-out 1;
       }
+      .mff-cart-complete{
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr) auto;
+        align-items:center;
+        gap:12px;
+        border:2px solid var(--mff-line);
+        border-radius:18px 6px 18px 6px;
+        background:linear-gradient(135deg,#fffdf7 0%,#fff2cf 100%);
+        box-shadow:4px 4px 0 rgba(33,21,15,.22);
+        padding:12px 13px;
+      }
+      .mff-cart-complete__icon{
+        width:40px;
+        height:40px;
+        display:grid;
+        place-items:center;
+        border:2px solid var(--mff-line);
+        border-radius:13px 5px 13px 5px;
+        background:var(--mff-gold);
+        color:var(--mff-ink);
+        box-shadow:3px 3px 0 var(--mff-line);
+        font-size:22px;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-cart-complete strong,
+      .mff-cart-complete b{
+        display:block;
+        color:var(--mff-ink);
+        font-size:14px;
+        font-weight:950;
+        line-height:1;
+        text-transform:uppercase;
+      }
+      .mff-cart-complete em{
+        display:block;
+        margin-top:4px;
+        color:#675847;
+        font-size:12px;
+        font-style:normal;
+        font-weight:850;
+        line-height:1.22;
+      }
+      .mff-cart-complete b{
+        color:var(--mff-red);
+        white-space:nowrap;
+      }
+      .mff-cart--reached{
+        padding:10px 0;
+        border:0;
+        background:transparent;
+        box-shadow:none;
+      }
+      .mff-cart--reached .mff-cart-head,
+      .mff-cart--reached .mff-cart-reward,
+      .mff-cart--reached .mff-progress,
+      .mff-cart--reached .mff-cart-lines,
+      .mff-cart--reached .mff-actions{
+        display:none;
+      }
       @keyframes mffRewardSweep{
         0%{opacity:0;transform:translateX(0) skewX(-18deg)}
         20%{opacity:.9}
@@ -422,60 +482,60 @@ function widgetRuntime() {
         100%{background-position:180% 0}
       }
       .mff-pdp{
-        padding:14px 16px;
+        padding:10px 11px;
         border-width:2px;
-        border-radius:18px 6px 18px 6px;
-        box-shadow:4px 4px 0 rgba(33,21,15,.2);
+        border-radius:14px 5px 14px 5px;
+        box-shadow:3px 3px 0 rgba(33,21,15,.18);
         background:linear-gradient(135deg,#fffdf7 0%,#fff6e6 100%);
       }
       .mff-pdp-layout{
         display:grid;
-        grid-template-columns:auto minmax(0,1fr) auto;
+        grid-template-columns:auto minmax(0,1fr);
         align-items:center;
-        gap:14px;
+        gap:10px;
       }
       .mff-pdp-mark{
-        width:42px;
-        height:42px;
+        width:34px;
+        height:34px;
         display:grid;
         place-items:center;
         flex:0 0 auto;
         border:2px solid var(--mff-line);
-        border-radius:14px 5px 14px 5px;
+        border-radius:12px 4px 12px 4px;
         background:var(--mff-gold);
-        box-shadow:3px 3px 0 var(--mff-line);
+        box-shadow:2px 2px 0 var(--mff-line);
         color:var(--mff-ink);
-        font-size:17px;
+        font-size:15px;
         font-weight:950;
         line-height:1;
       }
       .mff-pdp .mff-kicker{
-        margin:0 0 4px;
-        font-size:10px;
-        letter-spacing:.08em;
+        margin:0 0 3px;
+        font-size:9px;
+        letter-spacing:.06em;
       }
       .mff-pdp .mff-title{
         color:var(--mff-ink);
-        font-size:clamp(19px,2.2vw,28px);
-        line-height:.98;
+        font-size:clamp(15px,1.35vw,18px);
+        line-height:1;
         -webkit-text-stroke:0;
         text-shadow:none;
       }
       .mff-pdp .mff-copy{
-        margin-top:6px;
-        max-width:560px;
-        font-size:clamp(13px,1.15vw,15px);
-        line-height:1.34;
+        margin-top:4px;
+        max-width:420px;
+        font-size:clamp(11px,0.95vw,12px);
+        line-height:1.26;
         font-weight:850;
       }
       .mff-pdp .mff-progress{
-        height:10px;
-        max-width:280px;
-        margin-top:9px;
+        height:7px;
+        max-width:220px;
+        margin-top:7px;
         border-width:2px;
       }
       .mff-pdp-actions{
-        display:flex;
+        display:none;
         flex-direction:column;
         align-items:stretch;
         gap:8px;
@@ -519,12 +579,12 @@ function widgetRuntime() {
         .mff-reward-medal{width:48px;height:48px;font-size:23px}
         .mff-reward-status strong{font-size:clamp(17px,5vw,23px)}
         .mff-reward-status span{font-size:12px}
-        .mff-pdp{padding:12px 12px;border-radius:18px 6px 18px 6px;box-shadow:4px 4px 0 rgba(33,21,15,.18)}
+        .mff-pdp{padding:10px 10px;border-radius:14px 5px 14px 5px;box-shadow:3px 3px 0 rgba(33,21,15,.16)}
         .mff-pdp-layout{grid-template-columns:auto minmax(0,1fr);gap:12px}
-        .mff-pdp-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;min-width:0}
+        .mff-pdp-actions{display:none}
         .mff-pdp .mff-button{width:100%;min-height:38px}
-        .mff-pdp .mff-title{font-size:clamp(20px,6vw,26px)}
-        .mff-pdp .mff-copy{font-size:13px}
+        .mff-pdp .mff-title{font-size:clamp(15px,4.3vw,18px)}
+        .mff-pdp .mff-copy{font-size:11px}
       }
       @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i{animation:none}}
     `;
@@ -698,7 +758,6 @@ function widgetRuntime() {
   function cartWidget(el, data) {
     const copy = widgetCopy(data, "cart");
     const threshold = Number(data.rule?.minimumCents || 7000);
-    const draw = data.liveDraw;
     const renderCart = (cart, errorMessage = "") => {
       const total = Number(cart?.total_price || 0);
       const itemCount = Number(cart?.item_count || 0);
@@ -718,6 +777,14 @@ function widgetRuntime() {
       const rewardLabel = reached ? "Gehaald" : itemCount === 0 ? "Vanaf " + formatEuro(threshold) : "Nog " + formatEuro(remaining);
       const rewardText = reached ? "1 gratis lot staat klaar bij checkout." : itemCount === 0 ? "Vul je mandje en speel automatisch mee." : "Voeg nog iets toe en unlock je lot.";
       el.innerHTML = `<section ${visualAttrs(copy, `mff-cart ${reached ? "mff-cart--reached" : ""}`)}>
+        ${reached ? `<div class="mff-cart-complete" aria-live="polite">
+          <span class="mff-cart-complete__icon" aria-hidden="true">✓</span>
+          <span>
+            <strong>${escapeHtml(copy.reachedCompactHeading || "Gratis lot actief")}</strong>
+            <em>${escapeHtml(copy.reachedCompactBody || "Je lot wordt automatisch gekoppeld bij checkout.")}</em>
+          </span>
+          <b>${escapeHtml(copy.reachedCompactLabel || "1 lot")}</b>
+        </div>` : ""}
         <div class="mff-cart-head">
           <div>
             <span class="mff-badge">${escapeHtml(copy.badge || "Gratis lot")}</span>
@@ -877,8 +944,8 @@ function widgetRuntime() {
         <div class="mff-pdp-mark" aria-hidden="true">1</div>
         <div class="mff-pdp-copy">
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Lot bij je bestelling")}</p>
-          <h2 class="mff-title">${escapeHtml(qualifies ? (copy.qualifiesHeading || "Dit product pakt een lot.") : (copy.remainingHeading || "Dichter bij je lot."))}</h2>
-          <p class="mff-copy">${escapeHtml(qualifies ? (copy.qualifiesBody || "Bestel dit product en je krijgt automatisch 1 gratis lot voor de actieve winactie.") : copyText(copy.remainingBody || "{remaining} extra in je mandje en je bestelling pakt automatisch een gratis lot.", { remaining: formatEuro(remaining) }))}</p>
+          <h2 class="mff-title">${escapeHtml(qualifies ? (copy.qualifiesHeading || "Gratis lot met dit product.") : (copy.remainingHeading || "Dichter bij je lot."))}</h2>
+          <p class="mff-copy">${escapeHtml(qualifies ? (copy.qualifiesBody || "Vanaf checkout automatisch gekoppeld.") : copyText(copy.remainingBody || "Nog {remaining} tot je gratis lot.", { remaining: formatEuro(remaining) }))}</p>
           <div class="mff-progress" aria-label="Productbijdrage naar gratis lot" style="--progress:${progress}%"><i></i></div>
         </div>
         <div class="mff-pdp-actions">
