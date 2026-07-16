@@ -105,7 +105,7 @@ function widgetRuntime() {
         filter:drop-shadow(6px 8px 0 rgba(33,21,15,.16));
       }
       .mff-hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr);gap:clamp(16px,3vw,32px);align-items:end}
-      .mff-kicker{margin:0 0 10px;color:var(--mff-red);font-size:11px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+      .mff-kicker{display:none!important}
       .mff-title{
         margin:0;
         color:#fff8ea;
