@@ -26,7 +26,7 @@ function widgetRuntime() {
     style.textContent = `
       .mff-widget,.mff-widget *{box-sizing:border-box}
       .mff-widget{
-        --mff-cream:#fff7ea;
+        --mff-cream:#fff8ed;
         --mff-paper:#fffdf7;
         --mff-ink:#21150f;
         --mff-muted:#765f4d;
@@ -165,16 +165,15 @@ function widgetRuntime() {
       .mff-time strong{font-size:24px;font-weight:950;line-height:1}
       .mff-time span{font-size:9px;font-weight:950;text-transform:uppercase;color:var(--mff-muted)}
       .mff-list{display:grid;gap:10px;margin-top:18px}
-      .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(33,21,15,.18);font-weight:900}
-      .mff-row:last-child{border-bottom:0}
+      .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;font-weight:900}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
-      .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;border-top:3px solid var(--mff-line);border-bottom:3px solid var(--mff-line)}
+      .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
       .mff-steps{
         display:grid;
         grid-template-columns:repeat(3,minmax(0,1fr));
-        gap:0;
+        gap:clamp(12px,2vw,24px);
         min-height:260px;
       }
       .mff-step{
@@ -182,11 +181,10 @@ function widgetRuntime() {
         gap:8px;
         align-content:space-between;
         padding:clamp(18px,3vw,34px);
-        border-left:2px solid rgba(33,21,15,.2);
-        background:linear-gradient(180deg,rgba(255,253,247,.72),rgba(255,247,234,.28));
+        background:transparent;
       }
-      .mff-step:first-child{border-left:0;background:var(--mff-gold)}
-      .mff-step + .mff-step{border-left:2px solid rgba(33,21,15,.2);padding-left:clamp(18px,3vw,34px)}
+      .mff-step:first-child{background:transparent}
+      .mff-step + .mff-step{padding-left:clamp(18px,3vw,34px)}
       .mff-step i,.mff-proof i,.mff-chip i{
         width:36px;
         height:36px;
@@ -209,7 +207,6 @@ function widgetRuntime() {
         gap:clamp(20px,4vw,60px);
         align-items:center;
         overflow:hidden;
-        border-top:3px solid var(--mff-line);
       }
       .mff-proof-intro{padding:0;background:transparent}
       .mff-proof-intro .mff-title{font-size:clamp(34px,4vw,62px)}
@@ -221,7 +218,6 @@ function widgetRuntime() {
         column-gap:12px;
         row-gap:4px;
         padding:0 0 clamp(12px,2vw,18px);
-        border-bottom:2px solid rgba(33,21,15,.2);
         background:transparent;
       }
       .mff-proof i{grid-row:1/3}
@@ -233,8 +229,6 @@ function widgetRuntime() {
         gap:clamp(24px,5vw,72px);
         align-items:center;
         background:linear-gradient(90deg,var(--mff-paper) 0 54%,var(--mff-gold) 54% 100%);
-        border-top:3px solid var(--mff-line);
-        border-bottom:3px solid var(--mff-line);
       }
       .mff-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
       .mff-chip{
@@ -277,7 +271,6 @@ function widgetRuntime() {
         grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);
         gap:clamp(24px,5vw,72px);
         align-items:center;
-        border-left:3px solid var(--mff-line);
       }
       .mff-editorial-rail{
         display:grid;
@@ -291,8 +284,6 @@ function widgetRuntime() {
         min-height:170px;
         display:flex;
         align-items:flex-end;
-        border-right:2px solid rgba(33,21,15,.2);
-        border-bottom:2px solid rgba(33,21,15,.2);
         background:transparent;
         box-shadow:none;
         padding:clamp(16px,2vw,24px);
@@ -314,7 +305,6 @@ function widgetRuntime() {
         object-fit:cover;
         filter:none;
         background:var(--mff-gold);
-        border-right:2px solid rgba(33,21,15,.2);
       }
       .mff-form{display:grid;gap:10px;margin-top:20px;max-width:680px}
       .mff-form input{width:100%;min-height:48px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-paper);padding:12px 14px;color:var(--mff-ink);font:inherit;font-weight:850}
@@ -557,16 +547,16 @@ function widgetRuntime() {
         .mff-title{font-size:clamp(36px,11vw,52px)}
         .mff-card-grid{grid-template-columns:1fr}
         .mff-flow{grid-template-columns:1fr;gap:18px}
-        .mff-steps{grid-template-columns:1fr}
+        .mff-steps{grid-template-columns:1fr;gap:18px}
         .mff-step{min-height:0;padding:16px 0}
-        .mff-step,.mff-step + .mff-step{border-left:0;border-top:2px solid rgba(33,21,15,.18);padding-left:0;padding-right:0;background:transparent}
-        .mff-step:first-child{border-top:0;background:transparent}
+        .mff-step,.mff-step + .mff-step{padding-left:0;padding-right:0;background:transparent}
+        .mff-step:first-child{background:transparent}
         .mff-proof-grid{grid-template-columns:1fr;gap:16px}
         .mff-proof-board{grid-template-columns:1fr 1fr}
         .mff-proof{border-left:0}
         .mff-membership{grid-template-columns:1fr;background:var(--mff-paper)}
-        .mff-editorial{grid-template-columns:1fr;border-left:0;border-top:3px solid var(--mff-line)}
-        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;border-width:2px}
+        .mff-editorial{grid-template-columns:1fr}
+        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
         .mff-note{min-width:72%;scroll-snap-align:start}
         .mff-editorial-rail .mff-visual{min-width:78%;min-height:260px;scroll-snap-align:start}
         .mff-actions{gap:8px}
@@ -617,7 +607,7 @@ function widgetRuntime() {
   function visualStyle(copy) {
     const opacity = Math.max(0, Math.min(1, Number(copy.backgroundImageOpacity || 0) / 100));
     return [
-      `--mff-cream:${copy.backgroundColor || "#fff7ea"}`,
+      `--mff-cream:${copy.backgroundColor || "#fff8ed"}`,
       `--mff-paper:${copy.surfaceColor || "#fffdf7"}`,
       `--mff-ink:${copy.textColor || "#21150f"}`,
       `--mff-muted:${copy.mutedColor || "#765f4d"}`,
