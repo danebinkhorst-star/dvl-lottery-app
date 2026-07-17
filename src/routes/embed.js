@@ -108,16 +108,21 @@ function widgetRuntime() {
       .mff-kicker{display:none!important}
       .mff-title{
         margin:0;
-        color:var(--mff-ink);
+        color:var(--mff-ink)!important;
+        -webkit-text-fill-color:var(--mff-ink)!important;
         font-size:clamp(38px,6vw,82px);
         font-weight:950;
         line-height:.88;
         letter-spacing:0;
         text-transform:uppercase;
-        -webkit-text-stroke:0;
-        text-shadow:none;
+        text-wrap:balance;
+        overflow-wrap:normal;
+        word-break:normal;
+        hyphens:none;
+        -webkit-text-stroke:0!important;
+        text-shadow:none!important;
       }
-      .mff-title--ink{color:var(--mff-ink);-webkit-text-stroke:0;text-shadow:none}
+      .mff-title--ink{color:var(--mff-ink)!important;-webkit-text-fill-color:var(--mff-ink)!important;-webkit-text-stroke:0!important;text-shadow:none!important}
       .mff-copy{margin:14px 0 0;max-width:720px;color:var(--mff-muted);font-size:clamp(14px,1.4vw,18px);font-weight:850;line-height:1.45}
       .mff-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
       .mff-button,.mff-form button{
@@ -544,7 +549,7 @@ function widgetRuntime() {
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 rgba(33,21,15,.16)}
         .mff-section{padding:22px 14px}
         .mff-hero{grid-template-columns:1fr;gap:14px}
-        .mff-title{font-size:clamp(36px,11vw,52px)}
+        .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
         .mff-card-grid{grid-template-columns:1fr}
         .mff-flow{grid-template-columns:1fr;gap:18px}
         .mff-steps{grid-template-columns:1fr;gap:18px}
