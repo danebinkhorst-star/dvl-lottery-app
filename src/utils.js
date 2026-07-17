@@ -23,7 +23,7 @@ export function makeEntryNumber(prefix = "MFF") {
 }
 
 export function verifyShopifyWebhook(rawBody, hmacHeader, secret) {
-  if (!secret) return true;
+  if (!secret) return false;
   if (!hmacHeader) return false;
   const digest = crypto
     .createHmac("sha256", secret)

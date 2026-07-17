@@ -14,7 +14,7 @@ export function calculateEntryCount(totalCents, rule = config) {
 
 function hashIp(ipAddress) {
   const cleanIp = String(ipAddress || "unknown").trim().toLowerCase();
-  const secret = config.SHOPIFY_WEBHOOK_SECRET || config.ADMIN_PASSWORD || "dvl-free-entry-ip";
+  const secret = config.FREE_ENTRY_HASH_SECRET || "dvl-free-entry-ip";
   return crypto.createHmac("sha256", secret).update(cleanIp).digest("hex");
 }
 
@@ -259,10 +259,13 @@ export async function voidEntriesForOrder(shopifyOrderId, reason = "Order refund
 export async function drawWinner(drawId) {
   const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(drawId);
   if (!draw) throw new Error("Draw not found");
+  if (draw.status !== "LIVE" || draw.winner_entry_id) {
+    throw new Error("Draw has already been completed");
+  }
   const entries = db.prepare("SELECT * FROM lottery_entries WHERE draw_id = ? AND status = 'ACTIVE'").all(drawId);
   if (entries.length === 0) throw new Error("No active entries in this draw");
 
-  const winner = entries[Math.floor(Math.random() * entries.length)];
+  const winner = entries[crypto.randomInt(entries.length)];
   db.exec("BEGIN");
   try {
     db.prepare("UPDATE lottery_entries SET status = 'WINNER' WHERE id = ?").run(winner.id);

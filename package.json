@@ -13,7 +13,7 @@
     "db:ensure-live-draw": "node scripts/ensure-live-draw.js",
     "register:webhooks": "node scripts/register-webhooks.js",
     "reconcile:orders": "node scripts/reconcile-orders.js",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
     "dotenv": "^16.5.0",

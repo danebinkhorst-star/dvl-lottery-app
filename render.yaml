@@ -32,6 +32,14 @@ services:
         value: dvl
       - key: ADMIN_PASSWORD
         sync: false
+      - key: ADMIN_SESSION_SECRET
+        sync: false
+      - key: INTERNAL_API_SECRET
+        sync: false
+      - key: CUSTOMER_TOKEN_SECRET
+        sync: false
+      - key: FREE_ENTRY_HASH_SECRET
+        sync: false
       - key: SHOPIFY_CLIENT_ID
         sync: false
       - key: SHOPIFY_CLIENT_SECRET

@@ -15,6 +15,11 @@ const configSchema = z.object({
   PORT: z.coerce.number().default(8787),
   ADMIN_USERNAME: z.string().default("dvl"),
   ADMIN_PASSWORD: z.string().optional().default(""),
+  ADMIN_SESSION_SECRET: z.string().optional().default(""),
+  ADMIN_TOTP_SECRET: z.string().optional().default(""),
+  INTERNAL_API_SECRET: z.string().optional().default(""),
+  CUSTOMER_TOKEN_SECRET: z.string().optional().default(""),
+  FREE_ENTRY_HASH_SECRET: z.string().optional().default(""),
   SHOPIFY_SHOP: z.string().default("de-vlees-loterij.myshopify.com"),
   SHOPIFY_API_VERSION: z.string().default("2026-04"),
   SHOPIFY_ACCESS_TOKEN: z.string().optional().default(""),
@@ -30,3 +35,19 @@ const configSchema = z.object({
 });
 
 export const config = configSchema.parse(process.env);
+
+const productionRequiredSecrets = [
+  "ADMIN_PASSWORD",
+  "ADMIN_SESSION_SECRET",
+  "INTERNAL_API_SECRET",
+  "CUSTOMER_TOKEN_SECRET",
+  "FREE_ENTRY_HASH_SECRET",
+  "SHOPIFY_WEBHOOK_SECRET"
+];
+
+if (config.NODE_ENV === "production") {
+  const missing = productionRequiredSecrets.filter((key) => !config[key]);
+  if (missing.length) {
+    throw new Error(`Missing required production secret(s): ${missing.join(", ")}`);
+  }
+}

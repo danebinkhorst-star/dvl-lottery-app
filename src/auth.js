@@ -10,23 +10,34 @@ export function safeEqual(a, b) {
 
 export function isValidWriteSecret(secret) {
   if (!secret) return false;
-  if (config.ADMIN_PASSWORD && safeEqual(secret, config.ADMIN_PASSWORD)) return true;
-  if (config.SHOPIFY_WEBHOOK_SECRET && safeEqual(secret, config.SHOPIFY_WEBHOOK_SECRET)) return true;
+  if (config.INTERNAL_API_SECRET && safeEqual(secret, config.INTERNAL_API_SECRET)) return true;
   return false;
 }
 
 function customerTokenSecret() {
-  return config.SHOPIFY_WEBHOOK_SECRET || config.ADMIN_PASSWORD || "dvl-dev-customer-token";
+  return config.CUSTOMER_TOKEN_SECRET || "dvl-dev-customer-token";
 }
 
-export function signCustomerToken(shopifyCustomerId) {
-  return crypto
+export function signCustomerToken(shopifyCustomerId, ttlSeconds = 15 * 60) {
+  const expiresAt = Math.floor(Date.now() / 1000) + Number(ttlSeconds || 0);
+  const payload = `${shopifyCustomerId}.${expiresAt}`;
+  const signature = crypto
     .createHmac("sha256", customerTokenSecret())
-    .update(String(shopifyCustomerId || ""))
-    .digest("hex");
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${signature}`;
 }
 
 export function verifyCustomerToken(shopifyCustomerId, token) {
   if (!shopifyCustomerId || !token) return false;
-  return safeEqual(signCustomerToken(shopifyCustomerId), token);
+  const [tokenCustomerId, expiresAt, signature] = String(token).split(".");
+  const expiry = Number(expiresAt);
+  if (!tokenCustomerId || !Number.isFinite(expiry) || !signature) return false;
+  if (tokenCustomerId !== String(shopifyCustomerId)) return false;
+  if (expiry <= Math.floor(Date.now() / 1000)) return false;
+  const expected = crypto
+    .createHmac("sha256", customerTokenSecret())
+    .update(`${tokenCustomerId}.${expiresAt}`)
+    .digest("base64url");
+  return safeEqual(signature, expected);
 }

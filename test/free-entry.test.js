@@ -8,6 +8,7 @@ import { signCustomerToken } from "../src/auth.js";
 
 function resetDb() {
   db.exec(`
+    UPDATE lottery_draws SET winner_entry_id = NULL;
     DELETE FROM free_entry_claims;
     DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
@@ -86,7 +87,8 @@ test("customer entries endpoint requires a signed token", async () => {
   const app = createApp();
   await request(app).get("/api/customers/111/entries").expect(401);
   const response = await request(app)
-    .get(`/api/customers/111/entries?token=${signCustomerToken("111")}`)
+    .get("/api/customers/111/entries")
+    .set("x-dvl-customer-token", signCustomerToken("111"))
     .expect(200);
 
   assert.equal(response.body.summary.totalEntries, 1);

@@ -45,11 +45,17 @@ In Render, set these env vars:
 
 ```txt
 ADMIN_PASSWORD=make-a-strong-password
+ADMIN_SESSION_SECRET=generate-a-long-random-value
+INTERNAL_API_SECRET=generate-a-different-long-random-value
+CUSTOMER_TOKEN_SECRET=generate-a-different-long-random-value
+FREE_ENTRY_HASH_SECRET=generate-a-different-long-random-value
 SHOPIFY_CLIENT_ID=from Shopify custom app
 SHOPIFY_CLIENT_SECRET=from Shopify custom app
 SHOPIFY_WEBHOOK_SECRET=same value as Shopify client secret for this custom app
 PUBLIC_APP_URL=https://your-render-url.onrender.com
 ```
+
+Do not reuse these secrets. The app refuses to start in production when any required secret is missing.
 
 Keep:
 
