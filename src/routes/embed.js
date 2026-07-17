@@ -78,7 +78,7 @@ function widgetRuntime() {
         max-width:100%;
         min-width:0;
         overflow:hidden;
-        background:var(--mff-cream);
+        background:transparent;
         color:var(--mff-ink);
         padding:clamp(22px,4vw,54px);
       }
@@ -228,7 +228,7 @@ function widgetRuntime() {
         grid-template-columns:minmax(0,.9fr) minmax(280px,1.1fr);
         gap:clamp(24px,5vw,72px);
         align-items:center;
-        background:linear-gradient(90deg,var(--mff-paper) 0 54%,var(--mff-gold) 54% 100%);
+        background:transparent;
       }
       .mff-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
       .mff-chip{
@@ -554,7 +554,7 @@ function widgetRuntime() {
         .mff-proof-grid{grid-template-columns:1fr;gap:16px}
         .mff-proof-board{grid-template-columns:1fr 1fr}
         .mff-proof{border-left:0}
-        .mff-membership{grid-template-columns:1fr;background:var(--mff-paper)}
+        .mff-membership{grid-template-columns:1fr;background:transparent}
         .mff-editorial{grid-template-columns:1fr}
         .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
         .mff-note{min-width:72%;scroll-snap-align:start}
@@ -1128,7 +1128,7 @@ embedRouter.get("/demo", (_req, res) => {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Meat For Free Lottery Embed Demo</title>
     <style>
-      body{margin:0;overflow-x:hidden;background:#fff7ea;color:#21150f;font-family:Manrope,ui-sans-serif,system-ui,sans-serif}
+      body{margin:0;overflow-x:hidden;background:#fff8ed;color:#21150f;font-family:Manrope,ui-sans-serif,system-ui,sans-serif}
       main{width:min(1180px,calc(100% - 28px));margin:0 auto;padding:28px 0 56px;display:grid;gap:24px}
       h1{margin:0;font-size:clamp(42px,8vw,96px);line-height:.86;text-transform:uppercase}
       p{margin:0;max-width:720px;color:#765f4d;font-weight:850}
