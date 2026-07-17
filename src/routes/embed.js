@@ -108,15 +108,14 @@ function widgetRuntime() {
       .mff-kicker{display:none!important}
       .mff-title{
         margin:0;
-        color:#fff8ea;
+        color:var(--mff-ink);
         font-size:clamp(38px,6vw,82px);
         font-weight:950;
         line-height:.88;
-        letter-spacing:-.02em;
+        letter-spacing:0;
         text-transform:uppercase;
-        -webkit-text-stroke:1px var(--mff-line);
-        text-shadow:2px 2px 0 var(--mff-line),4px 5px 0 rgba(33,21,15,.16);
-        paint-order:stroke fill;
+        -webkit-text-stroke:0;
+        text-shadow:none;
       }
       .mff-title--ink{color:var(--mff-ink);-webkit-text-stroke:0;text-shadow:none}
       .mff-copy{margin:14px 0 0;max-width:720px;color:var(--mff-muted);font-size:clamp(14px,1.4vw,18px);font-weight:850;line-height:1.45}
