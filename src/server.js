@@ -183,6 +183,7 @@ function safeAdminRedirect(value) {
 
 function adminLoginPage({ error = "", next = "/admin" } = {}) {
   return `<!doctype html>
+  <!-- mff-security-build: admin-csrf-totp-v3 -->
   <html lang="nl">
     <head>
       <meta charset="utf-8">
@@ -360,7 +361,12 @@ export function createApp() {
   });
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, app: "mff-lottery-app", dashboard: "brand-secure-admin-v2" });
+    res.json({
+      ok: true,
+      app: "mff-lottery-app",
+      dashboard: "brand-secure-admin-v2",
+      securityBuild: "admin-csrf-totp-v3"
+    });
   });
 
   app.get("/admin/login", (req, res) => {
