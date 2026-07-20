@@ -173,6 +173,16 @@ function widgetRuntime() {
       .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;font-weight:900}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
+      .mff-winners-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:clamp(14px,2.5vw,28px);margin-top:clamp(20px,3vw,34px)}
+      .mff-winner{min-width:0;display:flex;align-items:center;gap:14px}
+      .mff-winner-photo{flex:0 0 auto;width:clamp(74px,8vw,112px);aspect-ratio:1/1;border:2px solid var(--mff-line);border-radius:50%;background:var(--mff-gold);box-shadow:4px 4px 0 var(--mff-line);object-fit:cover;object-position:center}
+      .mff-winner-copy{min-width:0}
+      .mff-winner-initial{display:grid;place-items:center;color:var(--mff-ink);font-size:clamp(26px,3vw,42px);font-weight:950;text-transform:uppercase}
+      .mff-winner strong{display:block;color:var(--mff-ink);font-size:clamp(18px,2vw,30px);font-weight:950;line-height:.95;text-transform:uppercase}
+      .mff-winner b{display:block;color:var(--mff-red);font-size:12px;font-weight:950;line-height:1.1;text-transform:uppercase}
+      .mff-winner span{display:block;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
+      .mff-winner-empty{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
+      .mff-winner-empty b{color:var(--mff-red)}
       .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
       .mff-steps{
@@ -551,6 +561,9 @@ function widgetRuntime() {
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
         .mff-card-grid{grid-template-columns:1fr}
+        .mff-winners-grid{grid-template-columns:1fr;gap:18px}
+        .mff-winner-photo{width:72px}
+        .mff-winner span{font-size:12px}
         .mff-flow{grid-template-columns:1fr;gap:18px}
         .mff-steps{grid-template-columns:1fr;gap:18px}
         .mff-step{min-height:0;padding:16px 0}
@@ -837,16 +850,55 @@ function widgetRuntime() {
     });
   }
 
+  function manualWinnerItems(copy) {
+    return [
+      ["winnerOneName", "winnerOnePrize", "winnerOneStory", "winnerOneImageUrl"],
+      ["winnerTwoName", "winnerTwoPrize", "winnerTwoStory", "winnerTwoImageUrl"],
+      ["winnerThreeName", "winnerThreePrize", "winnerThreeStory", "winnerThreeImageUrl"],
+      ["winnerFourName", "winnerFourPrize", "winnerFourStory", "winnerFourImageUrl"]
+    ].map(([nameKey, prizeKey, storyKey, imageKey]) => ({
+      name: String(copy[nameKey] || "").trim(),
+      prizeName: String(copy[prizeKey] || "").trim(),
+      story: String(copy[storyKey] || "").trim(),
+      imageUrl: String(copy[imageKey] || "").trim()
+    })).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
+  }
+
+  function winnerPhoto(winner) {
+    const src = String(winner.imageUrl || "").trim();
+    const name = String(winner.name || "MFF winnaar").trim();
+    if (src) {
+      return `<img class="mff-winner-photo" src="${escapeHtml(src)}" alt="${escapeHtml(name)} met prijs" loading="lazy">`;
+    }
+    return `<div class="mff-winner-photo mff-winner-initial" aria-hidden="true">${escapeHtml(name.slice(0, 1) || "M")}</div>`;
+  }
+
+  function winnerCard(winner) {
+    const name = winner.name || winner.customerName || winner.email || "MFF winnaar";
+    const prize = winner.prizeName || "Prijs";
+    const story = winner.story || winner.drawTitle || "Winnaar van een recente Meat For Free trekking.";
+    return `<article class="mff-winner">
+      ${winnerPhoto({ ...winner, name })}
+      <div class="mff-winner-copy">
+        <strong>${escapeHtml(name)}</strong>
+        <b>${escapeHtml(prize)}</b>
+        <span>${escapeHtml(story)}</span>
+      </div>
+    </article>`;
+  }
+
   function winnersWidget(el, data) {
     const copy = widgetCopy(data, "winners");
-    const winners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 5) : [];
+    const manualWinners = manualWinnerItems(copy);
+    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 4) : [];
+    const winners = manualWinners.length ? manualWinners : automaticWinners;
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Echte trekkingen.")}</h2>
       <p class="mff-copy">${escapeHtml(copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.")}</p>
       ${visualImage(copy)}
-      <div class="mff-list">
-        ${winners.length ? winners.map((winner) => `<div class="mff-row"><span>${escapeHtml(winner.customerName || winner.email || winner.name || "MFF winnaar")}</span><b>${escapeHtml(winner.prizeName || "Prijs")}</b></div>`).join("") : `<div class="mff-row"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
+      <div class="mff-winners-grid">
+        ${winners.length ? winners.map(winnerCard).join("") : `<div class="mff-winner-empty"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
       </div>
     </section>`;
   }

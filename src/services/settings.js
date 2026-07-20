@@ -101,7 +101,23 @@ export const widgetDefinitions = [
       heading: "Echte trekkingen.",
       body: "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.",
       emptyLabel: "Nog geen winnaars gepubliceerd",
-      emptyValue: "Live"
+      emptyValue: "Live",
+      winnerOneName: "",
+      winnerOnePrize: "",
+      winnerOneStory: "",
+      winnerOneImageUrl: "",
+      winnerTwoName: "",
+      winnerTwoPrize: "",
+      winnerTwoStory: "",
+      winnerTwoImageUrl: "",
+      winnerThreeName: "",
+      winnerThreePrize: "",
+      winnerThreeStory: "",
+      winnerThreeImageUrl: "",
+      winnerFourName: "",
+      winnerFourPrize: "",
+      winnerFourStory: "",
+      winnerFourImageUrl: ""
     }
   },
   {

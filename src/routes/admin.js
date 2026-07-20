@@ -1691,6 +1691,22 @@ const widgetFieldLabels = {
   primaryUrlEmpty: ["Link lege cart", "Meestal /collections/all."],
   emptyLabel: ["Lege staat tekst", "Als er nog geen winnaars zijn."],
   emptyValue: ["Lege staat waarde", "Rechter label in lege staat."],
+  winnerOneName: ["Winnaar 1 naam", "Naam zoals bezoekers die mogen zien."],
+  winnerOnePrize: ["Winnaar 1 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
+  winnerOneStory: ["Winnaar 1 verhaal", "Een korte echte zin. Bijvoorbeeld: Mark won na zijn weekendbestelling."],
+  winnerOneImageUrl: ["Winnaar 1 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerTwoName: ["Winnaar 2 naam", "Naam zoals bezoekers die mogen zien."],
+  winnerTwoPrize: ["Winnaar 2 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
+  winnerTwoStory: ["Winnaar 2 verhaal", "Een korte echte zin."],
+  winnerTwoImageUrl: ["Winnaar 2 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerThreeName: ["Winnaar 3 naam", "Naam zoals bezoekers die mogen zien."],
+  winnerThreePrize: ["Winnaar 3 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
+  winnerThreeStory: ["Winnaar 3 verhaal", "Een korte echte zin."],
+  winnerThreeImageUrl: ["Winnaar 3 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerFourName: ["Winnaar 4 naam", "Naam zoals bezoekers die mogen zien."],
+  winnerFourPrize: ["Winnaar 4 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
+  winnerFourStory: ["Winnaar 4 verhaal", "Een korte echte zin."],
+  winnerFourImageUrl: ["Winnaar 4 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
   loggedInFallback: ["Dashboard fallback", "Tekst in ingelogde dashboard als er geen actie is."],
   buttonLabel: ["Knoptekst", "Tekst op de knop."],
   buttonUrl: ["Knoplink", "Waar de knop naartoe gaat."],
@@ -1729,7 +1745,7 @@ const visualFieldKeys = Object.keys(widgetVisualDefaults);
 
 function widgetField(key, value) {
   const [labelText, help] = widgetFieldLabels[key] || [key, ""];
-  const isLong = /body|text/i.test(key) || String(value || "").length > 80;
+  const isLong = /body|text|story/i.test(key) || String(value || "").length > 80;
   const input = isLong
     ? `<textarea name="${escapeHtml(key)}">${escapeHtml(value)}</textarea>`
     : `<input name="${escapeHtml(key)}" value="${escapeHtml(value)}">`;
