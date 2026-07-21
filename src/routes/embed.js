@@ -174,15 +174,22 @@ function widgetRuntime() {
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
       .mff-winners-carousel{position:relative;max-width:100%;overflow:hidden;margin-top:clamp(20px,3vw,34px)}
+      .mff-winners-carousel--compact{margin-top:18px}
       .mff-winners-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(520px,calc(100% - 18px));gap:clamp(14px,2.5vw,24px);max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;padding:2px 4px 10px 2px;scrollbar-width:none}
+      .mff-winners-carousel--compact .mff-winners-track{grid-auto-columns:min(390px,calc(100% - 18px));gap:14px}
       .mff-winners-track::-webkit-scrollbar{display:none}
       .mff-winner{min-width:0;display:flex;align-items:center;gap:14px;scroll-snap-align:start}
       .mff-winner-photo{flex:0 0 auto;width:clamp(74px,8vw,112px);aspect-ratio:1/1;border:2px solid var(--mff-line);border-radius:50%;background:var(--mff-gold);box-shadow:4px 4px 0 var(--mff-line);object-fit:cover;object-position:center}
+      .mff-winners-carousel--compact .mff-winner-photo{width:64px}
       .mff-winner-copy{min-width:0}
       .mff-winner-initial{display:grid;place-items:center;color:var(--mff-ink);font-size:clamp(26px,3vw,42px);font-weight:950;text-transform:uppercase}
       .mff-winner strong{display:block;color:var(--mff-ink);font-size:clamp(18px,2vw,30px);font-weight:950;line-height:.95;text-transform:uppercase}
+      .mff-winners-carousel--compact .mff-winner strong{font-size:16px}
       .mff-winner b{display:block;color:var(--mff-red);font-size:12px;font-weight:950;line-height:1.1;text-transform:uppercase}
       .mff-winner span{display:block;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
+      .mff-winners-carousel--compact .mff-winner span{font-size:12px}
+      .mff-winners-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;color:var(--mff-ink);font-size:12px;font-weight:950;text-transform:uppercase}
+      .mff-winners-title span{color:var(--mff-muted);font-size:11px;text-align:right}
       .mff-winners-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
       .mff-winners-nav button{width:42px;height:38px;display:grid;place-items:center;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-paper);box-shadow:3px 3px 0 var(--mff-line);color:var(--mff-ink);font:inherit;font-size:20px;font-weight:950;line-height:1;cursor:pointer;transition:transform 160ms ease,box-shadow 160ms ease}
       .mff-winners-nav button:hover,.mff-winners-nav button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line);outline:0}
@@ -770,8 +777,11 @@ function widgetRuntime() {
           ${countdownMarkup(draw)}
         </div>
       </div>
+      ${compactWinnersMarkup(data)}
     </section>`;
     initCountdowns(el);
+    setupWinnerPhotos(el);
+    setupWinnerCarousel(el);
   }
 
   function cartWidget(el, data) {
@@ -944,6 +954,30 @@ function widgetRuntime() {
     </article>`;
   }
 
+  function winnerSet(data, limit = 4) {
+    const copy = widgetCopy(data, "winners");
+    const manualWinners = manualWinnerItems(copy);
+    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, limit) : [];
+    const hasManualRealWinners = manualWinners.some((winner) => !winner.isPlaceholder);
+    const isPlaceholderState = !hasManualRealWinners && !automaticWinners.length;
+    const winners = (hasManualRealWinners ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems())).slice(0, limit);
+    return { copy, winners, isPlaceholderState };
+  }
+
+  function compactWinnersMarkup(data) {
+    const { winners, isPlaceholderState } = winnerSet(data, 3);
+    if (!winners.length) return "";
+    return `<div class="mff-winners-title">
+      <strong>Recente winnaars</strong>
+      <span>${escapeHtml(isPlaceholderState ? "Voorbeeld" : "Bevestigd")}</span>
+    </div>
+    <div class="mff-winners-carousel mff-winners-carousel--compact" data-mff-winners-carousel>
+      <div class="mff-winners-track" data-mff-winners-track>
+        ${winners.map(winnerCard).join("")}
+      </div>
+    </div>`;
+  }
+
   function setupWinnerPhotos(el) {
     el.querySelectorAll("img.mff-winner-photo[data-mff-winner-fallback]").forEach((img) => {
       img.addEventListener("error", () => {
@@ -1010,12 +1044,7 @@ function widgetRuntime() {
   }
 
   function winnersWidget(el, data) {
-    const copy = widgetCopy(data, "winners");
-    const manualWinners = manualWinnerItems(copy);
-    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 4) : [];
-    const hasManualRealWinners = manualWinners.some((winner) => !winner.isPlaceholder);
-    const isPlaceholderState = !hasManualRealWinners && !automaticWinners.length;
-    const winners = hasManualRealWinners ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems());
+    const { copy, winners, isPlaceholderState } = winnerSet(data, 4);
     const heading = isPlaceholderState ? "Winnaars komen hier live." : (copy.heading || "Echte trekkingen.");
     const body = isPlaceholderState
       ? "Voorbeeld met realistische beelden tot de eerste echte winnaars gepubliceerd zijn."
@@ -1110,7 +1139,10 @@ function widgetRuntime() {
           </div>
         </div>
       </div>
+      ${compactWinnersMarkup(data)}
     </section>`;
+    setupWinnerPhotos(el);
+    setupWinnerCarousel(el);
   }
 
   function pdpWidget(el, data) {
