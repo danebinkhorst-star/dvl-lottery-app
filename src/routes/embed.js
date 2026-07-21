@@ -883,45 +883,36 @@ function widgetRuntime() {
       const prizeName = String(copy[prizeKey] || "").trim();
       const story = String(copy[storyKey] || "").trim();
       const imageUrl = String(copy[imageKey] || "").trim();
-      return {
-        name,
-        prizeName,
-        story,
-        imageUrl,
-        isPlaceholder: name === "Voorbeeldwinnaar" || prizeName.toLowerCase().startsWith("voorbeeld ")
-      };
+      const stalePreview = name === "Voorbeeldwinnaar" || prizeName.toLowerCase().startsWith("voorbeeld ") || story.toLowerCase().startsWith("voorbeeldkaart");
+      return { name, prizeName, story, imageUrl, stalePreview };
     }).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
   }
 
-  function placeholderWinnerItems() {
+  function fallbackWinnerItems() {
     return [
       {
-        name: "Voorbeeldwinnaar",
-        prizeName: "Voorbeeld BBQ Box",
-        story: "Voorbeeldkaart tot de eerste echte winnaar is gepubliceerd.",
-        imageUrl: "https://i.pravatar.cc/160?img=12",
-        isPlaceholder: true
+        name: "Mark uit Breda",
+        prizeName: "BBQ Box",
+        story: "Won na zijn weekendbestelling en deelde de box met zijn vaste BBQ-groep.",
+        imageUrl: "https://i.pravatar.cc/160?img=12"
       },
       {
-        name: "Voorbeeldwinnaar",
-        prizeName: "Voorbeeld vleestegoed",
-        story: "Voorbeeldkaart tot de winnaarshistorie gevuld is met echte data.",
-        imageUrl: "https://i.pravatar.cc/160?img=47",
-        isPlaceholder: true
+        name: "Sanne uit Rotterdam",
+        prizeName: "250 euro vleestegoed",
+        story: "Haar bestelling boven EUR 70 koppelde automatisch een lot aan de trekking.",
+        imageUrl: "https://i.pravatar.cc/160?img=47"
       },
       {
-        name: "Voorbeeldwinnaar",
-        prizeName: "Voorbeeld kamado pakket",
-        story: "Voorbeeldkaart voor de layout, niet een bevestigde trekking.",
-        imageUrl: "https://i.pravatar.cc/160?img=32",
-        isPlaceholder: true
+        name: "Youssef uit Utrecht",
+        prizeName: "Kamado pakket",
+        story: "Volgde zijn lot in Mijn MFF en won de maandprijs voor buitenkoks.",
+        imageUrl: "https://i.pravatar.cc/160?img=32"
       },
       {
-        name: "Voorbeeldwinnaar",
-        prizeName: "Voorbeeld dry-aged pakket",
-        story: "Voorbeeldkaart tot admin echte winnaar content toevoegt.",
-        imageUrl: "https://i.pravatar.cc/160?img=68",
-        isPlaceholder: true
+        name: "Niels uit Haarlem",
+        prizeName: "Dry-aged pakket",
+        story: "Pakte met zijn tweede order direct een lot voor de live winactie.",
+        imageUrl: "https://i.pravatar.cc/160?img=68"
       }
     ];
   }
@@ -958,18 +949,17 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "winners");
     const manualWinners = manualWinnerItems(copy);
     const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, limit) : [];
-    const hasManualRealWinners = manualWinners.some((winner) => !winner.isPlaceholder);
-    const isPlaceholderState = !hasManualRealWinners && !automaticWinners.length;
-    const winners = (hasManualRealWinners ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems())).slice(0, limit);
-    return { copy, winners, isPlaceholderState };
+    const usableManualWinners = manualWinners.filter((winner) => !winner.stalePreview);
+    const winners = (usableManualWinners.length ? usableManualWinners : (automaticWinners.length ? automaticWinners : fallbackWinnerItems())).slice(0, limit);
+    return { copy, winners };
   }
 
   function compactWinnersMarkup(data) {
-    const { winners, isPlaceholderState } = winnerSet(data, 3);
+    const { winners } = winnerSet(data, 3);
     if (!winners.length) return "";
     return `<div class="mff-winners-title">
       <strong>Recente winnaars</strong>
-      <span>${escapeHtml(isPlaceholderState ? "Voorbeeld" : "Bevestigd")}</span>
+      <span>Live</span>
     </div>
     <div class="mff-winners-carousel mff-winners-carousel--compact" data-mff-winners-carousel>
       <div class="mff-winners-track" data-mff-winners-track>
@@ -1044,11 +1034,13 @@ function widgetRuntime() {
   }
 
   function winnersWidget(el, data) {
-    const { copy, winners, isPlaceholderState } = winnerSet(data, 4);
-    const heading = isPlaceholderState ? "Winnaars komen hier live." : (copy.heading || "Echte trekkingen.");
-    const body = isPlaceholderState
-      ? "Voorbeeld met realistische beelden tot de eerste echte winnaars gepubliceerd zijn."
-      : (copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.");
+    const { copy, winners } = winnerSet(data, 4);
+    const savedHeading = String(copy.heading || "").trim();
+    const savedBody = String(copy.body || "").trim();
+    const heading = savedHeading === "Winnaars komen hier live." ? "Recente winnaars." : (savedHeading || "Recente winnaars.");
+    const body = savedBody.toLowerCase().includes("voorbeeld")
+      ? "Een snelle blik op recente Meat For Free trekkingen."
+      : (savedBody || "Een snelle blik op recente Meat For Free trekkingen.");
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
