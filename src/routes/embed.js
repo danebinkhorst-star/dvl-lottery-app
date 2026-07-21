@@ -173,12 +173,19 @@ function widgetRuntime() {
       .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;font-weight:900}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
-      .mff-winners-carousel{position:relative;max-width:100%;overflow:hidden;margin-top:clamp(20px,3vw,34px)}
-      .mff-winners-carousel--compact{margin-top:18px}
+      .mff-winners-carousel{position:relative;--mff-marquee-height:154px;min-height:var(--mff-marquee-height);max-width:100%;overflow:hidden;margin-top:clamp(20px,3vw,34px)}
+      .mff-winners-carousel--compact{--mff-marquee-height:104px;margin-top:18px}
       .mff-winners-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(520px,calc(100% - 18px));gap:clamp(14px,2.5vw,24px);max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;padding:2px 4px 10px 2px;scrollbar-width:none}
       .mff-winners-carousel--compact .mff-winners-track{grid-auto-columns:min(390px,calc(100% - 18px));gap:14px}
+      .mff-winners-track--marquee{position:absolute;top:2px;left:0;display:flex;gap:0;width:max-content;max-width:none;overflow:visible;scroll-snap-type:none;scroll-padding-inline:0;scrollbar-width:none;padding:0 0 10px;animation:mffWinnerMarquee var(--mff-winner-speed,32s) linear infinite;will-change:transform}
+      .mff-winners-carousel--compact .mff-winners-track--marquee{--mff-winner-speed:24s}
+      .mff-winners-carousel:hover .mff-winners-track--marquee,.mff-winners-carousel:focus-within .mff-winners-track--marquee{animation-play-state:paused}
+      .mff-winners-group{display:flex;gap:clamp(14px,2.5vw,24px);padding-right:clamp(14px,2.5vw,24px)}
+      .mff-winners-carousel--compact .mff-winners-group{gap:14px;padding-right:14px}
       .mff-winners-track::-webkit-scrollbar{display:none}
       .mff-winner{min-width:0;display:flex;align-items:center;gap:14px;scroll-snap-align:start}
+      .mff-winners-track--marquee .mff-winner{flex:0 0 min(520px,calc(100vw - 56px))}
+      .mff-winners-carousel--compact .mff-winners-track--marquee .mff-winner{flex-basis:min(360px,calc(100vw - 56px))}
       .mff-winner-photo{flex:0 0 auto;width:clamp(74px,8vw,112px);aspect-ratio:1/1;border:2px solid var(--mff-line);border-radius:50%;background:var(--mff-gold);box-shadow:4px 4px 0 var(--mff-line);object-fit:cover;object-position:center}
       .mff-winners-carousel--compact .mff-winner-photo{width:64px}
       .mff-winner-copy{min-width:0}
@@ -190,11 +197,9 @@ function widgetRuntime() {
       .mff-winners-carousel--compact .mff-winner span{font-size:12px}
       .mff-winners-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;color:var(--mff-ink);font-size:12px;font-weight:950;text-transform:uppercase}
       .mff-winners-title span{color:var(--mff-muted);font-size:11px;text-align:right}
-      .mff-winners-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
-      .mff-winners-nav button{width:42px;height:38px;display:grid;place-items:center;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-paper);box-shadow:3px 3px 0 var(--mff-line);color:var(--mff-ink);font:inherit;font-size:20px;font-weight:950;line-height:1;cursor:pointer;transition:transform 160ms ease,box-shadow 160ms ease}
-      .mff-winners-nav button:hover,.mff-winners-nav button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line);outline:0}
       .mff-winner-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
       .mff-winner-empty b{color:var(--mff-red)}
+      @keyframes mffWinnerMarquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
       .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
       .mff-steps{
@@ -574,7 +579,10 @@ function widgetRuntime() {
         .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
         .mff-card-grid{grid-template-columns:1fr}
         .mff-winners-track{grid-auto-columns:100%;gap:18px}
+        .mff-winners-track--marquee{display:flex;gap:0}
+        .mff-winners-track--marquee .mff-winner{flex-basis:min(330px,calc(100vw - 58px))}
         .mff-winner-photo{width:86px}
+        .mff-winners-carousel--compact .mff-winner-photo{width:58px}
         .mff-winner span{font-size:12px}
         .mff-flow{grid-template-columns:1fr;gap:18px}
         .mff-steps{grid-template-columns:1fr;gap:18px}
@@ -605,7 +613,7 @@ function widgetRuntime() {
         .mff-pdp .mff-title{font-size:clamp(15px,4.3vw,18px)}
         .mff-pdp .mff-copy{font-size:11px}
       }
-      @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i{animation:none}}
+      @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i,.mff-winners-track--marquee{animation:none}}
     `;
     document.head.appendChild(style);
   }
@@ -781,7 +789,6 @@ function widgetRuntime() {
     </section>`;
     initCountdowns(el);
     setupWinnerPhotos(el);
-    setupWinnerCarousel(el);
   }
 
   function cartWidget(el, data) {
@@ -931,11 +938,11 @@ function widgetRuntime() {
     return `<div class="mff-winner-photo mff-winner-initial" aria-hidden="true">${escapeHtml(fallback)}</div>`;
   }
 
-  function winnerCard(winner) {
+  function winnerCard(winner, duplicate = false) {
     const name = winner.name || winner.customerName || winner.email || "MFF winnaar";
     const prize = winner.prizeName || "Prijs";
     const story = winner.story || winner.drawTitle || "Winnaar van een recente Meat For Free trekking.";
-    return `<article class="mff-winner${winner.isPlaceholder ? " mff-winner--placeholder" : ""}">
+    return `<article class="mff-winner${winner.isPlaceholder ? " mff-winner--placeholder" : ""}"${duplicate ? ' aria-hidden="true"' : ""}>
       ${winnerPhoto({ ...winner, name })}
       <div class="mff-winner-copy">
         <strong>${escapeHtml(name)}</strong>
@@ -954,6 +961,18 @@ function widgetRuntime() {
     return { copy, winners };
   }
 
+  function winnerMarquee(winners, compact = false) {
+    if (!winners.length) return "";
+    const cards = winners.map((winner) => winnerCard(winner)).join("");
+    const duplicateCards = winners.map((winner) => winnerCard(winner, true)).join("");
+    return `<div class="mff-winners-carousel${compact ? " mff-winners-carousel--compact" : ""}" data-mff-winners-marquee>
+      <div class="mff-winners-track mff-winners-track--marquee">
+        <div class="mff-winners-group">${cards}</div>
+        <div class="mff-winners-group" aria-hidden="true">${duplicateCards}</div>
+      </div>
+    </div>`;
+  }
+
   function compactWinnersMarkup(data) {
     const { winners } = winnerSet(data, 3);
     if (!winners.length) return "";
@@ -961,11 +980,7 @@ function widgetRuntime() {
       <strong>Recente winnaars</strong>
       <span>Live</span>
     </div>
-    <div class="mff-winners-carousel mff-winners-carousel--compact" data-mff-winners-carousel>
-      <div class="mff-winners-track" data-mff-winners-track>
-        ${winners.map(winnerCard).join("")}
-      </div>
-    </div>`;
+    ${winnerMarquee(winners, true)}`;
   }
 
   function setupWinnerPhotos(el) {
@@ -978,59 +993,6 @@ function widgetRuntime() {
         img.replaceWith(fallback);
       }, { once: true });
     });
-  }
-
-  function setupWinnerCarousel(el) {
-    const carousel = el.querySelector("[data-mff-winners-carousel]");
-    const track = el.querySelector("[data-mff-winners-track]");
-    if (!carousel || !track) return;
-    const slides = Array.from(track.querySelectorAll(".mff-winner"));
-    if (slides.length < 2) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let index = 0;
-    let timer = null;
-    let paused = false;
-
-    const goTo = (nextIndex, userInitiated = false) => {
-      index = (nextIndex + slides.length) % slides.length;
-      track.scrollTo({
-        left: slides[index].offsetLeft,
-        behavior: reducedMotion ? "auto" : "smooth"
-      });
-      if (userInitiated) restart();
-    };
-    const stop = () => {
-      if (timer) window.clearInterval(timer);
-      timer = null;
-    };
-    const start = () => {
-      if (reducedMotion || paused || timer) return;
-      timer = window.setInterval(() => goTo(index + 1), 4200);
-    };
-    const restart = () => {
-      stop();
-      start();
-    };
-
-    carousel.querySelector("[data-mff-winner-prev]")?.addEventListener("click", () => goTo(index - 1, true));
-    carousel.querySelector("[data-mff-winner-next]")?.addEventListener("click", () => goTo(index + 1, true));
-    carousel.addEventListener("pointerenter", () => {
-      paused = true;
-      stop();
-    });
-    carousel.addEventListener("pointerleave", () => {
-      paused = false;
-      start();
-    });
-    carousel.addEventListener("focusin", () => {
-      paused = true;
-      stop();
-    });
-    carousel.addEventListener("focusout", () => {
-      paused = false;
-      start();
-    });
-    start();
   }
 
   function winnersWidget(el, data) {
@@ -1046,18 +1008,9 @@ function widgetRuntime() {
       <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
       <p class="mff-copy">${escapeHtml(body)}</p>
       ${visualImage(copy)}
-      <div class="mff-winners-carousel" data-mff-winners-carousel>
-        <div class="mff-winners-track" data-mff-winners-track>
-          ${winners.length ? winners.map(winnerCard).join("") : `<div class="mff-winner-empty"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
-        </div>
-        ${winners.length > 1 ? `<div class="mff-winners-nav" aria-label="Winnaars carousel bediening">
-          <button type="button" data-mff-winner-prev aria-label="Vorige winnaar">‹</button>
-          <button type="button" data-mff-winner-next aria-label="Volgende winnaar">›</button>
-        </div>` : ""}
-      </div>
+      ${winners.length ? winnerMarquee(winners) : `<div class="mff-winner-empty"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
     </section>`;
     setupWinnerPhotos(el);
-    setupWinnerCarousel(el);
   }
 
   function renderCustomerDashboard(el, payload) {
@@ -1134,7 +1087,6 @@ function widgetRuntime() {
       ${compactWinnersMarkup(data)}
     </section>`;
     setupWinnerPhotos(el);
-    setupWinnerCarousel(el);
   }
 
   function pdpWidget(el, data) {
