@@ -345,11 +345,11 @@ export const siteStructureDefaults = {
     { key: "winacties", label: "Winacties", url: "/pages/actieve-loterijen", group: "Hoofdmenu", visible: true },
     { key: "winnaars", label: "Winnaars", url: "/pages/live-winnaars", group: "Hoofdmenu", visible: true },
     { key: "dashboard", label: "Mijn MFF", url: "/pages/mijn-mff-dashboard", group: "Hoofdmenu", visible: true },
-    { key: "community", label: "Community", url: "/pages/community", group: "Info dropdown", visible: true },
-    { key: "challenges", label: "Challenges", url: "/pages/challenges", group: "Info dropdown", visible: true },
-    { key: "bezorging", label: "Bezorging", url: "/pages/bezorging", group: "Info dropdown", visible: true },
-    { key: "retourbeleid", label: "Retourbeleid", url: "/pages/omruil-en-retourbeleid", group: "Info dropdown", visible: true },
-    { key: "contact", label: "Contact", url: "/pages/contact", group: "Info dropdown", visible: true }
+    { key: "community", label: "Community", url: "/pages/community", group: "Hoofdmenu", visible: true },
+    { key: "challenges", label: "Challenges", url: "/pages/challenges", group: "Hoofdmenu", visible: true },
+    { key: "bezorging", label: "Bezorging", url: "/pages/bezorging", group: "Hoofdmenu", visible: true },
+    { key: "retourbeleid", label: "Retourbeleid", url: "/pages/omruil-en-retourbeleid", group: "Hoofdmenu", visible: true },
+    { key: "contact", label: "Contact", url: "/pages/contact", group: "Hoofdmenu", visible: true }
   ],
   infoPages: [
     { key: "actieve-loterijen", title: "Actieve loterijen", url: "/pages/actieve-loterijen", status: "live", inHeader: true, purpose: "Alle lopende prijzen, looptijden en trekkingdata." },
