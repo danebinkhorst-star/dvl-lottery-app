@@ -342,23 +342,24 @@ export const siteStructureDefaults = {
   ],
   headerMenu: [
     { key: "shop", label: "Shop", url: "/collections/all", group: "Hoofdmenu", visible: true },
-    { key: "winacties", label: "Winacties", url: "/pages/actieve-winacties", group: "Hoofdmenu", visible: true },
-    { key: "hoe", label: "Hoe werkt het", url: "/pages/hoe-werkt-het", group: "Hoofdmenu", visible: true },
-    { key: "winnaars", label: "Winnaars", url: "/pages/winnaars", group: "Hoofdmenu", visible: true },
+    { key: "winacties", label: "Winacties", url: "/pages/actieve-loterijen", group: "Hoofdmenu", visible: true },
+    { key: "winnaars", label: "Winnaars", url: "/pages/live-winnaars", group: "Hoofdmenu", visible: true },
     { key: "dashboard", label: "Mijn MFF", url: "/pages/mijn-mff-dashboard", group: "Hoofdmenu", visible: true },
-    { key: "gratis", label: "Gratis deelname", url: "/pages/gratis-deelname", group: "Winacties dropdown", visible: true },
-    { key: "regels", label: "Spelregels", url: "/pages/spelregels", group: "Winacties dropdown", visible: true },
-    { key: "faq", label: "FAQ", url: "/pages/faq", group: "Winacties dropdown", visible: true }
+    { key: "community", label: "Community", url: "/pages/community", group: "Info dropdown", visible: true },
+    { key: "challenges", label: "Challenges", url: "/pages/challenges", group: "Info dropdown", visible: true },
+    { key: "bezorging", label: "Bezorging", url: "/pages/bezorging", group: "Info dropdown", visible: true },
+    { key: "retourbeleid", label: "Retourbeleid", url: "/pages/omruil-en-retourbeleid", group: "Info dropdown", visible: true },
+    { key: "contact", label: "Contact", url: "/pages/contact", group: "Info dropdown", visible: true }
   ],
   infoPages: [
-    { key: "actieve-winacties", title: "Actieve winacties", url: "/pages/actieve-winacties", status: "live", inHeader: true, purpose: "Alle lopende prijzen, looptijden en trekkingdata." },
-    { key: "hoe-werkt-het", title: "Hoe werkt het", url: "/pages/hoe-werkt-het", status: "live", inHeader: true, purpose: "Simpele uitleg van order naar lot naar trekking." },
-    { key: "winnaars", title: "Winnaars", url: "/pages/winnaars", status: "live", inHeader: true, purpose: "Gepubliceerde winnaars met toestemming en prijscontext." },
+    { key: "actieve-loterijen", title: "Actieve loterijen", url: "/pages/actieve-loterijen", status: "live", inHeader: true, purpose: "Alle lopende prijzen, looptijden en trekkingdata." },
+    { key: "live-winnaars", title: "Live winnaars", url: "/pages/live-winnaars", status: "live", inHeader: true, purpose: "Gepubliceerde winnaars met toestemming en prijscontext." },
     { key: "mijn-mff-dashboard", title: "Mijn MFF dashboard", url: "/pages/mijn-mff-dashboard", status: "live", inHeader: true, purpose: "Klant ziet loten, orders en winacties." },
-    { key: "gratis-deelname", title: "Gratis deelname", url: "/pages/gratis-deelname", status: "live", inHeader: true, purpose: "Gratis deelnameformulier en limieten helder uitleggen." },
-    { key: "spelregels", title: "Spelregels", url: "/pages/spelregels", status: "live", inHeader: true, purpose: "Voorwaarden, deelname, trekking en prijsuitkering." },
-    { key: "privacy-loten", title: "Privacy en loten", url: "/pages/privacy-loten", status: "concept", inHeader: false, purpose: "Welke data wordt gebruikt voor loten, IP-checks en dashboard." },
-    { key: "faq", title: "FAQ", url: "/pages/faq", status: "live", inHeader: true, purpose: "Veelgestelde vragen over bestellen, loten en winacties." }
+    { key: "community", title: "Community", url: "/pages/community", status: "live", inHeader: true, purpose: "Community-updates, klantmomenten en acties." },
+    { key: "challenges", title: "Challenges", url: "/pages/challenges", status: "live", inHeader: true, purpose: "Community challenges en tijdelijke acties." },
+    { key: "bezorging", title: "Bezorging", url: "/pages/bezorging", status: "live", inHeader: true, purpose: "Heldere leverinformatie voor klanten." },
+    { key: "retourbeleid", title: "Retourbeleid", url: "/pages/omruil-en-retourbeleid", status: "live", inHeader: true, purpose: "Omruil- en retourvragen duidelijk afvangen." },
+    { key: "contact", title: "Contact", url: "/pages/contact", status: "live", inHeader: true, purpose: "Support route voor bestelling, levering en deelname." }
   ],
   productCards: {
     enabled: true,
