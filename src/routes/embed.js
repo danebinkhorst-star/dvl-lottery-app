@@ -900,25 +900,25 @@ function widgetRuntime() {
       {
         name: "Mark",
         prizeName: "BBQ Box",
-        story: "Ik won de BBQ Box na mijn weekendbestelling.",
+        story: "Niet verwacht, maar die BBQ Box kwam perfect uit voor het weekend.",
         imageUrl: "https://i.pravatar.cc/160?img=12"
       },
       {
         name: "Sanne",
         prizeName: "250 euro vleestegoed",
-        story: "Ik won 250 euro vleestegoed met mijn automatische lot.",
+        story: "Mijn bestelling pakte automatisch een lot en ineens had ik 250 euro vleestegoed.",
         imageUrl: "https://i.pravatar.cc/160?img=47"
       },
       {
         name: "Youssef",
         prizeName: "Kamado pakket",
-        story: "Ik won het kamado pakket en volgde alles in Mijn MFF.",
+        story: "Ik checkte Mijn MFF en zag dat het kamado pakket gewoon van mij was.",
         imageUrl: "https://i.pravatar.cc/160?img=32"
       },
       {
         name: "Niels",
         prizeName: "Dry-aged pakket",
-        story: "Ik won het dry-aged pakket met mijn tweede order.",
+        story: "Tweede bestelling, tweede lot, en toen stond dat dry-aged pakket op mijn naam.",
         imageUrl: "https://i.pravatar.cc/160?img=68"
       }
     ];
@@ -945,9 +945,19 @@ function widgetRuntime() {
   function winnerStatement(winner, prize) {
     const raw = String(winner.story || "").trim();
     const clean = raw.replace(/^["“”]+|["“”]+$/g, "");
-    const statement = /^ik\b/i.test(clean)
-      ? clean
-      : `Ik won ${prize || "een Meat For Free prijs"} met mijn Meat For Free lot.`;
+    const prizeText = prize || "een Meat For Free prijs";
+    let statement = clean;
+    if (!statement || /^won na zijn/i.test(statement)) {
+      statement = `Niet verwacht, maar die ${prizeText} kwam perfect uit.`;
+    } else if (/^haar bestelling/i.test(statement)) {
+      statement = `Mijn bestelling pakte automatisch een lot en ineens had ik ${prizeText}.`;
+    } else if (/^volgde zijn lot/i.test(statement)) {
+      statement = `Ik checkte Mijn MFF en zag dat ${prizeText} gewoon van mij was.`;
+    } else if (/^pakte met zijn/i.test(statement)) {
+      statement = `Nog een order geplaatst en toen stond ${prizeText} op mijn naam.`;
+    } else if (!/^ik\b|^niet\b|^mijn\b|^tweede\b|^nog\b/i.test(statement)) {
+      statement = `Ik won ${prizeText} met mijn Meat For Free lot.`;
+    }
     return `"${statement}"`;
   }
 
