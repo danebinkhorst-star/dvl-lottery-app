@@ -868,57 +868,73 @@ function widgetRuntime() {
       ["winnerTwoName", "winnerTwoPrize", "winnerTwoStory", "winnerTwoImageUrl"],
       ["winnerThreeName", "winnerThreePrize", "winnerThreeStory", "winnerThreeImageUrl"],
       ["winnerFourName", "winnerFourPrize", "winnerFourStory", "winnerFourImageUrl"]
-    ].map(([nameKey, prizeKey, storyKey, imageKey]) => ({
-      name: String(copy[nameKey] || "").trim(),
-      prizeName: String(copy[prizeKey] || "").trim(),
-      story: String(copy[storyKey] || "").trim(),
-      imageUrl: String(copy[imageKey] || "").trim()
-    })).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
+    ].map(([nameKey, prizeKey, storyKey, imageKey]) => {
+      const name = String(copy[nameKey] || "").trim();
+      const prizeName = String(copy[prizeKey] || "").trim();
+      const story = String(copy[storyKey] || "").trim();
+      const imageUrl = String(copy[imageKey] || "").trim();
+      return {
+        name,
+        prizeName,
+        story,
+        imageUrl,
+        isPlaceholder: name === "Voorbeeldwinnaar" || prizeName.toLowerCase().startsWith("voorbeeld ")
+      };
+    }).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
   }
 
   function placeholderWinnerItems() {
     return [
       {
-        name: "Mark uit Breda",
-        prizeName: "BBQ Box",
-        story: "Won na zijn weekendbestelling en deelde de box met zijn vaste BBQ-groep.",
-        imageUrl: "/assets/placeholders/winner-bbq.svg"
+        name: "Voorbeeldwinnaar",
+        prizeName: "Voorbeeld BBQ Box",
+        story: "Voorbeeldkaart tot de eerste echte winnaar is gepubliceerd.",
+        imageUrl: "https://i.pravatar.cc/160?img=12",
+        isPlaceholder: true
       },
       {
-        name: "Sanne uit Rotterdam",
-        prizeName: "250 euro vleestegoed",
-        story: "Haar bestelling boven EUR 70 koppelde automatisch een lot aan de trekking.",
-        imageUrl: "/assets/placeholders/winner-credit.svg"
+        name: "Voorbeeldwinnaar",
+        prizeName: "Voorbeeld vleestegoed",
+        story: "Voorbeeldkaart tot de winnaarshistorie gevuld is met echte data.",
+        imageUrl: "https://i.pravatar.cc/160?img=47",
+        isPlaceholder: true
       },
       {
-        name: "Youssef uit Utrecht",
-        prizeName: "Kamado pakket",
-        story: "Volgde zijn lot in Mijn MFF en won de maandprijs voor buitenkoks.",
-        imageUrl: "/assets/placeholders/winner-kamado.svg"
+        name: "Voorbeeldwinnaar",
+        prizeName: "Voorbeeld kamado pakket",
+        story: "Voorbeeldkaart voor de layout, niet een bevestigde trekking.",
+        imageUrl: "https://i.pravatar.cc/160?img=32",
+        isPlaceholder: true
       },
       {
-        name: "Niels uit Haarlem",
-        prizeName: "Dry-aged pakket",
-        story: "Pakte met zijn tweede order direct een lot voor de live winactie.",
-        imageUrl: "/assets/placeholders/winner-aged.svg"
+        name: "Voorbeeldwinnaar",
+        prizeName: "Voorbeeld dry-aged pakket",
+        story: "Voorbeeldkaart tot admin echte winnaar content toevoegt.",
+        imageUrl: "https://i.pravatar.cc/160?img=68",
+        isPlaceholder: true
       }
     ];
+  }
+
+  function winnerInitial(name) {
+    return String(name || "MFF winnaar").trim().slice(0, 1).toUpperCase() || "M";
   }
 
   function winnerPhoto(winner) {
     const src = appAssetHref(winner.imageUrl);
     const name = String(winner.name || "MFF winnaar").trim();
+    const fallback = winnerInitial(name);
     if (src) {
-      return `<img class="mff-winner-photo" src="${escapeHtml(src)}" alt="${escapeHtml(name)} met prijs" loading="lazy">`;
+      return `<img class="mff-winner-photo" src="${escapeHtml(src)}" alt="${winner.isPlaceholder ? "" : escapeHtml(name + " met prijs")}" loading="lazy" data-mff-winner-fallback="${escapeHtml(fallback)}">`;
     }
-    return `<div class="mff-winner-photo mff-winner-initial" aria-hidden="true">${escapeHtml(name.slice(0, 1) || "M")}</div>`;
+    return `<div class="mff-winner-photo mff-winner-initial" aria-hidden="true">${escapeHtml(fallback)}</div>`;
   }
 
   function winnerCard(winner) {
     const name = winner.name || winner.customerName || winner.email || "MFF winnaar";
     const prize = winner.prizeName || "Prijs";
     const story = winner.story || winner.drawTitle || "Winnaar van een recente Meat For Free trekking.";
-    return `<article class="mff-winner">
+    return `<article class="mff-winner${winner.isPlaceholder ? " mff-winner--placeholder" : ""}">
       ${winnerPhoto({ ...winner, name })}
       <div class="mff-winner-copy">
         <strong>${escapeHtml(name)}</strong>
@@ -926,6 +942,18 @@ function widgetRuntime() {
         <span>${escapeHtml(story)}</span>
       </div>
     </article>`;
+  }
+
+  function setupWinnerPhotos(el) {
+    el.querySelectorAll("img.mff-winner-photo[data-mff-winner-fallback]").forEach((img) => {
+      img.addEventListener("error", () => {
+        const fallback = document.createElement("div");
+        fallback.className = "mff-winner-photo mff-winner-initial";
+        fallback.setAttribute("aria-hidden", "true");
+        fallback.textContent = img.getAttribute("data-mff-winner-fallback") || "M";
+        img.replaceWith(fallback);
+      }, { once: true });
+    });
   }
 
   function setupWinnerCarousel(el) {
@@ -985,11 +1013,13 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "winners");
     const manualWinners = manualWinnerItems(copy);
     const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 4) : [];
-    const winners = manualWinners.length ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems());
+    const hasManualRealWinners = manualWinners.some((winner) => !winner.isPlaceholder);
+    const isPlaceholderState = !hasManualRealWinners && !automaticWinners.length;
+    const winners = hasManualRealWinners ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems());
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
-      <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Echte trekkingen.")}</h2>
-      <p class="mff-copy">${escapeHtml(copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.")}</p>
+      <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || (isPlaceholderState ? "Winnaars komen hier live." : "Echte trekkingen."))}</h2>
+      <p class="mff-copy">${escapeHtml(copy.body || (isPlaceholderState ? "Voorbeeld met realistische beelden tot de eerste echte winnaars gepubliceerd zijn." : "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes."))}</p>
       ${visualImage(copy)}
       <div class="mff-winners-carousel" data-mff-winners-carousel>
         <div class="mff-winners-track" data-mff-winners-track>
@@ -1001,6 +1031,7 @@ function widgetRuntime() {
         </div>` : ""}
       </div>
     </section>`;
+    setupWinnerPhotos(el);
     setupWinnerCarousel(el);
   }
 

@@ -116,7 +116,8 @@ apiRouter.get("/site/summary", async (_req, res) => {
       drawTitle: winner.draw_title,
       prizeName: winner.prize_name,
       name: winner.first_name || (winner.email ? `${winner.email.slice(0, 2)}***` : "Winnaar"),
-      createdAt: winner.created_at
+      createdAt: winner.created_at,
+      avatarSeed: `${winner.entry_number}-${winner.draw_title || winner.prize_name || "mff"}`
     })),
     widgets: getAllWidgetSettings()
   });
