@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-label="Fictieve winnaar met dry-aged pakket">
+  <rect width="360" height="360" fill="#fffdf7"/>
+  <circle cx="178" cy="118" r="56" fill="#efb12c"/>
+  <path d="M62 322c14-76 58-116 116-116s102 40 116 116" fill="#21150f"/>
+  <path d="M92 240c54-30 112-30 172 0l-18 56H108z" fill="#b72b22" stroke="#21150f" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M124 255c34-10 70-10 108 0M116 282h132" stroke="#fff8ed" stroke-width="12" stroke-linecap="round"/>
+  <path d="M132 78c20-28 73-28 94 0" fill="none" stroke="#21150f" stroke-width="10" stroke-linecap="round"/>
+</svg>

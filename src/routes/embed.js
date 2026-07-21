@@ -173,15 +173,20 @@ function widgetRuntime() {
       .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;font-weight:900}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
-      .mff-winners-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:clamp(14px,2.5vw,28px);margin-top:clamp(20px,3vw,34px)}
-      .mff-winner{min-width:0;display:flex;align-items:center;gap:14px}
+      .mff-winners-carousel{position:relative;max-width:100%;overflow:hidden;margin-top:clamp(20px,3vw,34px)}
+      .mff-winners-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(520px,calc(100% - 18px));gap:clamp(14px,2.5vw,24px);max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;padding:2px 4px 10px 2px;scrollbar-width:none}
+      .mff-winners-track::-webkit-scrollbar{display:none}
+      .mff-winner{min-width:0;display:flex;align-items:center;gap:14px;scroll-snap-align:start}
       .mff-winner-photo{flex:0 0 auto;width:clamp(74px,8vw,112px);aspect-ratio:1/1;border:2px solid var(--mff-line);border-radius:50%;background:var(--mff-gold);box-shadow:4px 4px 0 var(--mff-line);object-fit:cover;object-position:center}
       .mff-winner-copy{min-width:0}
       .mff-winner-initial{display:grid;place-items:center;color:var(--mff-ink);font-size:clamp(26px,3vw,42px);font-weight:950;text-transform:uppercase}
       .mff-winner strong{display:block;color:var(--mff-ink);font-size:clamp(18px,2vw,30px);font-weight:950;line-height:.95;text-transform:uppercase}
       .mff-winner b{display:block;color:var(--mff-red);font-size:12px;font-weight:950;line-height:1.1;text-transform:uppercase}
       .mff-winner span{display:block;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
-      .mff-winner-empty{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
+      .mff-winners-nav{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+      .mff-winners-nav button{width:42px;height:38px;display:grid;place-items:center;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-paper);box-shadow:3px 3px 0 var(--mff-line);color:var(--mff-ink);font:inherit;font-size:20px;font-weight:950;line-height:1;cursor:pointer;transition:transform 160ms ease,box-shadow 160ms ease}
+      .mff-winners-nav button:hover,.mff-winners-nav button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line);outline:0}
+      .mff-winner-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
       .mff-winner-empty b{color:var(--mff-red)}
       .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
@@ -561,8 +566,8 @@ function widgetRuntime() {
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
         .mff-card-grid{grid-template-columns:1fr}
-        .mff-winners-grid{grid-template-columns:1fr;gap:18px}
-        .mff-winner-photo{width:72px}
+        .mff-winners-track{grid-auto-columns:100%;gap:18px}
+        .mff-winner-photo{width:86px}
         .mff-winner span{font-size:12px}
         .mff-flow{grid-template-columns:1fr;gap:18px}
         .mff-steps{grid-template-columns:1fr;gap:18px}
@@ -612,6 +617,13 @@ function widgetRuntime() {
     return SHOP_ORIGIN ? `${SHOP_ORIGIN}${path}` : path;
   }
 
+  function appAssetHref(path) {
+    const raw = String(path || "").trim();
+    if (!raw) return "";
+    if (raw.startsWith("/assets/") || raw.startsWith("/brand/")) return `${API}${raw}`;
+    return raw;
+  }
+
   function widgetCopy(data, key) {
     return data?.widgets?.[key] || {};
   }
@@ -653,7 +665,7 @@ function widgetRuntime() {
   }
 
   function visualImage(copy) {
-    const src = String(copy.visualImageUrl || "").trim();
+    const src = appAssetHref(copy.visualImageUrl);
     if (!src) return "";
     return `<img class="mff-visual" src="${escapeHtml(src)}" alt="${escapeHtml(copy.visualImageAlt || "")}" loading="lazy">`;
   }
@@ -864,8 +876,37 @@ function widgetRuntime() {
     })).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
   }
 
+  function placeholderWinnerItems() {
+    return [
+      {
+        name: "Mark uit Breda",
+        prizeName: "BBQ Box",
+        story: "Won na zijn weekendbestelling en deelde de box met zijn vaste BBQ-groep.",
+        imageUrl: "/assets/placeholders/winner-bbq.svg"
+      },
+      {
+        name: "Sanne uit Rotterdam",
+        prizeName: "250 euro vleestegoed",
+        story: "Haar bestelling boven EUR 70 koppelde automatisch een lot aan de trekking.",
+        imageUrl: "/assets/placeholders/winner-credit.svg"
+      },
+      {
+        name: "Youssef uit Utrecht",
+        prizeName: "Kamado pakket",
+        story: "Volgde zijn lot in Mijn MFF en won de maandprijs voor buitenkoks.",
+        imageUrl: "/assets/placeholders/winner-kamado.svg"
+      },
+      {
+        name: "Niels uit Haarlem",
+        prizeName: "Dry-aged pakket",
+        story: "Pakte met zijn tweede order direct een lot voor de live winactie.",
+        imageUrl: "/assets/placeholders/winner-aged.svg"
+      }
+    ];
+  }
+
   function winnerPhoto(winner) {
-    const src = String(winner.imageUrl || "").trim();
+    const src = appAssetHref(winner.imageUrl);
     const name = String(winner.name || "MFF winnaar").trim();
     if (src) {
       return `<img class="mff-winner-photo" src="${escapeHtml(src)}" alt="${escapeHtml(name)} met prijs" loading="lazy">`;
@@ -887,20 +928,80 @@ function widgetRuntime() {
     </article>`;
   }
 
+  function setupWinnerCarousel(el) {
+    const carousel = el.querySelector("[data-mff-winners-carousel]");
+    const track = el.querySelector("[data-mff-winners-track]");
+    if (!carousel || !track) return;
+    const slides = Array.from(track.querySelectorAll(".mff-winner"));
+    if (slides.length < 2) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let index = 0;
+    let timer = null;
+    let paused = false;
+
+    const goTo = (nextIndex, userInitiated = false) => {
+      index = (nextIndex + slides.length) % slides.length;
+      track.scrollTo({
+        left: slides[index].offsetLeft,
+        behavior: reducedMotion ? "auto" : "smooth"
+      });
+      if (userInitiated) restart();
+    };
+    const stop = () => {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      if (reducedMotion || paused || timer) return;
+      timer = window.setInterval(() => goTo(index + 1), 4200);
+    };
+    const restart = () => {
+      stop();
+      start();
+    };
+
+    carousel.querySelector("[data-mff-winner-prev]")?.addEventListener("click", () => goTo(index - 1, true));
+    carousel.querySelector("[data-mff-winner-next]")?.addEventListener("click", () => goTo(index + 1, true));
+    carousel.addEventListener("pointerenter", () => {
+      paused = true;
+      stop();
+    });
+    carousel.addEventListener("pointerleave", () => {
+      paused = false;
+      start();
+    });
+    carousel.addEventListener("focusin", () => {
+      paused = true;
+      stop();
+    });
+    carousel.addEventListener("focusout", () => {
+      paused = false;
+      start();
+    });
+    start();
+  }
+
   function winnersWidget(el, data) {
     const copy = widgetCopy(data, "winners");
     const manualWinners = manualWinnerItems(copy);
     const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, 4) : [];
-    const winners = manualWinners.length ? manualWinners : automaticWinners;
+    const winners = manualWinners.length ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems());
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Echte trekkingen.")}</h2>
       <p class="mff-copy">${escapeHtml(copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.")}</p>
       ${visualImage(copy)}
-      <div class="mff-winners-grid">
-        ${winners.length ? winners.map(winnerCard).join("") : `<div class="mff-winner-empty"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
+      <div class="mff-winners-carousel" data-mff-winners-carousel>
+        <div class="mff-winners-track" data-mff-winners-track>
+          ${winners.length ? winners.map(winnerCard).join("") : `<div class="mff-winner-empty"><span>${escapeHtml(copy.emptyLabel || "Nog geen winnaars gepubliceerd")}</span><b>${escapeHtml(copy.emptyValue || "Live")}</b></div>`}
+        </div>
+        ${winners.length > 1 ? `<div class="mff-winners-nav" aria-label="Winnaars carousel bediening">
+          <button type="button" data-mff-winner-prev aria-label="Vorige winnaar">‹</button>
+          <button type="button" data-mff-winner-next aria-label="Volgende winnaar">›</button>
+        </div>` : ""}
       </div>
     </section>`;
+    setupWinnerCarousel(el);
   }
 
   function renderCustomerDashboard(el, payload) {

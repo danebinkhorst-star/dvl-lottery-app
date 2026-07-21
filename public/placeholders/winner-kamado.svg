@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-label="Fictieve winnaar met kamado pakket">
+  <rect width="360" height="360" fill="#fff8ed"/>
+  <circle cx="182" cy="118" r="56" fill="#21150f"/>
+  <path d="M70 318c18-74 62-112 112-112s94 38 112 112" fill="#efb12c" stroke="#21150f" stroke-width="10"/>
+  <path d="M105 257c0-43 34-78 76-78s76 35 76 78v26H105z" fill="#b72b22" stroke="#21150f" stroke-width="10"/>
+  <path d="M128 282h108M150 236h62M158 208h46" stroke="#fffdf7" stroke-width="11" stroke-linecap="round"/>
+  <path d="M136 302h92" stroke="#21150f" stroke-width="12" stroke-linecap="round"/>
+</svg>
