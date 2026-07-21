@@ -332,6 +332,7 @@ export function createApp() {
   app.use(morgan("dev"));
   app.use("/assets", express.static(resolve("public"), { maxAge: "1d" }));
   app.use("/brand", express.static(resolve("public", "brand"), { maxAge: "1d" }));
+  app.use("/placeholders", express.static(resolve("public", "placeholders"), { maxAge: "1d" }));
   app.use((req, res, next) => {
     if (req.path.startsWith("/admin")) {
       res.setHeader("Cache-Control", "no-store");

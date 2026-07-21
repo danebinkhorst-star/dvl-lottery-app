@@ -3,7 +3,7 @@ import { db, id, nowIso } from "../db.js";
 import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
-import { getLotteryRule, updateLotteryRule, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
+import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -131,6 +131,7 @@ function page(title, active, body) {
     ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
     ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
     ["regels", "/admin/regels", "SlidersHorizontal", "Regels"],
+    ["site", "/admin/site-structuur", "LayoutTemplate", "Site structuur"],
     ["widgets", "/admin/widgets", "PanelTop", "Widgets"],
     ["nieuw", "/admin/new-draw", "Plus", "Nieuwe winactie"],
     ["embed", "/admin/embed", "ExternalLink", "Embed voorbeeld"]
@@ -139,7 +140,7 @@ function page(title, active, body) {
     ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
     ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
-    ["orders", "/admin/orders", "ShoppingCart", "Orders"],
+    ["site", "/admin/site-structuur", "LayoutTemplate", "Site"],
     ["meer", "/admin/menu", "Menu", "Meer"]
   ];
 
@@ -269,6 +270,14 @@ function page(title, active, body) {
         .more-link { min-height:86px; display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-decoration:none; }
         .more-link:hover, .more-link:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
         .more-link strong { display:block; font-size:14px; font-weight:900; }
+        .structure-grid { display:grid; gap:14px; }
+        .structure-row { display:grid; grid-template-columns:88px minmax(160px,.9fr) minmax(160px,.9fr) minmax(220px,1.4fr); gap:12px; align-items:start; padding:14px; border:1px solid var(--line-soft); border-radius:10px; background:#fff; }
+        .structure-row--compact { grid-template-columns:88px minmax(140px,.8fr) minmax(170px,1fr) minmax(150px,.85fr); }
+        .structure-toggle { display:flex; align-items:center; gap:8px; min-height:40px; color:var(--ink); font-size:12px; font-weight:900; letter-spacing:0; text-transform:none; }
+        .structure-toggle input { width:18px; min-height:18px; margin:0; accent-color:var(--moss); }
+        .structure-meta { display:grid; gap:4px; padding:10px 0; }
+        .structure-meta strong { font-size:13px; font-weight:950; }
+        .code-line { width:100%; display:block; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.4; overflow:auto; }
         .widget-editor { display:grid; gap:16px; }
         .widget-editor-card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,#fffdf9,#faf7ef); overflow:hidden; }
         .widget-editor-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start; padding:18px; border-bottom:1px solid var(--line-soft); background:#fff; }
@@ -328,6 +337,8 @@ function page(title, active, body) {
           .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
+          .structure-row, .structure-row--compact { grid-template-columns:1fr; border-radius:16px; }
+          .structure-meta { padding:0; }
           .widget-editor-head { grid-template-columns:1fr; }
           .widget-editor-body { grid-template-columns:1fr; }
           .widget-editor-body .form-grid { grid-template-columns:1fr; }
@@ -987,6 +998,164 @@ function customerFilter(req) {
   };
 }
 
+function checkbox(body, name) {
+  return body?.[name] === "true";
+}
+
+function structureInput(name, value, labelText = "", className = "") {
+  return `<label${className ? ` class="${className}"` : ""}>${escapeHtml(labelText || name)}<input name="${escapeHtml(name)}" value="${escapeHtml(value)}"></label>`;
+}
+
+function structureTextarea(name, value, labelText = "") {
+  return `<label class="wide">${escapeHtml(labelText || name)}<textarea name="${escapeHtml(name)}">${escapeHtml(value)}</textarea></label>`;
+}
+
+function structureToggle(name, checked, labelText = "Actief") {
+  return `<label class="structure-toggle"><input type="checkbox" name="${escapeHtml(name)}" value="true"${checked ? " checked" : ""}>${escapeHtml(labelText)}</label>`;
+}
+
+function siteStructureFromBody(body) {
+  const current = getSiteStructure();
+  const byPrefix = (prefix, row, fields) => fields.reduce((next, field) => {
+    next[field] = textParam(body[`${prefix}${field}:${row.key}`]) || row[field] || "";
+    return next;
+  }, { key: row.key });
+  return {
+    homepageSections: current.homepageSections.map((row) => ({
+      ...row,
+      ...byPrefix("section", row, ["label", "widget", "placement", "purpose"]),
+      enabled: checkbox(body, `sectionEnabled:${row.key}`)
+    })),
+    headerMenu: current.headerMenu.map((row) => ({
+      ...row,
+      ...byPrefix("nav", row, ["label", "url", "group"]),
+      visible: checkbox(body, `navVisible:${row.key}`)
+    })),
+    infoPages: current.infoPages.map((row) => ({
+      ...row,
+      ...byPrefix("page", row, ["title", "url", "status", "purpose"]),
+      inHeader: checkbox(body, `pageInHeader:${row.key}`)
+    })),
+    productCards: {
+      enabled: checkbox(body, "productCardsEnabled"),
+      directAddEnabled: checkbox(body, "productDirectAddEnabled"),
+      showSavings: checkbox(body, "productShowSavings"),
+      showLotProgress: checkbox(body, "productShowLotProgress"),
+      showDetailsLink: checkbox(body, "productShowDetailsLink"),
+      placement: textParam(body.productPlacement),
+      note: textParam(body.productNote)
+    }
+  };
+}
+
+function siteStructureSnippet(type) {
+  if (type === "product-cards") return '<div data-dvl-lottery="product-cards"></div>';
+  if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>';
+  return `<div data-dvl-lottery="${escapeHtml(type)}"></div>`;
+}
+
+function siteStructurePage() {
+  const structure = getSiteStructure();
+  const activeSections = structure.homepageSections.filter((row) => row.enabled).length;
+  const visibleNav = structure.headerMenu.filter((row) => row.visible).length;
+  const livePages = structure.infoPages.filter((row) => row.status === "live").length;
+  const productCardSettings = getWidgetSettings("product-cards");
+  const productVariantsConfigured = ["One", "Two", "Three", "Four"].some((slot) => textParam(productCardSettings[`product${slot}VariantId`]));
+  const productStatus = structure.productCards.directAddEnabled
+    ? (productVariantsConfigured ? "Add-to-cart aan" : "Variant IDs nodig")
+    : "Alleen productlink";
+
+  return `
+    ${topbar("Site structuur", "Homepage, header en informatiepagina's.", "Stuur wat Shopify laat zien vanuit één overzichtelijke plek. Widgets blijven los bewerkbaar, deze pagina bepaalt de site-opbouw.", `<a class="button button--ghost" href="/admin/widgets">${icon("PanelTop")}Widgets</a><a class="button button--gold" href="/admin/embed">${icon("ExternalLink")}Embed</a>`)}
+    ${kpiGrid([
+      { label: "Homepage blokken", value: activeSections, help: "Actieve secties in aanbevolen volgorde.", icon: "LayoutTemplate" },
+      { label: "Header links", value: visibleNav, help: "Zichtbare menu-items voor Shopify.", icon: "Menu" },
+      { label: "Live infopagina's", value: livePages, help: "Pagina's die klaar horen te staan.", icon: "FileText" },
+      { label: "Productkaarten", value: productStatus, help: "Meat For More-achtige kaartactie.", icon: "ShoppingBag" }
+    ])}
+    <form method="post" action="/admin/site-structuur" class="stack">
+      <section class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Homepage</p><h2>Volgorde en doel per blok</h2><p class="helper">Plaats in Shopify de widgets in deze volgorde. Dit houdt de homepage verkoopgericht en uitlegbaar.</p></div></div>
+        <div class="structure-grid">
+          ${structure.homepageSections.map((row) => `<div class="structure-row">
+            <div>
+              ${structureToggle(`sectionEnabled:${row.key}`, row.enabled, "Tonen")}
+              <span class="status">${escapeHtml(row.widget)}</span>
+            </div>
+            ${structureInput(`sectionlabel:${row.key}`, row.label, "Label")}
+            ${structureInput(`sectionplacement:${row.key}`, row.placement, "Plaatsing")}
+            ${structureTextarea(`sectionpurpose:${row.key}`, row.purpose, "Waarom dit blok bestaat")}
+            <input type="hidden" name="sectionwidget:${escapeHtml(row.key)}" value="${escapeHtml(row.widget)}">
+          </div>`).join("")}
+        </div>
+      </section>
+      <section class="grid grid-2">
+        <div class="panel panel-pad">
+          <div class="panel-title"><div><p class="eyebrow">Header menu</p><h2>Shopify navigatie</h2><p class="helper">Gebruik deze labels en URL's in het Shopify hoofdmenu. Hoofdmenu blijft kort, winactie-details gaan in dropdown.</p></div></div>
+          <div class="structure-grid">
+            ${structure.headerMenu.map((row) => `<div class="structure-row structure-row--compact">
+              ${structureToggle(`navVisible:${row.key}`, row.visible, "Zichtbaar")}
+              ${structureInput(`navlabel:${row.key}`, row.label, "Label")}
+              ${structureInput(`navurl:${row.key}`, row.url, "URL")}
+              ${structureInput(`navgroup:${row.key}`, row.group, "Groep")}
+            </div>`).join("")}
+          </div>
+        </div>
+        <div class="panel panel-pad">
+          <div class="panel-title"><div><p class="eyebrow">Productkaarten</p><h2>Homepage card gedrag</h2><p class="helper">Gebaseerd op de Meat For More homepage: korting, detail-link en direct add-to-cart. MFF voegt lot-progress toe.</p></div></div>
+          <div class="form-grid">
+            ${structureToggle("productCardsEnabled", structure.productCards.enabled, "Productkaarten tonen")}
+            ${structureToggle("productDirectAddEnabled", structure.productCards.directAddEnabled, "Direct in winkelwagen")}
+            ${structureToggle("productShowSavings", structure.productCards.showSavings, "Korting tonen")}
+            ${structureToggle("productShowLotProgress", structure.productCards.showLotProgress, "Lot-progress tonen")}
+            ${structureToggle("productShowDetailsLink", structure.productCards.showDetailsLink, "Details-link tonen")}
+            ${structureInput("productPlacement", structure.productCards.placement, "Plaatsing", "wide")}
+            ${structureTextarea("productNote", structure.productCards.note, "Interne notitie")}
+          </div>
+          <span class="code-line">${escapeHtml(siteStructureSnippet("product-cards"))}</span>
+        </div>
+      </section>
+      <section class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Informatieve pagina's</p><h2>Pagina's die in header of dropdown horen</h2><p class="helper">Dit zijn de pagina's die vertrouwen, compliance en uitleg dragen. Footer mag juridisch dieper gaan, header blijft overzichtelijk.</p></div></div>
+        <div class="structure-grid">
+          ${structure.infoPages.map((row) => `<div class="structure-row">
+            <div>
+              ${structureToggle(`pageInHeader:${row.key}`, row.inHeader, "Menu")}
+              <span class="status status--${row.status === "live" ? "active" : "pending"}">${escapeHtml(row.status === "live" ? "Live" : "Concept")}</span>
+            </div>
+            ${structureInput(`pagetitle:${row.key}`, row.title, "Titel")}
+            <label>Status<select name="pagestatus:${escapeHtml(row.key)}">${option("live", row.status, "Live")}${option("concept", row.status, "Concept")}</select></label>
+            ${structureInput(`pageurl:${row.key}`, row.url, "URL")}
+            ${structureTextarea(`pagepurpose:${row.key}`, row.purpose, "Doel")}
+          </div>`).join("")}
+        </div>
+      </section>
+      <section class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Shopify snippets</p><h2>Embed volgorde voor homepage</h2></div></div>
+        <span class="code-line">${escapeHtml(structure.homepageSections.filter((row) => row.enabled).map((row) => siteStructureSnippet(row.widget)).join("\n"))}</span>
+      </section>
+      <div class="actions"><button class="button--gold" type="submit">${icon("Save")}Site structuur opslaan</button></div>
+    </form>
+  `;
+}
+
+adminRouter.get("/site-structuur", (_req, res) => {
+  res.send(page("Site structuur | Meat For Free", "site", siteStructurePage()));
+});
+
+adminRouter.post("/site-structuur", urlencoded, (req, res) => {
+  const structure = siteStructureFromBody(req.body || {});
+  updateSiteStructure(structure);
+  writeAuditLog({
+    actor: "admin",
+    action: "UPDATE_SITE_STRUCTURE",
+    targetType: "site_structure",
+    targetId: "site",
+    message: "Homepage, header menu en informatiepagina's bijgewerkt."
+  });
+  res.redirect("/admin/site-structuur");
+});
+
 adminRouter.get("/", (_req, res) => {
   const metrics = getMetrics();
   const funnel = funnelMetrics();
@@ -1121,6 +1290,7 @@ adminRouter.get("/menu", (_req, res) => {
       ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
       ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
       ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
+      ["Site structuur", "/admin/site-structuur", "LayoutTemplate", "Homepage, header, PDP en infopagina's."],
       ["Widgets", "/admin/widgets", "PanelTop", "Teksten en knoppen per widget."]
     ]],
     ["Acties", [
@@ -1720,7 +1890,40 @@ const widgetFieldLabels = {
   emailPlaceholder: ["Placeholder e-mail", "Formulier placeholder."],
   loadingText: ["Laadtekst", "Tekst tijdens verzenden."],
   duplicateText: ["Dubbele deelname", "Tekst als deelname al bestaat."],
-  successPrefix: ["Succes tekst", "Tekst voor het lotnummer."]
+  successPrefix: ["Succes tekst", "Tekst voor het lotnummer."],
+  collectionUrl: ["Collectielink", "Waar bezoekers alle producten openen."],
+  detailLabel: ["Details-link", "Label voor de link naar de productpagina."],
+  cartLabel: ["Cart knop", "Label voor directe add-to-cart."],
+  soldOutLabel: ["Fallback knop", "Als er geen variant ID is ingevuld."],
+  lotLabel: ["Lot label", "Korte tekst bij productbijdrage richting gratis lot."],
+  productOneTitle: ["Product 1 titel", "Naam op de kaart."],
+  productOneDescription: ["Product 1 tekst", "Korte beschrijving."],
+  productOneImageUrl: ["Product 1 afbeelding", "Shopify CDN URL of app asset."],
+  productOneUrl: ["Product 1 link", "Productpagina of collectie."],
+  productOneVariantId: ["Product 1 variant ID", "Nodig voor directe add-to-cart."],
+  productOnePriceCents: ["Product 1 prijs centen", "Bijv. 3495 voor EUR 34,95."],
+  productOneCompareAtCents: ["Product 1 van-prijs centen", "Optioneel voor korting."],
+  productTwoTitle: ["Product 2 titel", "Naam op de kaart."],
+  productTwoDescription: ["Product 2 tekst", "Korte beschrijving."],
+  productTwoImageUrl: ["Product 2 afbeelding", "Shopify CDN URL of app asset."],
+  productTwoUrl: ["Product 2 link", "Productpagina of collectie."],
+  productTwoVariantId: ["Product 2 variant ID", "Nodig voor directe add-to-cart."],
+  productTwoPriceCents: ["Product 2 prijs centen", "Bijv. 5995 voor EUR 59,95."],
+  productTwoCompareAtCents: ["Product 2 van-prijs centen", "Optioneel voor korting."],
+  productThreeTitle: ["Product 3 titel", "Naam op de kaart."],
+  productThreeDescription: ["Product 3 tekst", "Korte beschrijving."],
+  productThreeImageUrl: ["Product 3 afbeelding", "Shopify CDN URL of app asset."],
+  productThreeUrl: ["Product 3 link", "Productpagina of collectie."],
+  productThreeVariantId: ["Product 3 variant ID", "Nodig voor directe add-to-cart."],
+  productThreePriceCents: ["Product 3 prijs centen", "Bijv. 7995 voor EUR 79,95."],
+  productThreeCompareAtCents: ["Product 3 van-prijs centen", "Optioneel voor korting."],
+  productFourTitle: ["Product 4 titel", "Naam op de kaart."],
+  productFourDescription: ["Product 4 tekst", "Korte beschrijving."],
+  productFourImageUrl: ["Product 4 afbeelding", "Shopify CDN URL of app asset."],
+  productFourUrl: ["Product 4 link", "Productpagina of collectie."],
+  productFourVariantId: ["Product 4 variant ID", "Nodig voor directe add-to-cart."],
+  productFourPriceCents: ["Product 4 prijs centen", "Bijv. 2500 voor EUR 25,00."],
+  productFourCompareAtCents: ["Product 4 van-prijs centen", "Optioneel voor korting."]
 };
 
 const widgetVisualLabels = {
@@ -1940,6 +2143,7 @@ adminRouter.get("/embed", (_req, res) => {
     ["live", "Homepage live winactie", "Hero/section met hoofdprijs, lotregel en countdown."],
     ["cart", "Cart gratis-lot progress", "Toont hoeveel er nog nodig is tot een gratis lot. Gebruik liefst als directe Shopify script embed."],
     ["winners", "Laatste winnaars", "Compact bewijsblok met recente winnaars."],
+    ["product-cards", "Homepage productkaarten", "Productcards met korting, details en directe add-to-cart."],
     ["customer", "Mijn MFF teaser", "Klantdashboard entrypoint met live status."],
     ["pdp", "PDP lot-progress", "Compact productblok: laat zien of dit product al richting een gratis lot telt."],
     ["free-entry", "Gratis deelname", "Formulier voor 1 keer gratis meedoen."],

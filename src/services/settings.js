@@ -240,6 +240,48 @@ export const widgetDefinitions = [
       secondaryLabel: "Community",
       secondaryUrl: "/pages/community"
     }
+  },
+  {
+    key: "product-cards",
+    label: "Homepage productkaarten",
+    description: "Productblok met korting, prijs, details-link, directe add-to-cart en lot-progress.",
+    defaults: {
+      heading: "Populaire pakketten",
+      body: "Snel shoppen zoals bezoekers gewend zijn: prijs, korting, details en direct in de winkelwagen.",
+      collectionUrl: "/collections/all",
+      detailLabel: "Alle gegevens bekijken",
+      cartLabel: "In winkelwagen",
+      soldOutLabel: "Bekijk product",
+      lotLabel: "Telt mee voor je lot",
+      productOneTitle: "BBQ Box",
+      productOneDescription: "Een stevige selectie voor de grill.",
+      productOneImageUrl: "/placeholders/winner-bbq.svg",
+      productOneUrl: "/collections/all",
+      productOneVariantId: "",
+      productOnePriceCents: "3495",
+      productOneCompareAtCents: "4495",
+      productTwoTitle: "Dry-aged pakket",
+      productTwoDescription: "Premium vlees voor een goed weekend.",
+      productTwoImageUrl: "/placeholders/winner-aged.svg",
+      productTwoUrl: "/collections/all",
+      productTwoVariantId: "",
+      productTwoPriceCents: "5995",
+      productTwoCompareAtCents: "7495",
+      productThreeTitle: "Kamado pakket",
+      productThreeDescription: "Voor low & slow sessies en grote trek.",
+      productThreeImageUrl: "/placeholders/winner-kamado.svg",
+      productThreeUrl: "/collections/all",
+      productThreeVariantId: "",
+      productThreePriceCents: "7995",
+      productThreeCompareAtCents: "9995",
+      productFourTitle: "Vleestegoed",
+      productFourDescription: "Flexibel shoppen richting je volgende lot.",
+      productFourImageUrl: "/placeholders/winner-credit.svg",
+      productFourUrl: "/collections/all",
+      productFourVariantId: "",
+      productFourPriceCents: "2500",
+      productFourCompareAtCents: ""
+    }
   }
 ];
 
@@ -287,4 +329,83 @@ export function updateWidgetSettings(widgetKey, fields) {
   }
   setSetting(widgetSettingKey(widgetKey), JSON.stringify(next));
   return getWidgetSettings(widgetKey);
+}
+
+export const siteStructureDefaults = {
+  homepageSections: [
+    { key: "hero", label: "Live winactie", widget: "live", placement: "Homepage bovenaan", purpose: "Leg direct uit wat de actie is en waar bezoekers kunnen shoppen.", enabled: true },
+    { key: "products", label: "Populaire producten", widget: "product-cards", placement: "Onder hero", purpose: "Productkeuze, korting en direct in winkelwagen.", enabled: true },
+    { key: "how", label: "Hoe het werkt", widget: "how-it-works", placement: "Na producten", purpose: "Bestellen, lot krijgen en trekking volgen.", enabled: true },
+    { key: "winners", label: "Recente winnaars", widget: "winners", placement: "Bewijsblok", purpose: "Sociaal bewijs zonder privacy te lekken.", enabled: true },
+    { key: "trust", label: "Trust en levering", widget: "trust", placement: "Onder bewijs", purpose: "Gekoelde levering, transparantie en service vertrouwen.", enabled: true },
+    { key: "free", label: "Gratis deelname", widget: "free-entry", placement: "In FAQ/legal context", purpose: "Zichtbare compliance route zonder de shop te verstoren.", enabled: true }
+  ],
+  headerMenu: [
+    { key: "shop", label: "Shop", url: "/collections/all", group: "Hoofdmenu", visible: true },
+    { key: "winacties", label: "Winacties", url: "/pages/actieve-winacties", group: "Hoofdmenu", visible: true },
+    { key: "hoe", label: "Hoe werkt het", url: "/pages/hoe-werkt-het", group: "Hoofdmenu", visible: true },
+    { key: "winnaars", label: "Winnaars", url: "/pages/winnaars", group: "Hoofdmenu", visible: true },
+    { key: "dashboard", label: "Mijn MFF", url: "/pages/mijn-mff-dashboard", group: "Hoofdmenu", visible: true },
+    { key: "gratis", label: "Gratis deelname", url: "/pages/gratis-deelname", group: "Winacties dropdown", visible: true },
+    { key: "regels", label: "Spelregels", url: "/pages/spelregels", group: "Winacties dropdown", visible: true },
+    { key: "faq", label: "FAQ", url: "/pages/faq", group: "Winacties dropdown", visible: true }
+  ],
+  infoPages: [
+    { key: "actieve-winacties", title: "Actieve winacties", url: "/pages/actieve-winacties", status: "live", inHeader: true, purpose: "Alle lopende prijzen, looptijden en trekkingdata." },
+    { key: "hoe-werkt-het", title: "Hoe werkt het", url: "/pages/hoe-werkt-het", status: "live", inHeader: true, purpose: "Simpele uitleg van order naar lot naar trekking." },
+    { key: "winnaars", title: "Winnaars", url: "/pages/winnaars", status: "live", inHeader: true, purpose: "Gepubliceerde winnaars met toestemming en prijscontext." },
+    { key: "mijn-mff-dashboard", title: "Mijn MFF dashboard", url: "/pages/mijn-mff-dashboard", status: "live", inHeader: true, purpose: "Klant ziet loten, orders en winacties." },
+    { key: "gratis-deelname", title: "Gratis deelname", url: "/pages/gratis-deelname", status: "live", inHeader: true, purpose: "Gratis deelnameformulier en limieten helder uitleggen." },
+    { key: "spelregels", title: "Spelregels", url: "/pages/spelregels", status: "live", inHeader: true, purpose: "Voorwaarden, deelname, trekking en prijsuitkering." },
+    { key: "privacy-loten", title: "Privacy en loten", url: "/pages/privacy-loten", status: "concept", inHeader: false, purpose: "Welke data wordt gebruikt voor loten, IP-checks en dashboard." },
+    { key: "faq", title: "FAQ", url: "/pages/faq", status: "live", inHeader: true, purpose: "Veelgestelde vragen over bestellen, loten en winacties." }
+  ],
+  productCards: {
+    enabled: true,
+    directAddEnabled: true,
+    showSavings: true,
+    showLotProgress: true,
+    showDetailsLink: true,
+    placement: "Homepage onder de live winactie",
+    note: "Gebruik Shopify variant IDs voor echte add-to-cart. Zonder variant ID stuurt de kaart naar de productpagina."
+  }
+};
+
+function settingJson(key, fallback) {
+  const raw = getSetting(key, "");
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function mergeRows(defaultRows, savedRows = [], fields) {
+  const savedByKey = new Map((Array.isArray(savedRows) ? savedRows : []).map((row) => [row?.key, row]));
+  return defaultRows.map((row) => {
+    const saved = savedByKey.get(row.key) || {};
+    const next = { ...row, ...saved };
+    for (const field of fields) {
+      if (next[field] == null) next[field] = row[field];
+    }
+    next.enabled = next.enabled === true || next.visible === true || next.inHeader === true ? true : Boolean(next.enabled);
+    return next;
+  });
+}
+
+export function getSiteStructure() {
+  const saved = settingJson("site_structure", {});
+  return {
+    homepageSections: mergeRows(siteStructureDefaults.homepageSections, saved.homepageSections, ["label", "widget", "placement", "purpose", "enabled"]),
+    headerMenu: mergeRows(siteStructureDefaults.headerMenu, saved.headerMenu, ["label", "url", "group", "visible"]).map((row) => ({ ...row, visible: row.visible !== false })),
+    infoPages: mergeRows(siteStructureDefaults.infoPages, saved.infoPages, ["title", "url", "status", "inHeader", "purpose"]).map((row) => ({ ...row, inHeader: row.inHeader !== false })),
+    productCards: { ...siteStructureDefaults.productCards, ...(saved.productCards || {}) }
+  };
+}
+
+export function updateSiteStructure(nextStructure) {
+  setSetting("site_structure", JSON.stringify(nextStructure));
+  return getSiteStructure();
 }

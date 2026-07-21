@@ -572,6 +572,26 @@ function widgetRuntime() {
         font-size:10px;
       }
       .mff-pdp .mff-button:hover,.mff-pdp .mff-button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line)}
+      .mff-products{display:grid;gap:20px}
+      .mff-products-head{display:flex;align-items:end;justify-content:space-between;gap:16px}
+      .mff-products .mff-title{font-size:clamp(34px,4.6vw,64px)}
+      .mff-product-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+      .mff-product-card{min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr);border:2px solid var(--mff-line);border-radius:20px 7px 20px 7px;background:var(--mff-paper);overflow:hidden}
+      .mff-product-media{position:relative;aspect-ratio:1/1;background:linear-gradient(135deg,#fff8ed,#f0e0bf)}
+      .mff-product-media img{width:100%;height:100%;display:block;object-fit:cover}
+      .mff-product-badge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-red);color:var(--mff-cream);padding:0 9px;font-size:11px;font-weight:950;text-transform:uppercase}
+      .mff-product-body{display:grid;gap:10px;padding:13px}
+      .mff-product-title{display:block;color:var(--mff-ink);font-size:18px;font-weight:950;line-height:1.05;text-transform:uppercase}
+      .mff-product-desc{color:var(--mff-muted);font-size:12px;font-weight:850;line-height:1.35}
+      .mff-product-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;color:var(--mff-ink);font-weight:950}
+      .mff-product-price strong{font-size:20px;line-height:1}
+      .mff-product-price s{color:var(--mff-muted);font-size:13px;font-weight:850}
+      .mff-product-lot{display:grid;gap:6px}
+      .mff-product-lot span{color:var(--mff-muted);font-size:11px;font-weight:900}
+      .mff-product-actions{display:grid;gap:8px;margin-top:auto}
+      .mff-product-actions .mff-button{width:100%;min-height:40px;border-width:2px;border-radius:14px 5px 14px 5px;box-shadow:3px 3px 0 var(--mff-line);font-size:10px}
+      .mff-product-actions .mff-button:hover,.mff-product-actions .mff-button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-line)}
+      .mff-product-message{min-height:16px;color:var(--mff-red);font-size:11px;font-weight:900}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 rgba(33,21,15,.16)}
         .mff-section{padding:22px 14px}
@@ -612,6 +632,10 @@ function widgetRuntime() {
         .mff-pdp .mff-button{width:100%;min-height:38px}
         .mff-pdp .mff-title{font-size:clamp(15px,4.3vw,18px)}
         .mff-pdp .mff-copy{font-size:11px}
+        .mff-products-head{display:grid;gap:12px}
+        .mff-product-grid{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 2px 8px;scrollbar-width:none}
+        .mff-product-grid::-webkit-scrollbar{display:none}
+        .mff-product-card{flex:0 0 min(82vw,330px);scroll-snap-align:start}
       }
       @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i,.mff-winners-track--marquee{animation:none}}
     `;
@@ -635,7 +659,7 @@ function widgetRuntime() {
   function appAssetHref(path) {
     const raw = String(path || "").trim();
     if (!raw) return "";
-    if (raw.startsWith("/assets/") || raw.startsWith("/brand/")) return `${API}${raw}`;
+    if (raw.startsWith("/assets/") || raw.startsWith("/brand/") || raw.startsWith("/placeholders/")) return `${API}${raw}`;
     return raw;
   }
 
@@ -1135,6 +1159,142 @@ function widgetRuntime() {
     </section>`;
   }
 
+  function productCardItems(copy) {
+    return [
+      ["productOne", "1"],
+      ["productTwo", "2"],
+      ["productThree", "3"],
+      ["productFour", "4"]
+    ].map(([prefix]) => {
+      const title = String(copy[`${prefix}Title`] || "").trim();
+      const priceCents = Math.max(0, Number(copy[`${prefix}PriceCents`] || 0) || 0);
+      const compareAtCents = Math.max(0, Number(copy[`${prefix}CompareAtCents`] || 0) || 0);
+      return {
+        title,
+        description: String(copy[`${prefix}Description`] || "").trim(),
+        imageUrl: String(copy[`${prefix}ImageUrl`] || "").trim(),
+        url: String(copy[`${prefix}Url`] || copy.collectionUrl || "/collections/all").trim(),
+        variantId: String(copy[`${prefix}VariantId`] || "").trim(),
+        priceCents,
+        compareAtCents
+      };
+    }).filter((item) => item.title && item.priceCents > 0);
+  }
+
+  function saleBadge(item) {
+    if (!item.compareAtCents || item.compareAtCents <= item.priceCents) return "";
+    const discount = Math.max(1, Math.round((1 - (item.priceCents / item.compareAtCents)) * 100));
+    return `<span class="mff-product-badge">-${discount}%</span>`;
+  }
+
+  function productLotMarkup(item, data, structure) {
+    if (structure?.showLotProgress === false) return "";
+    const threshold = Number(data.rule?.minimumCents || 7000);
+    const remaining = Math.max(0, threshold - item.priceCents);
+    const progress = threshold > 0 ? Math.min(100, Math.round((item.priceCents / threshold) * 100)) : 0;
+    const label = remaining === 0 ? "Pakt een gratis lot bij checkout." : `${formatEuro(remaining)} tot je gratis lot.`;
+    return `<div class="mff-product-lot">
+      <span>${escapeHtml(data.widgets?.["product-cards"]?.lotLabel || "Telt mee voor je lot")}: ${escapeHtml(label)}</span>
+      <div class="mff-progress" aria-label="Productbijdrage richting gratis lot" style="--progress:${progress}%"><i></i></div>
+    </div>`;
+  }
+
+  async function addVariantToCart(variantId) {
+    const endpoint = SHOP_ORIGIN ? `${SHOP_ORIGIN}/cart/add.js` : "/cart/add.js";
+    if (new URL(endpoint, window.location.href).origin === API) {
+      throw new Error("Direct toevoegen werkt alleen op de Shopify storefront.");
+    }
+    const response = await fetch(endpoint, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ id: variantId, quantity: 1 })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.description || data.message || "Kon product niet toevoegen.");
+    window.dispatchEvent(new CustomEvent("mff:cart-updated", { detail: data }));
+    document.dispatchEvent(new CustomEvent("cart:refresh", { detail: data }));
+    return data;
+  }
+
+  function bindProductCards(el) {
+    el.querySelectorAll("[data-mff-product-form]").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector("button");
+        const message = form.closest(".mff-product-card")?.querySelector(".mff-product-message");
+        const variantId = form.getAttribute("data-variant-id") || "";
+        const original = button?.textContent || "In winkelwagen";
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Toevoegen...";
+        }
+        if (message) message.textContent = "";
+        try {
+          await addVariantToCart(variantId);
+          if (button) button.textContent = "Toegevoegd";
+          if (message) message.textContent = "Toegevoegd aan je winkelwagen.";
+          window.setTimeout(() => {
+            if (button) {
+              button.disabled = false;
+              button.textContent = original;
+            }
+          }, 1200);
+        } catch (error) {
+          if (button) {
+            button.disabled = false;
+            button.textContent = original;
+          }
+          if (message) message.textContent = error.message;
+        }
+      });
+    });
+  }
+
+  function productCardsWidget(el, data) {
+    const copy = widgetCopy(data, "product-cards");
+    const structure = data.siteStructure?.productCards || {};
+    const products = productCardItems(copy);
+    const showSavings = structure.showSavings !== false;
+    const showDetails = structure.showDetailsLink !== false;
+    const directAdd = structure.directAddEnabled !== false;
+    el.innerHTML = `<section ${sectionAttrs(copy, "mff-products")}>
+      <div class="mff-products-head">
+        <div>
+          <p class="mff-kicker">Producten</p>
+          <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Populaire pakketten")}</h2>
+          <p class="mff-copy">${escapeHtml(copy.body || "Snel shoppen met prijs, korting, details en direct in de winkelwagen.")}</p>
+        </div>
+        <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.collectionUrl || "/collections/all"))}" target="_top">Alles bekijken</a>
+      </div>
+      <div class="mff-product-grid">
+        ${products.map((item) => `<article class="mff-product-card">
+          <a class="mff-product-media" href="${escapeHtml(storeHref(item.url))}" target="_top" aria-label="${escapeHtml(item.title)} bekijken">
+            ${item.imageUrl ? `<img src="${escapeHtml(appAssetHref(item.imageUrl))}" alt="${escapeHtml(item.title)}" loading="lazy">` : ""}
+            ${showSavings ? saleBadge(item) : ""}
+          </a>
+          <div class="mff-product-body">
+            <strong class="mff-product-title">${escapeHtml(item.title)}</strong>
+            ${item.description ? `<p class="mff-product-desc">${escapeHtml(item.description)}</p>` : ""}
+            <div class="mff-product-price">
+              <strong>${formatEuro(item.priceCents)}</strong>
+              ${showSavings && item.compareAtCents > item.priceCents ? `<s>${formatEuro(item.compareAtCents)}</s>` : ""}
+            </div>
+            ${productLotMarkup(item, data, structure)}
+            <div class="mff-product-actions">
+              ${directAdd && item.variantId
+                ? `<form data-mff-product-form data-variant-id="${escapeHtml(item.variantId)}"><button class="mff-button" type="submit">${escapeHtml(copy.cartLabel || "In winkelwagen")}</button></form>`
+                : `<a class="mff-button" href="${escapeHtml(storeHref(item.url))}" target="_top">${escapeHtml(copy.soldOutLabel || "Bekijk product")}</a>`}
+              ${showDetails ? `<a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(item.url))}" target="_top">${escapeHtml(copy.detailLabel || "Alle gegevens bekijken")}</a>` : ""}
+            </div>
+            <div class="mff-product-message" aria-live="polite"></div>
+          </div>
+        </article>`).join("")}
+      </div>
+    </section>`;
+    bindProductCards(el);
+  }
+
   function howItWorksWidget(el, data) {
     const copy = widgetCopy(data, "how-it-works");
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf EUR 70";
@@ -1274,6 +1434,7 @@ function widgetRuntime() {
       if (type === "customer") return customerWidget(el, data);
       if (type === "cart") return cartWidget(el, data);
       if (type === "winners") return winnersWidget(el, data);
+      if (type === "product-cards") return productCardsWidget(el, data);
       if (type === "pdp") return pdpWidget(el, data);
       if (type === "how-it-works") return howItWorksWidget(el, data);
       if (type === "trust") return trustWidget(el, data);
@@ -1330,6 +1491,7 @@ embedRouter.get("/demo", (_req, res) => {
       <div data-dvl-lottery="live"></div>
       <div data-dvl-lottery="cart"></div>
       <div data-dvl-lottery="winners"></div>
+      <div data-dvl-lottery="product-cards"></div>
       <div data-dvl-lottery="how-it-works"></div>
       <div data-dvl-lottery="trust"></div>
       <div data-dvl-lottery="membership"></div>
@@ -1344,7 +1506,7 @@ embedRouter.get("/demo", (_req, res) => {
 });
 
 embedRouter.get("/frame", (req, res) => {
-  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "pdp", "how-it-works", "trust", "membership", "community"]);
+  const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "product-cards", "pdp", "how-it-works", "trust", "membership", "community"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
   const sectionId = String(req.query.section_id || "");
   let previewPayload = null;

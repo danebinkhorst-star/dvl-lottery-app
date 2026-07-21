@@ -5,7 +5,7 @@ import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
 import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
-import { getAllWidgetSettings, getLotteryRule } from "../services/settings.js";
+import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../services/settings.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -119,7 +119,8 @@ apiRouter.get("/site/summary", async (_req, res) => {
       createdAt: winner.created_at,
       avatarSeed: `${winner.entry_number}-${winner.draw_title || winner.prize_name || "mff"}`
     })),
-    widgets: getAllWidgetSettings()
+    widgets: getAllWidgetSettings(),
+    siteStructure: getSiteStructure()
   });
 });
 
