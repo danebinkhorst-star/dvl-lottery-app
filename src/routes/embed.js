@@ -898,27 +898,27 @@ function widgetRuntime() {
   function fallbackWinnerItems() {
     return [
       {
-        name: "Mark uit Breda",
+        name: "Mark",
         prizeName: "BBQ Box",
-        story: "Won na zijn weekendbestelling en deelde de box met zijn vaste BBQ-groep.",
+        story: "Ik won de BBQ Box na mijn weekendbestelling.",
         imageUrl: "https://i.pravatar.cc/160?img=12"
       },
       {
-        name: "Sanne uit Rotterdam",
+        name: "Sanne",
         prizeName: "250 euro vleestegoed",
-        story: "Haar bestelling boven EUR 70 koppelde automatisch een lot aan de trekking.",
+        story: "Ik won 250 euro vleestegoed met mijn automatische lot.",
         imageUrl: "https://i.pravatar.cc/160?img=47"
       },
       {
-        name: "Youssef uit Utrecht",
+        name: "Youssef",
         prizeName: "Kamado pakket",
-        story: "Volgde zijn lot in Mijn MFF en won de maandprijs voor buitenkoks.",
+        story: "Ik won het kamado pakket en volgde alles in Mijn MFF.",
         imageUrl: "https://i.pravatar.cc/160?img=32"
       },
       {
-        name: "Niels uit Haarlem",
+        name: "Niels",
         prizeName: "Dry-aged pakket",
-        story: "Pakte met zijn tweede order direct een lot voor de live winactie.",
+        story: "Ik won het dry-aged pakket met mijn tweede order.",
         imageUrl: "https://i.pravatar.cc/160?img=68"
       }
     ];
@@ -938,16 +938,28 @@ function widgetRuntime() {
     return `<div class="mff-winner-photo mff-winner-initial" aria-hidden="true">${escapeHtml(fallback)}</div>`;
   }
 
+  function displayWinnerName(winner) {
+    return String(winner.name || winner.customerName || winner.email || "MFF winnaar").replace(/\s+uit\s+.+$/i, "").trim() || "MFF winnaar";
+  }
+
+  function winnerStatement(winner, prize) {
+    const raw = String(winner.story || "").trim();
+    const clean = raw.replace(/^["“”]+|["“”]+$/g, "");
+    const statement = /^ik\b/i.test(clean)
+      ? clean
+      : `Ik won ${prize || "een Meat For Free prijs"} met mijn Meat For Free lot.`;
+    return `"${statement}"`;
+  }
+
   function winnerCard(winner, duplicate = false) {
-    const name = winner.name || winner.customerName || winner.email || "MFF winnaar";
+    const name = displayWinnerName(winner);
     const prize = winner.prizeName || "Prijs";
-    const story = winner.story || winner.drawTitle || "Winnaar van een recente Meat For Free trekking.";
+    const statement = winnerStatement(winner, prize);
     return `<article class="mff-winner${winner.isPlaceholder ? " mff-winner--placeholder" : ""}"${duplicate ? ' aria-hidden="true"' : ""}>
       ${winnerPhoto({ ...winner, name })}
       <div class="mff-winner-copy">
         <strong>${escapeHtml(name)}</strong>
-        <b>${escapeHtml(prize)}</b>
-        <span>${escapeHtml(story)}</span>
+        <span>${escapeHtml(statement)}</span>
       </div>
     </article>`;
   }
@@ -978,7 +990,6 @@ function widgetRuntime() {
     if (!winners.length) return "";
     return `<div class="mff-winners-title">
       <strong>Recente winnaars</strong>
-      <span>Live</span>
     </div>
     ${winnerMarquee(winners, true)}`;
   }
