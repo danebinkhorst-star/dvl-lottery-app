@@ -1016,10 +1016,14 @@ function widgetRuntime() {
     const hasManualRealWinners = manualWinners.some((winner) => !winner.isPlaceholder);
     const isPlaceholderState = !hasManualRealWinners && !automaticWinners.length;
     const winners = hasManualRealWinners ? manualWinners : (automaticWinners.length ? automaticWinners : placeholderWinnerItems());
+    const heading = isPlaceholderState ? "Winnaars komen hier live." : (copy.heading || "Echte trekkingen.");
+    const body = isPlaceholderState
+      ? "Voorbeeld met realistische beelden tot de eerste echte winnaars gepubliceerd zijn."
+      : (copy.body || "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes.");
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
-      <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || (isPlaceholderState ? "Winnaars komen hier live." : "Echte trekkingen."))}</h2>
-      <p class="mff-copy">${escapeHtml(copy.body || (isPlaceholderState ? "Voorbeeld met realistische beelden tot de eerste echte winnaars gepubliceerd zijn." : "Laat recente winnaars zien zonder lange uitleg. Bewijs boven praatjes."))}</p>
+      <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
+      <p class="mff-copy">${escapeHtml(body)}</p>
       ${visualImage(copy)}
       <div class="mff-winners-carousel" data-mff-winners-carousel>
         <div class="mff-winners-track" data-mff-winners-track>
