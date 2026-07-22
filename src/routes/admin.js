@@ -295,7 +295,7 @@ function page(title, active, body) {
         .widget-preview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
         .widget-preview-tools { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
         .widget-preview-toggle { min-height:30px; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:0 10px; color:var(--ink); font:inherit; font-size:11px; font-weight:900; text-transform:uppercase; cursor:pointer; }
-        .widget-preview-toggle[aria-pressed="true"] { background:var(--gold); box-shadow:2px 2px 0 var(--ink); }
+        .widget-preview-toggle[aria-pressed="true"] { background:var(--gold); box-shadow:2px 2px 0 #000; }
         .widget-preview-shell { display:grid; justify-items:center; padding:10px; border:1px solid var(--line); border-radius:14px; background:#efe8d9; box-shadow:0 12px 34px rgba(33,21,15,.08); transition:background 160ms ease; }
         .widget-preview[data-preview-size="mobile"] .widget-preview-shell { background:#d7d0c3; }
         .widget-preview-frame { width:100%; max-width:1180px; min-height:360px; border:1px solid var(--line); border-radius:10px; background:#fff7ea; }
