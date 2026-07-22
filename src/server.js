@@ -11,6 +11,7 @@ import { apiRouter } from "./routes/api.js";
 import { embedRouter } from "./routes/embed.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw } from "./services/lottery.js";
+import { syncShopifyProducts } from "./services/shopify-products.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
 import { safeEqual } from "./auth.js";
@@ -20,6 +21,7 @@ const adminCsrfParser = express.urlencoded({ extended: false, limit: "16kb" });
 const adminSessionCookie = "mff_admin_session";
 const adminCsrfCookie = "mff_admin_csrf";
 const adminSessionMaxAgeSeconds = 60 * 60 * 12;
+const productSyncIntervalMs = 1000 * 60 * 60 * 6;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -97,6 +99,21 @@ function auditAdminEvent(req, { actor = "admin", action, targetId = null, messag
   } catch (error) {
     console.warn("Could not write admin audit log", error);
   }
+}
+
+function startProductSyncScheduler() {
+  const run = async () => {
+    try {
+      const result = await syncShopifyProducts({ limit: 100 });
+      console.log(`Shopify product sync complete: ${result.synced || 0}/${result.fetched || 0}`);
+    } catch (error) {
+      console.warn(`Shopify product sync skipped: ${error.message}`);
+    }
+  };
+  const bootTimer = setTimeout(run, 2500);
+  const interval = setInterval(run, productSyncIntervalMs);
+  bootTimer.unref?.();
+  interval.unref?.();
 }
 
 function normalizeTotpSecret(secret) {
@@ -444,6 +461,7 @@ const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve
 
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
   await getOrCreateLiveDraw();
+  startProductSyncScheduler();
   createApp().listen(config.PORT, () => {
     console.log(`Meat For Free lottery app running on http://localhost:${config.PORT}`);
   });
