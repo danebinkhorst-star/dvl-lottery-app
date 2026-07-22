@@ -19,6 +19,7 @@ adminRouter.use((_req, res, next) => {
 
 const urlencoded = express.urlencoded({ extended: false, limit: "64kb" });
 const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
+const editableDrawStatuses = ["DRAFT", "LIVE", "ARCHIVED"];
 const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
 
@@ -205,6 +206,8 @@ function page(title, active, body) {
         .button, button { min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; border:1px solid var(--moss); border-radius:8px; background:var(--moss); color:#fff; font:inherit; font-size:12px; font-weight:850; text-decoration:none; cursor:pointer; }
         .button svg, button svg { width:15px; height:15px; }
         .button:hover, button:hover, .button:focus-visible, button:focus-visible { background:#527838; border-color:#527838; outline:none; }
+        .button[disabled], button[disabled] { opacity:.46; cursor:not-allowed; filter:saturate(.72); }
+        .button[disabled]:hover, button[disabled]:hover { outline:none; }
         .button--ghost { background:var(--panel-alt); border-color:var(--line); color:var(--ink); }
         .button--ghost:hover, .button--ghost:focus-visible { background:#f8f6f0; border-color:#cbc3b2; color:var(--ink); }
         .button--gold { background:#eef5df; border-color:#cbdba2; color:var(--forest); }
@@ -652,6 +655,27 @@ function drawSignal(row) {
   if (row.status === "DRAWN" && !row.winner_entry_number) return ["Actie", "Getrokken status zonder winnaar"];
   if (total > 0 && Number(row.customer_count || 0) === 0) return ["Controle", "Loten zonder klantkoppeling"];
   return ["Goed", "Normaal"];
+}
+
+function normalizeDrawStatusInput(status, draw = null) {
+  const next = textParam(status);
+  if (next === "DRAWN") {
+    return draw?.winner_entry_id ? "DRAWN" : draw?.status || "DRAFT";
+  }
+  return editableDrawStatuses.includes(next) ? next : draw?.status || "DRAFT";
+}
+
+function drawChecklist(draw, counts = []) {
+  const activeEntries = Number(counts.find((row) => row.status === "ACTIVE")?.count || 0);
+  const checks = [
+    ["Prijs ingevuld", Boolean(textParam(draw.prize_name)), "Prijsnaam staat klaar."],
+    ["Klanttekst", textParam(draw.description).length >= 20, "Beschrijving is lang genoeg voor de publieke uitleg."],
+    ["Planning", Boolean(draw.starts_at && (draw.ends_at || draw.draw_at)), "Startdatum plus eind- of trekdatum."],
+    ["Loten", activeEntries > 0, `${activeEntries} actieve loten.`],
+    ["Winnaar", draw.status !== "DRAWN" || Boolean(draw.winner_entry_id), "Getrokken acties moeten een winnaar hebben."]
+  ];
+  const ready = checks.every((check) => check[1]);
+  return { checks, ready, activeEntries };
 }
 
 function kpiGrid(items) {
@@ -1415,6 +1439,12 @@ adminRouter.get("/winacties/:id", (req, res) => {
     ORDER BY created_at DESC
     LIMIT 12
   `).all(draw.id, `%"drawId":"${draw.id}"%`);
+  const checklist = drawChecklist(draw, counts);
+  const statusActions = [
+    ["DRAFT", "Terug naar concept", "Pauzeer publieke actie om inhoud te corrigeren.", "FilePenLine"],
+    ["LIVE", "Publiceren", checklist.ready ? "Maak deze winactie actief voor nieuwe loten." : "Checklist moet eerst groen zijn.", "Rocket"],
+    ["ARCHIVED", "Archiveren", "Haal oude acties uit operationele focus.", "Archive"]
+  ].filter(([status]) => status !== draw.status);
 
   res.send(page(`${draw.title} | Meat For Free`, "winacties", `
     ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a><a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`)}
@@ -1429,6 +1459,15 @@ adminRouter.get("/winacties/:id", (req, res) => {
       ${drawForm(draw, `/admin/winacties/${escapeHtml(draw.id)}/update`, "Wijzigingen opslaan")}
     </section>
     <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Publicatie</p><h2>Checklist en status</h2></div><span class="status status--${checklist.ready ? "goed" : "controle"}">${checklist.ready ? "Klaar" : "Check"}</span></div>
+        <div class="stack">
+          ${checklist.checks.map(([label, ok, help]) => `<div class="ops-item"><span class="ops-icon">${icon(ok ? "Check" : "CircleAlert")}</span><span><strong>${escapeHtml(label)}</strong><br><span class="muted">${escapeHtml(help)}</span></span><span class="status status--${ok ? "goed" : "controle"}">${ok ? "Goed" : "Check"}</span></div>`).join("")}
+        </div>
+        <div class="actions" style="justify-content:flex-start;margin-top:14px">
+          ${statusActions.map(([status, label, help, iconName]) => `<form class="inline-form" method="post" action="/admin/winacties/${escapeHtml(draw.id)}/status"><input type="hidden" name="status" value="${escapeHtml(status)}"><button class="${status === "LIVE" ? "button--gold" : ""}" type="submit" title="${escapeHtml(help)}"${status === "LIVE" && !checklist.ready ? " disabled" : ""}>${icon(iconName)}${escapeHtml(label)}</button></form>`).join("")}
+        </div>
+      </div>
       <div class="panel panel-pad">
         <div class="panel-title"><div><p class="eyebrow">Admin control</p><h2>Handmatig lot toevoegen</h2></div></div>
         <form method="post" action="/admin/winacties/${escapeHtml(draw.id)}/manual-entry">
@@ -1470,7 +1509,7 @@ adminRouter.post("/draws", urlencoded, async (req, res) => {
     startsAt: maybeIsoDate(req.body.startsAt),
     endsAt: maybeIsoDate(req.body.endsAt),
     drawAt: maybeIsoDate(req.body.drawAt),
-    status: drawStatuses.includes(req.body.status) ? req.body.status : "DRAFT"
+    status: normalizeDrawStatusInput(req.body.status)
   });
   writeAuditLog({
     actor: actor(req),
@@ -1485,7 +1524,7 @@ adminRouter.post("/draws", urlencoded, async (req, res) => {
 adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
   const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
   if (!draw) return res.status(404).send("Winactie niet gevonden");
-  const status = drawStatuses.includes(req.body.status) ? req.body.status : draw.status;
+  const status = normalizeDrawStatusInput(req.body.status, draw);
   db.prepare(`
     UPDATE lottery_draws
     SET title = ?, slug = ?, description = ?, prize_name = ?, prize_value = ?, starts_at = ?, ends_at = ?, draw_at = ?, status = ?, updated_at = ?
@@ -1509,6 +1548,27 @@ adminRouter.post("/winacties/:id/update", urlencoded, (req, res) => {
     targetType: "lottery_draw",
     targetId: draw.id,
     message: `${textParam(req.body.title)} (${statusLabel(status)})`
+  });
+  res.redirect(`/admin/winacties/${draw.id}`);
+});
+
+adminRouter.post("/winacties/:id/status", urlencoded, (req, res) => {
+  const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
+  if (!draw) return res.status(404).send("Winactie niet gevonden");
+  const counts = db.prepare("SELECT status, COUNT(*) AS count FROM lottery_entries WHERE draw_id = ? GROUP BY status").all(draw.id);
+  const checklist = drawChecklist(draw, counts);
+  const status = normalizeDrawStatusInput(req.body.status, draw);
+  if (status === "LIVE" && !checklist.ready) {
+    return res.status(400).send(page("Publicatie gestopt", "winacties", topbar("Nog niet klaar", "Deze winactie mist nog checklistpunten.", "Vul prijs, tekst, planning en loten aan voordat je live zet.", `<a class="button button--gold" href="/admin/winacties/${escapeHtml(draw.id)}">Terug</a>`)));
+  }
+  db.prepare("UPDATE lottery_draws SET status = ?, updated_at = ? WHERE id = ?").run(status, nowIso(), draw.id);
+  writeAuditLog({
+    actor: actor(req),
+    action: "WINACTIE_STATUS_AANGEPAST",
+    targetType: "lottery_draw",
+    targetId: draw.id,
+    message: `${statusLabel(draw.status)} naar ${statusLabel(status)}`,
+    metadata: { previousStatus: draw.status, newStatus: status }
   });
   res.redirect(`/admin/winacties/${draw.id}`);
 });
@@ -2413,6 +2473,7 @@ adminRouter.post("/sync-products", async (req, res) => {
 });
 
 function drawForm(draw, action, submitLabel) {
+  const statusOptions = draw?.status === "DRAWN" ? ["DRAWN", ...editableDrawStatuses] : editableDrawStatuses;
   return `<form method="post" action="${action}">
     <div class="form-grid">
       <label>Titel<input name="title" required value="${escapeHtml(draw?.title || "")}" placeholder="Bijv. Juli BBQ trekking"></label>
@@ -2422,7 +2483,7 @@ function drawForm(draw, action, submitLabel) {
       <label>Startdatum<input type="date" name="startsAt" value="${escapeHtml(dateInput(draw?.starts_at))}"></label>
       <label>Einddatum<input type="date" name="endsAt" value="${escapeHtml(dateInput(draw?.ends_at))}"></label>
       <label>Trekdatum<input type="date" name="drawAt" value="${escapeHtml(dateInput(draw?.draw_at))}"></label>
-      <label>Status<select name="status">${drawStatuses.map((status) => option(status, draw?.status || "DRAFT", statusLabel(status))).join("")}</select></label>
+      <label>Status<select name="status">${statusOptions.map((status) => option(status, draw?.status || "DRAFT", statusLabel(status))).join("")}</select><span class="helper">Getrokken status ontstaat via winnaar trekken, niet handmatig.</span></label>
       <label class="wide">Beschrijving<textarea name="description" placeholder="Korte uitleg die richting klant en admin bruikbaar blijft.">${escapeHtml(draw?.description || "")}</textarea></label>
     </div>
     <div class="actions" style="justify-content:flex-start; margin-top:18px">
