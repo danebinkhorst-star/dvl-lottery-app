@@ -359,7 +359,10 @@ export const siteStructureDefaults = {
     { key: "challenges", title: "Challenges", url: "/pages/challenges", status: "live", inHeader: true, purpose: "Community challenges en tijdelijke acties." },
     { key: "bezorging", title: "Bezorging", url: "/pages/bezorging", status: "live", inHeader: true, purpose: "Heldere leverinformatie voor klanten." },
     { key: "retourbeleid", title: "Retourbeleid", url: "/pages/omruil-en-retourbeleid", status: "live", inHeader: true, purpose: "Omruil- en retourvragen duidelijk afvangen." },
-    { key: "contact", title: "Contact", url: "/pages/contact", status: "live", inHeader: true, purpose: "Support route voor bestelling, levering en deelname." }
+    { key: "contact", title: "Contact", url: "/pages/contact", status: "live", inHeader: true, purpose: "Support route voor bestelling, levering en deelname." },
+    { key: "algemene-voorwaarden", title: "Algemene voorwaarden", url: "/pages/algemene-voorwaarden", status: "live", inHeader: false, purpose: "Footer legal: voorwaarden voor bestellingen, levering, klachten en winacties." },
+    { key: "privacybeleid", title: "Privacybeleid", url: "/pages/privacybeleid", status: "live", inHeader: false, purpose: "Footer legal: privacy, Shopify, klantdashboard, loten en IP-hashing." },
+    { key: "disclaimer", title: "Disclaimer", url: "/pages/disclaimer", status: "live", inHeader: false, purpose: "Footer legal: website-informatie, productafwijkingen, externe links en aansprakelijkheid." }
   ],
   productCards: {
     enabled: true,
