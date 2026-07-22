@@ -7,6 +7,7 @@ import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } fro
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../services/settings.js";
 import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
+import { clientIp, recordSecurityEvent } from "../services/security-events.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -26,14 +27,29 @@ const freeEntryLimiter = rateLimit({
   limit: 6,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Te veel gratis deelnameverzoeken. Probeer het later opnieuw." }
+  handler: (req, res) => {
+    recordSecurityEvent({
+      eventType: "FREE_ENTRY_RATE_LIMIT",
+      req,
+      email: req.body?.email,
+      message: "Gratis deelname rate limit geraakt."
+    });
+    res.status(429).json({ error: "Te veel gratis deelnameverzoeken. Probeer het later opnieuw." });
+  }
 });
 const adminWriteLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Te veel schrijfacties in korte tijd. Probeer het straks opnieuw." }
+  handler: (req, res) => {
+    recordSecurityEvent({
+      eventType: "INTERNAL_WRITE_RATE_LIMIT",
+      req,
+      message: "Interne schrijfactie rate limit geraakt."
+    });
+    res.status(429).json({ error: "Te veel schrijfacties in korte tijd. Probeer het straks opnieuw." });
+  }
 });
 
 function allowFreeEntryAttempt(key) {
@@ -43,11 +59,6 @@ function allowFreeEntryAttempt(key) {
   attempts.push(now);
   freeEntryAttempts.set(key, attempts);
   return attempts.length <= 5;
-}
-
-function clientIp(req) {
-  const forwarded = String(req.get("x-forwarded-for") || "").split(",")[0].trim();
-  return forwarded || req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 apiRouter.get("/draws/live", async (_req, res) => {
@@ -144,6 +155,12 @@ apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {
     const ipAddress = clientIp(req);
     const attemptKey = String(payload.email || ipAddress || "unknown").trim().toLowerCase();
     if (!allowFreeEntryAttempt(attemptKey)) {
+      recordSecurityEvent({
+        eventType: "FREE_ENTRY_ATTEMPT_LIMIT",
+        req,
+        email: payload.email,
+        message: "Gratis deelname poginglimiet geraakt."
+      });
       return res.status(429).json({ error: "Te veel aanvragen. Probeer het later opnieuw." });
     }
     const result = await createFreeEntry({
@@ -174,6 +191,14 @@ apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {
         return res.status(400).json({ error: "Vul een geldig e-mailadres in." });
       }
       return res.status(400).json({ error: "Controleer de ingevulde gegevens." });
+    }
+    if (String(error.message || "").toLowerCase().includes("gratis deelname")) {
+      recordSecurityEvent({
+        eventType: "FREE_ENTRY_DUPLICATE_OR_BLOCKED",
+        req,
+        email: req.body?.email,
+        message: error.message
+      });
     }
     return res.status(400).json({ error: error.message || "Ongeldige aanvraag." });
   }

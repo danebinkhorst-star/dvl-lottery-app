@@ -124,6 +124,17 @@ export function initDb() {
       raw_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS security_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      ip_hash TEXT,
+      email_hash TEXT,
+      path TEXT,
+      message TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_draws_status_starts ON lottery_draws(status, starts_at);
     CREATE INDEX IF NOT EXISTS idx_entries_draw_status ON lottery_entries(draw_id, status);
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
@@ -135,6 +146,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);
+    CREATE INDEX IF NOT EXISTS idx_security_events_created ON security_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type, created_at);
+    CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip_hash, created_at);
   `);
 }
 

@@ -5,6 +5,7 @@ import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } f
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
+import { recentSecurityEvents, securityEventSummary } from "../services/security-events.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -860,6 +861,16 @@ function auditRows(limit = 10) {
     ORDER BY created_at DESC
     LIMIT ?
   `).all(limit);
+}
+
+function securityEventLabel(type) {
+  const labels = {
+    FREE_ENTRY_RATE_LIMIT: "Gratis deelname rate-limit",
+    FREE_ENTRY_ATTEMPT_LIMIT: "Gratis deelname poginglimiet",
+    FREE_ENTRY_DUPLICATE_OR_BLOCKED: "Dubbel of geblokkeerd gratis lot",
+    INTERNAL_WRITE_RATE_LIMIT: "Interne schrijf rate-limit"
+  };
+  return labels[type] || type || "-";
 }
 
 function complianceAlerts(metrics) {
@@ -1847,6 +1858,8 @@ adminRouter.get("/compliance", (_req, res) => {
   const { totals, orderTotals } = metrics;
   const alerts = complianceAlerts(metrics);
   const logs = auditRows(12);
+  const securitySummary = securityEventSummary();
+  const securityEvents = recentSecurityEvents(12);
   const highRiskIps = suspiciousIps.filter((row) => row.risk_label === "Hoog").length;
   const claimStats = db.prepare(`
     SELECT COUNT(*) AS total_claims, COUNT(DISTINCT ip_hash) AS unique_ips, COUNT(DISTINCT email) AS unique_emails
@@ -1861,7 +1874,7 @@ adminRouter.get("/compliance", (_req, res) => {
 
   res.send(page("Compliance | Meat For Free", "compliance", `
     ${topbar("Compliance", "Alleen actiepunten en bewijs.", "IP's worden gehasht opgeslagen: genoeg om misbruik te blokkeren, zonder rauwe IP's in het dashboard.", "")}
-    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.`, icon: "ShieldCheck" }, { label: "Hoge risico's", value: highRiskIps, help: "IP-hashes met meerdere risicosignalen.", icon: "ShieldAlert" }, { label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Moet richting 0 blijven.", icon: "PackageSearch" }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule), icon: "Target" }])}
+    ${kpiGrid([{ label: "Gratis claims", value: claimStats.total_claims || 0, help: `${claimStats.unique_ips || 0} unieke IP-hashes.`, icon: "ShieldCheck" }, { label: "Hoge risico's", value: highRiskIps, help: "IP-hashes met meerdere risicosignalen.", icon: "ShieldAlert" }, { label: "Security events", value: securitySummary.total, help: `${securitySummary.uniqueIps} unieke IP-hashes gelogd.`, icon: "LockKeyhole" }, { label: "Orderdekking", value: percent(orderTotals.eligible_orders || 0, orderTotals.total_orders || 0), help: ruleLabel(rule), icon: "Target" }])}
     <section class="grid grid-2">
       <div class="panel panel-pad">
         <div class="panel-title"><h2>Actiepunten</h2></div>
@@ -1884,6 +1897,20 @@ adminRouter.get("/compliance", (_req, res) => {
           <td>${row.email_count}</td>
           <td>${escapeHtml(row.last_seen)}</td>
         </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Geen IP-hashes met opvallend patroon.</div></td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="section-head"><h2>Security events</h2><span class="muted">Rate-limits, dubbele gratis deelname en blokkerende signalen.</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Tijd</th><th>Event</th><th>IP-hash</th><th>Email-hash</th><th>Pad</th><th>Bericht</th></tr></thead>
+        <tbody>${securityEvents.length ? securityEvents.map((event) => `<tr>
+          <td>${escapeHtml(event.created_at)}</td>
+          <td><strong>${escapeHtml(securityEventLabel(event.event_type))}</strong><span class="muted">${escapeHtml(event.event_type)}</span></td>
+          <td>${event.ip_hash ? `<strong>${escapeHtml(String(event.ip_hash).slice(0, 12))}...</strong>` : `<span class="muted">-</span>`}</td>
+          <td>${event.email_hash ? `<strong>${escapeHtml(String(event.email_hash).slice(0, 12))}...</strong>` : `<span class="muted">-</span>`}</td>
+          <td>${escapeHtml(event.path || "-")}</td>
+          <td>${escapeHtml(event.message || "-")}</td>
+        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen security events gelogd.</div></td></tr>`}</tbody>
       </table>
     </div>
     <div class="section-head"><h2>Auditlog</h2><a class="button button--ghost" href="/admin/regels">Lotregels beheren</a></div>

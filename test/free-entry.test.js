@@ -9,6 +9,7 @@ import { signCustomerToken } from "../src/auth.js";
 function resetDb() {
   db.exec(`
     UPDATE lottery_draws SET winner_entry_id = NULL;
+    DELETE FROM security_events;
     DELETE FROM free_entry_claims;
     DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
@@ -65,6 +66,34 @@ test("free entry allows one claim per IP per live draw", async () => {
 
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE source = 'FREE_ENTRY'").get().count, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM free_entry_claims").get().count, 1);
+});
+
+test("free entry duplicate IP through API records a hashed security event", async () => {
+  resetDb();
+  await createDraw({
+    title: "Security event test",
+    prizeName: "BBQ pakket",
+    status: "LIVE"
+  });
+
+  const app = createApp();
+  await request(app)
+    .post("/api/free-entry")
+    .set("x-forwarded-for", "203.0.113.22")
+    .send({ email: "eerste-api@example.com" })
+    .expect(201);
+  await request(app)
+    .post("/api/free-entry")
+    .set("x-forwarded-for", "203.0.113.22")
+    .send({ email: "tweede-api@example.com" })
+    .expect(400);
+
+  const event = db.prepare("SELECT * FROM security_events WHERE event_type = 'FREE_ENTRY_DUPLICATE_OR_BLOCKED'").get();
+  assert.ok(event);
+  assert.ok(event.ip_hash);
+  assert.ok(event.email_hash);
+  assert.equal(String(event.message).includes("203.0.113.22"), false);
+  assert.equal(String(event.metadata || "").includes("tweede-api@example.com"), false);
 });
 
 test("customer entries endpoint requires a signed token", async () => {
