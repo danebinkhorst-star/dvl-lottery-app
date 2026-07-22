@@ -2,6 +2,7 @@ import { db, id, nowIso } from "../db.js";
 import { config } from "../config.js";
 import { syncCustomerDashboardMetafields } from "./customer-dashboard.js";
 import { getLotteryRule } from "./settings.js";
+import { shopifyRest } from "../shopify/admin-api.js";
 import { centsFromMoney, makeEntryNumber, slugify } from "../utils.js";
 import crypto from "node:crypto";
 
@@ -100,6 +101,85 @@ export async function getOrCreateCustomer({ shopifyCustomerId = null, email = nu
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
 }
 
+function lineItemId(lineItem, index) {
+  return String(lineItem?.id || lineItem?.admin_graphql_api_id || `${lineItem?.product_id || "product"}-${lineItem?.variant_id || "variant"}-${index}`);
+}
+
+export function persistOrderLineItems(order, orderPayload) {
+  const items = Array.isArray(orderPayload?.line_items) ? orderPayload.line_items : [];
+  const statement = db.prepare(`
+    INSERT INTO order_items (
+      id, order_id, shopify_line_item_id, shopify_product_id, shopify_variant_id, title, variant_title,
+      sku, quantity, price_cents, total_cents, created_at
+    )
+    VALUES (
+      @id, @order_id, @shopify_line_item_id, @shopify_product_id, @shopify_variant_id, @title, @variant_title,
+      @sku, @quantity, @price_cents, @total_cents, @created_at
+    )
+    ON CONFLICT(order_id, shopify_line_item_id) DO UPDATE SET
+      shopify_product_id = excluded.shopify_product_id,
+      shopify_variant_id = excluded.shopify_variant_id,
+      title = excluded.title,
+      variant_title = excluded.variant_title,
+      sku = excluded.sku,
+      quantity = excluded.quantity,
+      price_cents = excluded.price_cents,
+      total_cents = excluded.total_cents
+  `);
+  const now = nowIso();
+  let saved = 0;
+  for (const [index, lineItem] of items.entries()) {
+    const quantity = Math.max(0, Number(lineItem?.quantity || 0) || 0);
+    const priceCents = centsFromMoney(lineItem?.price || lineItem?.original_price);
+    const explicitTotalCents = centsFromMoney(lineItem?.pre_tax_price);
+    const discountCents = centsFromMoney(lineItem?.total_discount);
+    const totalCents = explicitTotalCents || Math.max(0, (priceCents * quantity) - discountCents);
+    const row = {
+      id: id(),
+      order_id: order.id,
+      shopify_line_item_id: lineItemId(lineItem, index),
+      shopify_product_id: lineItem?.product_id ? String(lineItem.product_id) : "",
+      shopify_variant_id: lineItem?.variant_id ? String(lineItem.variant_id) : "",
+      title: String(lineItem?.title || lineItem?.name || "Product").trim(),
+      variant_title: String(lineItem?.variant_title || "").trim(),
+      sku: String(lineItem?.sku || "").trim(),
+      quantity,
+      price_cents: priceCents,
+      total_cents: totalCents,
+      created_at: now
+    };
+    if (!row.title || quantity <= 0) continue;
+    statement.run(row);
+    saved += 1;
+  }
+  return saved;
+}
+
+export async function syncStoredOrderLineItems({ limit = 50 } = {}) {
+  const rows = db.prepare(`
+    SELECT *
+    FROM orders
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(Math.max(1, Math.min(100, Number(limit || 50))));
+  const result = { checked: 0, updatedLineItems: 0, skipped: 0, errors: 0 };
+  for (const order of rows) {
+    if (!/^\d+$/.test(String(order.shopify_order_id || ""))) {
+      result.skipped += 1;
+      continue;
+    }
+    try {
+      const data = await shopifyRest(`/orders/${encodeURIComponent(order.shopify_order_id)}.json?fields=id,line_items`);
+      result.checked += 1;
+      result.updatedLineItems += persistOrderLineItems(order, data.order || {});
+    } catch (error) {
+      result.errors += 1;
+      console.warn(`Order line-item sync failed for order ${order.shopify_order_id}: ${error.message}`);
+    }
+  }
+  return result;
+}
+
 export async function createFreeEntry({ email, firstName = null, lastName = null, drawId = null, ipAddress = "", userAgent = "" }) {
   const rule = getLotteryRule();
   if (!rule.FREE_ENTRY_ENABLED) {
@@ -182,9 +262,10 @@ export async function assignEntriesForOrder(orderPayload) {
 
   const existingOrder = db.prepare("SELECT * FROM orders WHERE shopify_order_id = ?").get(shopifyOrderId);
   if (existingOrder) {
+    const lineItemsSaved = persistOrderLineItems(existingOrder, orderPayload);
     const existingEntries = db.prepare("SELECT * FROM lottery_entries WHERE order_id = ?").all(existingOrder.id);
     if (existingOrder.customer_id) await syncCustomerDashboardMetafields(existingOrder.customer_id);
-    return { order: existingOrder, createdEntries: existingEntries, skipped: "order_already_processed" };
+    return { order: existingOrder, createdEntries: existingEntries, lineItemsSaved, skipped: "order_already_processed" };
   }
 
   const draw = await getOrCreateLiveDraw();
@@ -213,6 +294,7 @@ export async function assignEntriesForOrder(orderPayload) {
   db.prepare(`INSERT INTO orders
     (id, shopify_order_id, order_name, customer_id, email, currency, total_cents, financial_status, source, created_at, updated_at)
     VALUES (@id, @shopify_order_id, @order_name, @customer_id, @email, @currency, @total_cents, @financial_status, @source, @created_at, @updated_at)`).run(order);
+  const lineItemsSaved = persistOrderLineItems(order, orderPayload);
 
   const entries = [];
   for (let i = 0; i < entryCount; i += 1) {
@@ -238,7 +320,7 @@ export async function assignEntriesForOrder(orderPayload) {
   }
   if (customer) await syncCustomerDashboardMetafields(customer);
 
-  return { order, createdEntries: entries, draw };
+  return { order, createdEntries: entries, draw, lineItemsSaved };
 }
 
 export async function voidEntriesForOrder(shopifyOrderId, reason = "Order refunded or cancelled") {

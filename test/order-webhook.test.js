@@ -9,6 +9,7 @@ function resetDb() {
     DELETE FROM free_entry_claims;
     DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
+    DELETE FROM order_items;
     DELETE FROM orders;
     DELETE FROM customers;
     DELETE FROM lottery_draws;
@@ -31,11 +32,38 @@ test("paid order at EUR 70 creates one active entry and refund voids it", async 
     currency: "EUR",
     financial_status: "paid",
     email: "test@example.com",
-    customer: { id: 987, email: "test@example.com", first_name: "Test", last_name: "Klant" }
+    customer: { id: 987, email: "test@example.com", first_name: "Test", last_name: "Klant" },
+    line_items: [
+      { id: 1, product_id: 101, variant_id: 201, title: "Ribeye", variant_title: "Per kilo", sku: "RIB-1", quantity: 2, price: "25.00" },
+      { id: 2, product_id: 102, variant_id: 202, title: "Spareribs", quantity: 1, price: "20.00", total_discount: "5.00" }
+    ]
   });
 
   assert.equal(result.createdEntries.length, 1);
+  assert.equal(result.lineItemsSaved, 2);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM lottery_entries WHERE status = 'ACTIVE'").get().count, 1);
+  assert.deepEqual(
+    db.prepare("SELECT title, quantity, price_cents, total_cents FROM order_items ORDER BY title").all().map((row) => ({ ...row })),
+    [
+      { title: "Ribeye", quantity: 2, price_cents: 2500, total_cents: 5000 },
+      { title: "Spareribs", quantity: 1, price_cents: 2000, total_cents: 1500 }
+    ]
+  );
+
+  const retry = await assignEntriesForOrder({
+    id: 12345,
+    name: "#1001",
+    total_price: "70.00",
+    currency: "EUR",
+    financial_status: "paid",
+    email: "test@example.com",
+    customer: { id: 987, email: "test@example.com", first_name: "Test", last_name: "Klant" },
+    line_items: [
+      { id: 1, product_id: 101, variant_id: 201, title: "Ribeye", variant_title: "Per kilo", sku: "RIB-1", quantity: 3, price: "25.00" }
+    ]
+  });
+  assert.equal(retry.skipped, "order_already_processed");
+  assert.equal(db.prepare("SELECT quantity FROM order_items WHERE shopify_line_item_id = '1'").get().quantity, 3);
 
   const voided = await voidEntriesForOrder("12345", "Refund test");
   assert.equal(voided.voided, 1);

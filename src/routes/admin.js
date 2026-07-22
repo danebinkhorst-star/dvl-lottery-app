@@ -1,6 +1,6 @@
 import express from "express";
 import { db, id, nowIso } from "../db.js";
-import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery.js";
+import { createDraw, drawWinner, getOrCreateCustomer, syncStoredOrderLineItems } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
@@ -1051,6 +1051,50 @@ function productFilter(req) {
   };
 }
 
+function productSalesRows(limit = 12) {
+  return db.prepare(`
+    SELECT
+      COALESCE(NULLIF(oi.shopify_product_id, ''), oi.title) AS product_key,
+      oi.shopify_product_id,
+      oi.shopify_variant_id,
+      COALESCE(sp.title, oi.title) AS title,
+      sp.handle,
+      sp.image_url,
+      sp.status_tag,
+      SUM(oi.quantity) AS quantity_sold,
+      COUNT(DISTINCT oi.order_id) AS order_count,
+      SUM(oi.total_cents) AS revenue_cents,
+      MAX(o.created_at) AS last_order_at
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN shopify_products sp ON sp.shopify_product_id = oi.shopify_product_id
+    GROUP BY product_key
+    ORDER BY revenue_cents DESC, quantity_sold DESC, last_order_at DESC
+    LIMIT ?
+  `).all(Math.max(1, Math.min(100, Number(limit || 12))));
+}
+
+function productSalesSummary() {
+  const summary = db.prepare(`
+    SELECT
+      COUNT(*) AS line_count,
+      COUNT(DISTINCT order_id) AS order_count,
+      COUNT(DISTINCT COALESCE(NULLIF(shopify_product_id, ''), title)) AS product_count,
+      SUM(quantity) AS quantity_sold,
+      SUM(total_cents) AS revenue_cents
+    FROM order_items
+  `).get();
+  const top = productSalesRows(1)[0] || null;
+  return {
+    lineCount: Number(summary?.line_count || 0),
+    orderCount: Number(summary?.order_count || 0),
+    productCount: Number(summary?.product_count || 0),
+    quantitySold: Number(summary?.quantity_sold || 0),
+    revenueCents: Number(summary?.revenue_cents || 0),
+    top
+  };
+}
+
 function checkbox(body, name) {
   return body?.[name] === "true";
 }
@@ -1745,6 +1789,16 @@ adminRouter.get("/producten", (req, res) => {
   const filter = productFilter(req);
   const products = listSyncedProducts({ ...filter, limit: 120 });
   const syncStatus = productSyncStatus();
+  const salesSummary = productSalesSummary();
+  const productSalesLookup = productSalesRows(100);
+  const topSalesRows = productSalesLookup.slice(0, 8);
+  const salesByProductId = new Map(productSalesLookup.map((row) => [String(row.shopify_product_id || ""), row]));
+  const salesForProduct = (product) => salesByProductId.get(String(product.shopify_product_id || "")) || {
+    quantity_sold: 0,
+    order_count: 0,
+    revenue_cents: 0,
+    last_order_at: ""
+  };
   const statusTags = db.prepare(`
     SELECT status_tag, COUNT(*) AS count
     FROM shopify_products
@@ -1758,21 +1812,30 @@ adminRouter.get("/producten", (req, res) => {
   const productImage = (product) => product.image_url
     ? `<span class="product-thumb"><img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(product.title)}" loading="lazy"></span>`
     : `<span class="product-thumb product-thumb--empty">${icon("Image")}</span>`;
+  const productMetric = (label, value) => `<span class="muted">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
 
   res.send(page("Producten | Meat For Free", "producten", `
     ${topbar("Producten", "Shopify data voor productkaarten.", "Gebruik deze pagina om homepage productkaarten echt te houden: actuele prijzen, afbeeldingen, voorraadstatus en status-tags.", `<form class="inline-form" method="post" action="/admin/sync-products"><button class="button--gold" type="submit">${icon("RefreshCw")}Producten syncen</button></form><a class="button button--ghost" href="/admin/widgets">${icon("PanelTop")}Product widget</a>`)}
     ${kpiGrid([
       { label: "Gecachet", value: syncStatus.total, help: "Aantal Shopify producten in de lokale cache.", icon: "Beef" },
-      { label: "Beschikbaar", value: syncStatus.available, help: "Producten met bruikbare variant/voorraad.", icon: "ShoppingBag" },
-      { label: "Status-tags", value: statusTags.length, help: "Deal, Nieuw, Populair of Laatste kans.", icon: "BadgePercent" },
+      { label: "Productomzet", value: formatEuro(salesSummary.revenueCents), help: `${salesSummary.quantitySold} verkochte stuks in opgeslagen orders.`, icon: "TrendingUp" },
+      { label: "Orders met regels", value: salesSummary.orderCount, help: `${salesSummary.productCount} unieke producten gezien.`, icon: "ReceiptText" },
       { label: "Laatste sync", value: staleLabel, help: syncStatus.lastSyncedAt || "Nog niet gesynchroniseerd.", icon: "RefreshCw" }
     ])}
-    <section class="panel panel-pad">
-      <div class="panel-title"><div><h2>Sync gezondheid</h2><p class="helper">Deze data voedt de productkaarten op de storefront zodra de widget op Shopify-sync staat.</p></div></div>
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><h2>Sync gezondheid</h2><p class="helper">Deze data voedt de productkaarten op de storefront zodra de widget op Shopify-sync staat.</p></div></div>
       <div class="sync-health">
         <div class="sync-health-item"><span class="muted">Beschikbaar in selectie</span><strong>${availableCount}</strong></div>
         <div class="sync-health-item"><span class="muted">Deals in selectie</span><strong>${dealCount}</strong></div>
         <div class="sync-health-item"><span class="muted">Laatste sync</span><strong>${escapeHtml(syncStatus.lastSyncedAt ? syncStatus.lastSyncedAt.slice(0, 16).replace("T", " ") : "Nooit")}</strong></div>
+      </div>
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><h2>Best verkopend uit orders</h2><p class="helper">Gebaseerd op Shopify line-items die via webhooks binnenkomen.</p></div></div>
+        <div class="stack">
+          ${topSalesRows.length ? topSalesRows.slice(0, 4).map((row) => `<div class="ops-item"><span class="ops-icon">${icon("Beef")}</span><span><strong>${escapeHtml(row.title)}</strong><br><span class="muted">${row.quantity_sold || 0} stuks · ${row.order_count || 0} orders · ${formatEuro(row.revenue_cents || 0)}</span></span><span class="status">${escapeHtml(row.status_tag || "Data")}</span></div>`).join("") : `<div class="empty">Nog geen orderregels opgeslagen. Nieuwe Shopify orders vullen dit automatisch.</div>`}
+        </div>
       </div>
     </section>
     <section class="filters">
@@ -1785,8 +1848,10 @@ adminRouter.get("/producten", (req, res) => {
     </section>
     <div class="panel">
       <table>
-        <thead><tr><th>Product</th><th>Prijs</th><th>Status-tag</th><th>Voorraad</th><th>Variant</th><th>Sync</th></tr></thead>
-        <tbody>${products.length ? products.map((product) => `<tr>
+        <thead><tr><th>Product</th><th>Prijs</th><th>Status-tag</th><th>Verkoop</th><th>Voorraad</th><th>Sync</th></tr></thead>
+        <tbody>${products.length ? products.map((product) => {
+          const sales = salesForProduct(product);
+          return `<tr>
           <td>
             <div class="product-cell">
               ${productImage(product)}
@@ -1795,10 +1860,11 @@ adminRouter.get("/producten", (req, res) => {
           </td>
           <td><strong>${formatEuro(product.price_cents || 0)}</strong>${Number(product.compare_at_cents || 0) > Number(product.price_cents || 0) ? `<span class="muted">Was ${formatEuro(product.compare_at_cents || 0)}</span>` : ""}</td>
           <td>${product.status_tag ? statusBadge(product.status_tag) : `<span class="muted">Geen badge</span>`}</td>
+          <td>${productMetric("Omzet", formatEuro(sales.revenue_cents || 0))}<span class="muted">${sales.quantity_sold || 0} stuks · ${sales.order_count || 0} orders</span></td>
           <td>${Number(product.available || 0) === 1 ? statusBadge("ACTIVE") : statusBadge("Controle")}<br><span class="muted">${product.inventory_quantity == null ? "Voorraad onbekend" : `${product.inventory_quantity} beschikbaar`}</span></td>
-          <td>${escapeHtml(product.variant_id || "-")}</td>
           <td>${escapeHtml(product.synced_at || "-")}</td>
-        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen producten gesynchroniseerd. Klik op Producten syncen.</div></td></tr>`}</tbody>
+        </tr>`;
+        }).join("") : `<tr><td colspan="6"><div class="empty">Nog geen producten gesynchroniseerd. Klik op Producten syncen.</div></td></tr>`}</tbody>
       </table>
     </div>
   `));
@@ -1985,13 +2051,15 @@ adminRouter.post("/regels", urlencoded, (req, res) => {
 adminRouter.get("/sync", (_req, res) => {
   const metrics = getMetrics();
   const products = productSyncStatus();
+  const productSales = productSalesSummary();
   res.send(page("Synchronisatie | Meat For Free", "sync", `
     ${topbar("Synchronisatie", "Systeemacties voor datakwaliteit.", "Gebruik deze pagina als Shopify data, klantdashboards of loten niet gelijk lopen.", "")}
-    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen.", icon: "PackageSearch" }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties.", icon: "Tickets" }, { label: "Producten", value: products.available, help: products.lastSyncedAt ? `Laatste sync ${products.lastSyncedAt.slice(0, 10)}.` : "Nog geen product-sync.", icon: "Beef" }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt.", icon: "ShoppingCart" }])}
-    <section class="grid grid-3">
+    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen.", icon: "PackageSearch" }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties.", icon: "Tickets" }, { label: "Producten", value: products.available, help: products.lastSyncedAt ? `Laatste sync ${products.lastSyncedAt.slice(0, 10)}.` : "Nog geen product-sync.", icon: "Beef" }, { label: "Orderregels", value: productSales.lineCount, help: `${productSales.orderCount} orders met productdata.`, icon: "ReceiptText" }])}
+    <section class="grid grid-2">
       <div class="panel panel-pad"><div class="panel-title"><h2>Orders met loten synchroniseren</h2></div><p class="muted">Reconcilieert orders die recht hebben op loten maar nog geen lot kregen.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Klantdashboards synchroniseren</h2></div><p class="muted">Schrijft de huidige lotdata terug naar Shopify klantmetafields.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Klantdashboards synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Productkaarten synchroniseren</h2></div><p class="muted">Haalt actieve Shopify producten, prijzen, afbeeldingen en status-tags op voor de storefront kaarten.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-products"><button class="button--gold" type="submit">Producten synchroniseren</button></form></div></div>
+      <div class="panel panel-pad"><div class="panel-title"><h2>Orderregels verrijken</h2></div><p class="muted">Haalt line-items op voor bestaande lokale orders. Dit vult productomzet en bestverkopende cuts zonder nieuwe loten te maken.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-order-items"><button class="button--gold" type="submit">Orderregels ophalen</button></form></div></div>
     </section>
   `));
 });
@@ -2497,6 +2565,18 @@ adminRouter.post("/sync-products", async (req, res) => {
     });
     res.status(400).send(page("Product sync fout | Meat For Free", "producten", topbar("Sync mislukt", "Shopify producten konden niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/producten">Terug</a>`)));
   }
+});
+
+adminRouter.post("/sync-order-items", async (req, res) => {
+  const result = await syncStoredOrderLineItems({ limit: 75 });
+  writeAuditLog({
+    actor: actor(req),
+    action: "ORDERREGELS_GESYNCHRONISEERD",
+    targetType: "order_items",
+    message: `${result.updatedLineItems || 0} orderregels bijgewerkt`,
+    metadata: result
+  });
+  res.redirect("/admin/sync");
 });
 
 function drawForm(draw, action, submitLabel) {

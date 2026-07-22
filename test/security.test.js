@@ -23,6 +23,7 @@ function resetDb() {
     DELETE FROM free_entry_claims;
     DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
+    DELETE FROM order_items;
     DELETE FROM orders;
     DELETE FROM customers;
     DELETE FROM lottery_draws;

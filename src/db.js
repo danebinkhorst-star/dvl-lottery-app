@@ -40,6 +40,23 @@ export function initDb() {
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
 
+    CREATE TABLE IF NOT EXISTS order_items (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL,
+      shopify_line_item_id TEXT,
+      shopify_product_id TEXT,
+      shopify_variant_id TEXT,
+      title TEXT NOT NULL,
+      variant_title TEXT,
+      sku TEXT,
+      quantity INTEGER NOT NULL DEFAULT 0,
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      total_cents INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      UNIQUE(order_id, shopify_line_item_id)
+    );
+
     CREATE TABLE IF NOT EXISTS lottery_draws (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -140,6 +157,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
     CREATE INDEX IF NOT EXISTS idx_entries_order ON lottery_entries(order_id);
     CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(shopify_product_id);
+    CREATE INDEX IF NOT EXISTS idx_order_items_variant ON order_items(shopify_variant_id);
     CREATE INDEX IF NOT EXISTS idx_free_claims_draw ON free_entry_claims(draw_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_free_claims_ip ON free_entry_claims(ip_hash, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
