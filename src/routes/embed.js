@@ -1329,10 +1329,10 @@ function widgetRuntime() {
 
   function productCardItems(copy) {
     return [
-      ["productOne", "1"],
-      ["productTwo", "2"],
-      ["productThree", "3"],
-      ["productFour", "4"]
+      ["productOne", "Deal"],
+      ["productTwo", "Nieuw"],
+      ["productThree", "Populair"],
+      ["productFour", "Laatste kans"]
     ].map(([prefix, fallbackTag]) => {
       const title = String(copy[`${prefix}Title`] || "").trim();
       const priceCents = Math.max(0, Number(copy[`${prefix}PriceCents`] || 0) || 0);
