@@ -370,21 +370,15 @@ function widgetRuntime() {
         gap:14px;
         padding:clamp(18px,3vw,30px);
       }
-      .mff-membership-card strong{display:block;font-size:clamp(30px,4vw,58px);font-weight:950;line-height:.86;text-transform:uppercase}
-      .mff-membership-stats{
-        display:grid;
-        grid-template-columns:repeat(3,minmax(0,1fr));
-        gap:8px;
+      .mff-membership-card-title{display:block;font-size:clamp(30px,4vw,58px);font-weight:950;line-height:.86;text-transform:uppercase}
+      .mff-membership-card-copy{
+        max-width:52ch;
+        margin:0;
+        color:var(--mff-muted);
+        font-size:14px;
+        font-weight:850;
+        line-height:1.4;
       }
-      .mff-membership-stat{
-        min-width:0;
-        border:2px solid var(--mff-line);
-        border-radius:14px 5px 14px 5px;
-        background:var(--mff-cream);
-        padding:10px;
-      }
-      .mff-membership-stat b{display:block;font-size:20px;font-weight:950;line-height:1}
-      .mff-membership-stat span{display:block;margin-top:4px;color:var(--mff-muted);font-size:10px;font-weight:950;line-height:1.1;text-transform:uppercase}
       .mff-membership-cta{
         position:relative;
         z-index:2;
@@ -757,7 +751,6 @@ function widgetRuntime() {
         .mff-membership-media img{min-height:180px}
         .mff-membership-media--fallback{grid-template-columns:1fr;padding:18px}
         .mff-membership-steak{width:150px;justify-self:end;margin-top:-18px}
-        .mff-membership-stats{grid-template-columns:1fr}
         .mff-membership-cta{min-height:70px;grid-template-columns:minmax(0,1fr) 40px;box-shadow:5px 5px 0 var(--mff-shadow)}
         .mff-membership-cta strong{font-size:30px}
         .mff-membership-cta i{width:38px;height:38px;font-size:21px}
@@ -1513,41 +1506,44 @@ function widgetRuntime() {
 
   function membershipWidget(el, data) {
     const copy = widgetCopy(data, "membership");
-    const draw = data.liveDraw;
-    const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
+    const legacyHeading = copy.heading === "Altijd meedoen.";
+    const legacyBody = copy.body === "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.";
+    const legacyFeatures = ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"];
+    const nextFeatures = ["Automatische deelname", "Ledenvoordeel", "Vroege toegang", "Exclusieve clubacties"];
+    const savedFeatures = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
+    const features = savedFeatures.join("|") === legacyFeatures.join("|") ? nextFeatures : (savedFeatures.length ? savedFeatures : nextFeatures);
     const imageSrc = visualImageSrc(copy);
-    const imageAlt = copy.visualImageAlt || draw?.prizeName || "Meat For Free vleespakket";
+    const imageAlt = copy.visualImageAlt || "Meat For Free club";
     const primaryLabel = copy.primaryLabel === "Word lid" ? "Lid worden" : (copy.primaryLabel || "Lid worden");
+    const cardTitle = copy.cardTitle || "Altijd erbij";
+    const legacyCardText = copy.cardText === "Word lid en laat je deelname automatisch meelopen, met vroege toegang en je eigen MFF overzicht." || copy.cardText === "Je membership laat je automatisch meelopen met geldige acties en houdt alles overzichtelijk in Mijn MFF.";
+    const cardText = legacyCardText ? "Je lidmaatschap laat je automatisch meelopen met geldige acties en houdt alles overzichtelijk in Mijn MFF." : (copy.cardText || "Je lidmaatschap laat je automatisch meelopen met geldige acties en houdt alles overzichtelijk in Mijn MFF.");
+    const kicker = copy.kicker === "Meat For Free club" ? "MFF Club" : (copy.kicker || "MFF Club");
+    const heading = legacyHeading ? "Word lid van de club." : (copy.heading || "Word lid van de club.");
+    const body = legacyBody ? "Voor vaste Meat For Free leden: automatische deelname, vroege toegang en ledenvoordeel op acties." : (copy.body || "Voor vaste Meat For Free leden: automatische deelname, vroege toegang en ledenvoordeel op acties.");
     el.innerHTML = `<section ${sectionAttrs(copy, "mff-membership")}>
       <div class="mff-membership-copy">
-        <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
-        <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
-        <p class="mff-copy">${escapeHtml(copy.body || "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.")}</p>
+        <p class="mff-kicker">${escapeHtml(kicker)}</p>
+        <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
+        <p class="mff-copy">${escapeHtml(body)}</p>
         <div class="mff-chip-list">
-          ${(features.length ? features : ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"]).map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
-        </div>
-        <div class="mff-actions">
-          <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Mijn MFF")}</a>
+          ${features.map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
         </div>
       </div>
       <div class="mff-membership-card">
         <div class="mff-membership-media${imageSrc ? "" : " mff-membership-media--fallback"}">
           ${imageSrc
             ? `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(imageAlt)}" loading="lazy">`
-            : `<div class="mff-membership-pack"><span>${escapeHtml(draw?.status || "Club")}</span><b>MFF<br>Club</b></div><div class="mff-membership-steak" aria-hidden="true"></div>`}
+            : `<div class="mff-membership-pack"><span>Club</span><b>MFF<br>Club</b></div><div class="mff-membership-steak" aria-hidden="true"></div>`}
         </div>
         <div class="mff-membership-content">
-          <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
-          <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
+          <span class="mff-badge">Ledenclub</span>
+          <strong class="mff-membership-card-title">${escapeHtml(cardTitle)}</strong>
+          <p class="mff-membership-card-copy">${escapeHtml(cardText)}</p>
           <a class="mff-membership-cta" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/memberships"))}" target="_top">
             <span class="mff-membership-cta-copy"><strong>${escapeHtml(primaryLabel)}</strong><span class="mff-membership-cta-sub">Automatisch meedoen met iedere geldige bestelling.</span></span>
             <i aria-hidden="true">+</i>
           </a>
-          <div class="mff-membership-stats">
-            <div class="mff-membership-stat"><b>Auto</b><span>Loten actief</span></div>
-            <div class="mff-membership-stat"><b>€70</b><span>Lotdrempel</span></div>
-            <div class="mff-membership-stat"><b>MFF</b><span>Dashboard</span></div>
-          </div>
         </div>
       </div>
     </section>`;

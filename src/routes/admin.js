@@ -1840,6 +1840,8 @@ const widgetFieldLabels = {
   kicker: ["Label boven titel", "Kleine tekst boven de heading."],
   heading: ["Heading", "De grote titel in de widget."],
   body: ["Korte tekst", "Hou dit kort. Gebruik {rule}, {remaining} of {threshold} waar aangegeven."],
+  cardTitle: ["Clubtitel", "Titel in de visuele membership-kaart."],
+  cardText: ["Clubtekst", "Korte uitleg in de visuele membership-kaart. Hou dit compact."],
   primaryLabel: ["Primaire knop", "Tekst op de hoofdknop."],
   primaryUrl: ["Primaire knop link", "Bijv. /collections/all of /pages/actieve-loterijen."],
   secondaryLabel: ["Tweede knop", "Tekst op de tweede knop."],
