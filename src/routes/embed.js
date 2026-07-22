@@ -723,37 +723,68 @@ function widgetRuntime() {
         100%{background-position:180% 0}
       }
       .mff-pdp{
-        padding:10px 11px;
+        padding:12px;
         border-width:2px;
         border-radius:14px 5px 14px 5px;
-        box-shadow:3px 3px 0 var(--mff-shadow);
+        box-shadow:4px 4px 0 #000;
         background:linear-gradient(135deg,#fffdf7 0%,#fff6e6 100%);
       }
       .mff-pdp-layout{
         display:grid;
-        grid-template-columns:auto minmax(0,1fr);
+        grid-template-columns:auto minmax(0,1fr) auto;
         align-items:center;
-        gap:10px;
+        gap:12px;
       }
       .mff-pdp-mark{
-        width:34px;
-        height:34px;
+        width:38px;
+        height:38px;
         display:grid;
         place-items:center;
         flex:0 0 auto;
         border:2px solid var(--mff-line);
         border-radius:12px 4px 12px 4px;
         background:var(--mff-gold);
-        box-shadow:2px 2px 0 var(--mff-shadow);
+        box-shadow:2px 2px 0 #000;
         color:var(--mff-ink);
-        font-size:15px;
+        font-size:16px;
         font-weight:950;
         line-height:1;
       }
+      .mff-pdp-media{
+        width:54px;
+        aspect-ratio:1;
+        display:grid;
+        place-items:center;
+        overflow:hidden;
+        border:2px solid var(--mff-line);
+        border-radius:13px 5px 13px 5px;
+        background:#fff7ea;
+        color:var(--mff-ink);
+        text-decoration:none;
+      }
+      .mff-pdp-media img,
+      .mff-pdp-media span{grid-area:1/1}
+      .mff-pdp-media img{width:100%;height:100%;display:block;object-fit:cover}
+      .mff-pdp-media span{display:none;font-size:16px;font-weight:950;line-height:1}
+      .mff-pdp-media--fallback img{display:none}
+      .mff-pdp-media--fallback span{display:grid;width:100%;height:100%;place-items:center;background:var(--mff-gold)}
+      .mff-pdp-copy{min-width:0}
       .mff-pdp .mff-kicker{
         margin:0 0 3px;
         font-size:9px;
         letter-spacing:.06em;
+      }
+      .mff-pdp-product{
+        display:block;
+        max-width:100%;
+        margin-bottom:3px;
+        color:#5c4636;
+        font-size:11px;
+        font-weight:950;
+        line-height:1.1;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
       }
       .mff-pdp .mff-title{
         color:var(--mff-ink);
@@ -771,9 +802,38 @@ function widgetRuntime() {
       }
       .mff-pdp .mff-progress{
         height:7px;
-        max-width:220px;
+        max-width:260px;
         margin-top:7px;
         border-width:2px;
+      }
+      .mff-pdp-status{
+        min-width:112px;
+        display:grid;
+        gap:4px 8px;
+        justify-items:end;
+        color:var(--mff-ink);
+        font-size:11px;
+        font-weight:950;
+        line-height:1.05;
+        text-align:right;
+        text-transform:uppercase;
+      }
+      .mff-pdp-status strong{
+        display:inline-flex;
+        align-items:center;
+        min-height:30px;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-gold);
+        box-shadow:3px 3px 0 #000;
+        padding:0 9px;
+        color:var(--mff-ink);
+      }
+      .mff-pdp-status span{
+        padding-left:3px;
+        color:#5c4636;
+        font-size:10px;
+        font-weight:900;
       }
       .mff-pdp-actions{
         display:none;
@@ -861,8 +921,11 @@ function widgetRuntime() {
         .mff-reward-medal{width:48px;height:48px;font-size:23px}
         .mff-reward-status strong{font-size:clamp(17px,5vw,23px)}
         .mff-reward-status span{font-size:12px}
-        .mff-pdp{padding:10px 10px;border-radius:14px 5px 14px 5px;box-shadow:3px 3px 0 var(--mff-shadow)}
-        .mff-pdp-layout{grid-template-columns:auto minmax(0,1fr);gap:12px}
+        .mff-pdp{padding:10px;border-radius:14px 5px 14px 5px;box-shadow:4px 4px 0 #000}
+        .mff-pdp-layout{grid-template-columns:auto minmax(0,1fr);gap:10px}
+        .mff-pdp-media{width:48px}
+        .mff-pdp-status{grid-column:1 / -1;grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;text-align:left;column-gap:10px}
+        .mff-pdp-status strong{min-height:28px}
         .mff-pdp-actions{display:none}
         .mff-pdp .mff-button{width:100%;min-height:38px}
         .mff-pdp .mff-title{font-size:clamp(15px,4.3vw,18px)}
@@ -1397,25 +1460,45 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "pdp");
     const threshold = Number(data.rule?.minimumCents || 7000);
     const rawPrice = el.getAttribute("data-product-price-cents") || el.getAttribute("data-price-cents") || "0";
+    const productTitle = (el.getAttribute("data-product-title") || "").trim();
+    const productImage = appAssetHref(el.getAttribute("data-product-image") || "");
+    const productUrl = (el.getAttribute("data-product-url") || "").trim();
     const price = Math.max(0, Number(rawPrice) || 0);
     const remaining = Math.max(0, threshold - price);
     const progress = threshold > 0 ? Math.min(100, Math.round((price / threshold) * 100)) : 0;
     const qualifies = price >= threshold;
+    const statusValue = qualifies ? "Lot actief" : `Nog ${formatEuro(remaining)}`;
+    const statusLabel = qualifies ? "Bij checkout" : `Van ${formatEuro(threshold)}`;
+    const productLine = productTitle ? `<strong class="mff-pdp-product">${escapeHtml(productTitle)}</strong>` : "";
+    const media = productImage
+      ? `<a class="mff-pdp-media" href="${escapeHtml(storeHref(productUrl || copy.primaryUrl || "/collections/all"))}" target="_top" aria-label="${escapeHtml(productTitle || "Product bekijken")}"><img src="${escapeHtml(productImage)}" alt="${escapeHtml(productTitle || "Meat For Free product")}" loading="lazy"><span aria-hidden="true">1</span></a>`
+      : `<div class="mff-pdp-mark" aria-hidden="true">1</div>`;
     el.innerHTML = `<section ${visualAttrs(copy, "mff-pdp")}>
       <div class="mff-pdp-layout">
-        <div class="mff-pdp-mark" aria-hidden="true">1</div>
+        ${media}
         <div class="mff-pdp-copy">
+          ${productLine}
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Lot bij je bestelling")}</p>
           <h2 class="mff-title">${escapeHtml(qualifies ? (copy.qualifiesHeading || "Gratis lot met dit product.") : (copy.remainingHeading || "Dichter bij je lot."))}</h2>
           <p class="mff-copy">${escapeHtml(qualifies ? (copy.qualifiesBody || "Vanaf checkout automatisch gekoppeld.") : copyText(copy.remainingBody || "Nog {remaining} tot je gratis lot.", { remaining: formatEuro(remaining) }))}</p>
           <div class="mff-progress" aria-label="Productbijdrage naar gratis lot" style="--progress:${progress}%"><i></i></div>
         </div>
+        <div class="mff-pdp-status" aria-label="Lotstatus voor dit product"><strong>${escapeHtml(statusValue)}</strong><span>${escapeHtml(statusLabel)}</span></div>
         <div class="mff-pdp-actions">
           <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.primaryLabel || "Verder shoppen")}</a>
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Winactie")}</a>
         </div>
       </div>
     </section>`;
+    setupPdpMedia(el);
+  }
+
+  function setupPdpMedia(root) {
+    root.querySelectorAll(".mff-pdp-media img").forEach((img) => {
+      const fallback = () => img.closest(".mff-pdp-media")?.classList.add("mff-pdp-media--fallback");
+      img.addEventListener("error", fallback, { once: true });
+      if (img.complete && img.naturalWidth === 0) fallback();
+    });
   }
 
   function manualProductCardItems(copy) {
@@ -1801,7 +1884,7 @@ embedRouter.get("/demo", (_req, res) => {
       <div data-dvl-lottery="membership"></div>
       <div data-dvl-lottery="community"></div>
       <div data-dvl-lottery="customer"></div>
-      <div data-dvl-lottery="pdp" data-product-price-cents="2549"></div>
+      <div data-dvl-lottery="pdp" data-product-price-cents="2549" data-product-title="Ribeye" data-product-image="https://cdn.shopify.com/s/files/1/1075/5814/2291/files/Ribeye-zuid-amerikaanse.webp?v=1780244679" data-product-url="/products/ribeye"></div>
       <div data-dvl-lottery="free-entry"></div>
     </main>
     <script async src="/embed/dvl-lottery.js"></script>

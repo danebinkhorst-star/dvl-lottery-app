@@ -1147,7 +1147,7 @@ function siteStructureFromBody(body) {
 
 function siteStructureSnippet(type) {
   if (type === "product-cards") return '<div data-dvl-lottery="product-cards"></div>';
-  if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>';
+  if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}" data-product-title="{{ product.title | escape }}" data-product-image="{{ product.featured_image | image_url: width: 180 }}" data-product-url="{{ product.url }}"></div>';
   return `<div data-dvl-lottery="${escapeHtml(type)}"></div>`;
 }
 
@@ -2416,7 +2416,7 @@ adminRouter.get("/embed", (_req, res) => {
     ["community", "Community en inspiratie", "BBQ inspiratie, klantcontent en challenges."]
   ];
   const widgetSnippet = (type) => {
-    if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}"></div>';
+    if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}" data-product-title="{{ product.title | escape }}" data-product-image="{{ product.featured_image | image_url: width: 180 }}" data-product-url="{{ product.url }}"></div>';
     if (type === "customer") return '<div data-dvl-lottery="customer" data-shopify-customer-id="{{ customer.id }}" data-customer-token="{{ customer.metafields.mff.dashboard_token }}"></div>';
     return `<div data-dvl-lottery="${type}"></div>`;
   };
