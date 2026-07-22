@@ -94,12 +94,25 @@ apiRouter.get("/site/summary", async (_req, res) => {
     LIMIT 1
   `).get();
   const latestWinners = db.prepare(`
-    SELECT e.entry_number, e.created_at, d.title AS draw_title, d.prize_name, c.first_name, c.email
+    SELECT
+      e.entry_number,
+      e.created_at,
+      d.title AS draw_title,
+      d.prize_name,
+      d.winner_public_name,
+      d.winner_public_statement,
+      d.winner_public_image_url,
+      d.winner_public_approved_at,
+      c.first_name,
+      c.email
     FROM lottery_entries e
     JOIN lottery_draws d ON d.winner_entry_id = e.id
     LEFT JOIN customers c ON c.id = e.customer_id
     WHERE e.status = 'WINNER'
-    ORDER BY d.draw_at DESC
+      AND d.winner_public_status = 'PUBLIC'
+      AND LENGTH(TRIM(COALESCE(d.winner_public_name, ''))) > 0
+      AND LENGTH(TRIM(COALESCE(d.winner_public_statement, ''))) > 0
+    ORDER BY COALESCE(d.winner_public_approved_at, d.draw_at) DESC
     LIMIT 6
   `).all();
   const widgets = getAllWidgetSettings();
@@ -131,7 +144,9 @@ apiRouter.get("/site/summary", async (_req, res) => {
       entryNumber: winner.entry_number,
       drawTitle: winner.draw_title,
       prizeName: winner.prize_name,
-      name: winner.first_name || (winner.email ? `${winner.email.slice(0, 2)}***` : "Winnaar"),
+      name: winner.winner_public_name || winner.first_name || (winner.email ? `${winner.email.slice(0, 2)}***` : "Winnaar"),
+      story: winner.winner_public_statement || "",
+      imageUrl: winner.winner_public_image_url || "",
       createdAt: winner.created_at,
       avatarSeed: `${winner.entry_number}-${winner.draw_title || winner.prize_name || "mff"}`
     })),

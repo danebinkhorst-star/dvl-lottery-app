@@ -69,6 +69,11 @@ export function initDb() {
       draw_at TEXT,
       status TEXT NOT NULL DEFAULT 'DRAFT',
       winner_entry_id TEXT UNIQUE,
+      winner_public_status TEXT NOT NULL DEFAULT 'PRIVATE',
+      winner_public_name TEXT,
+      winner_public_statement TEXT,
+      winner_public_image_url TEXT,
+      winner_public_approved_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (winner_entry_id) REFERENCES lottery_entries(id)
@@ -170,6 +175,17 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip_hash, created_at);
   `);
+  ensureColumn("lottery_draws", "winner_public_status", "TEXT NOT NULL DEFAULT 'PRIVATE'");
+  ensureColumn("lottery_draws", "winner_public_name", "TEXT");
+  ensureColumn("lottery_draws", "winner_public_statement", "TEXT");
+  ensureColumn("lottery_draws", "winner_public_image_url", "TEXT");
+  ensureColumn("lottery_draws", "winner_public_approved_at", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_draws_winner_public ON lottery_draws(winner_public_status, draw_at)");
+}
+
+function ensureColumn(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 export function nowIso() {

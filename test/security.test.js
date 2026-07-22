@@ -18,6 +18,7 @@ const { db } = await import("../src/db.js");
 const { createApp } = await import("../src/server.js");
 const { isValidWriteSecret, signCustomerToken, verifyCustomerToken } = await import("../src/auth.js");
 const { verifyShopifyWebhook } = await import("../src/utils.js");
+const { assignEntriesForOrder, createDraw, drawWinner } = await import("../src/services/lottery.js");
 
 function resetDb() {
   db.exec(`
@@ -149,4 +150,55 @@ test("admin winners page is available after login", async () => {
   const response = await agent.get("/admin/winnaars").expect(200);
   assert.match(response.text, /Beheer publicatie van winnaars/);
   assert.match(response.text, /Widget aanpassen/);
+});
+
+test("admin can approve winner publication with CSRF", async () => {
+  resetDb();
+  const draw = await createDraw({
+    title: "Publicatie test",
+    prizeName: "BBQ pakket",
+    status: "LIVE"
+  });
+  await assignEntriesForOrder({
+    id: 62345,
+    name: "#6201",
+    total_price: "80.00",
+    currency: "EUR",
+    financial_status: "paid",
+    email: "publicatie@example.com",
+    customer: { id: 6201, email: "publicatie@example.com", first_name: "Bas", last_name: "Tester" }
+  });
+  await drawWinner(draw.id);
+
+  const app = createApp();
+  const agent = request.agent(app);
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const page = await agent.get("/admin/winnaars").expect(200);
+  const token = page.text.match(/name="_csrf" value="([^"]+)"/)?.[1];
+  assert.ok(token);
+
+  await agent
+    .post(`/admin/winnaars/${draw.id}/publication`)
+    .type("form")
+    .send({
+      _csrf: token,
+      publicStatus: "PUBLIC",
+      publicName: "Bas",
+      publicStatement: "Ik had vlees besteld voor de BBQ en won daarna het pakket.",
+      publicImageUrl: "/uploads/winnaar-bas.png"
+    })
+    .expect(302);
+
+  const updated = db.prepare("SELECT winner_public_status, winner_public_name, winner_public_statement, winner_public_image_url, winner_public_approved_at FROM lottery_draws WHERE id = ?").get(draw.id);
+  assert.equal(updated.winner_public_status, "PUBLIC");
+  assert.equal(updated.winner_public_name, "Bas");
+  assert.equal(updated.winner_public_statement, "Ik had vlees besteld voor de BBQ en won daarna het pakket.");
+  assert.equal(updated.winner_public_image_url, "/uploads/winnaar-bas.png");
+  assert.ok(updated.winner_public_approved_at);
+  assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'WINNAAR_PUBLICATIE_BIJGEWERKT'").get().action, "WINNAAR_PUBLICATIE_BIJGEWERKT");
 });

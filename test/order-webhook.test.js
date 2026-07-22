@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import request from "supertest";
 import { db } from "../src/db.js";
+import { createApp } from "../src/server.js";
 import { assignEntriesForOrder, createDraw, drawWinner, voidEntriesForOrder } from "../src/services/lottery.js";
 
 function resetDb() {
@@ -99,5 +101,26 @@ test("draw winner cannot be run twice", async () => {
 
   const winner = await drawWinner(draw.id);
   assert.ok(winner.entry_number);
+  assert.equal(db.prepare("SELECT winner_public_status FROM lottery_draws WHERE id = ?").get(draw.id).winner_public_status, "PRIVATE");
+
+  const app = createApp();
+  const privateSummary = await request(app).get("/api/site/summary").expect(200);
+  assert.equal(privateSummary.body.latestWinners.length, 0);
+
+  db.prepare(`
+    UPDATE lottery_draws
+    SET winner_public_status = 'PUBLIC',
+        winner_public_name = 'Bas',
+        winner_public_statement = 'Ik bestelde voor het weekend en kreeg later de winmail.',
+        winner_public_image_url = '/uploads/winnaar-bas.png',
+        winner_public_approved_at = ?
+    WHERE id = ?
+  `).run(new Date().toISOString(), draw.id);
+  const publicSummary = await request(app).get("/api/site/summary").expect(200);
+  assert.equal(publicSummary.body.latestWinners.length, 1);
+  assert.equal(publicSummary.body.latestWinners[0].name, "Bas");
+  assert.equal(publicSummary.body.latestWinners[0].story, "Ik bestelde voor het weekend en kreeg later de winmail.");
+  assert.equal(publicSummary.body.latestWinners[0].imageUrl, "/uploads/winnaar-bas.png");
+
   await assert.rejects(() => drawWinner(draw.id), /already been completed/);
 });

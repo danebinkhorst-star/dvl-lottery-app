@@ -62,6 +62,8 @@ function statusLabel(status) {
     FREE_ENTRY: "Gratis deelname",
     MANUAL: "Handmatig",
     SUBSCRIPTION: "Abonnement",
+    PRIVATE: "Privé",
+    PUBLIC: "Publiek",
     paid: "Betaald",
     pending: "In afwachting",
     refunded: "Terugbetaald",
@@ -238,6 +240,8 @@ function page(title, active, body) {
         tbody tr:hover { background:#faf8f2; }
         .status { display:inline-flex; align-items:center; justify-content:center; min-width:0; padding:5px 9px; border:1px solid var(--line); border-radius:999px; background:#f8fafc; color:#374151; font-size:11px; font-weight:850; }
         .status--live, .status--active, .status--paid { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--public { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--private { background:#f4f1e8; border-color:#ddd6c8; color:#60584d; }
         .status--pending { background:#fff6df; border-color:#e5cb73; color:#9a6700; }
         .status--drawn, .status--winner { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
         .status--void, .status--cancelled, .status--refunded, .status--archived { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
@@ -307,6 +311,17 @@ function page(title, active, body) {
         .widget-upload-status { align-self:center; color:var(--muted); font-size:11px; font-weight:800; line-height:1.2; text-transform:none; letter-spacing:0; }
         .widget-upload-status--ok { color:var(--success); }
         .widget-upload-status--error { color:var(--danger); }
+        .winner-publication-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+        .winner-publication-card { display:grid; gap:14px; border:1px solid var(--line); border-radius:12px; background:#fff; padding:14px; }
+        .winner-publication-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start; }
+        .winner-publication-head strong { display:block; font-size:15px; font-weight:950; }
+        .winner-publication-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+        .winner-publication-card textarea { min-height:86px; }
+        .winner-publication-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; align-items:center; grid-column:1 / -1; }
+        .winner-image-preview { width:72px; aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f5ef; }
+        .winner-image-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+        .winner-image-preview--empty { display:grid; place-items:center; color:var(--muted); }
+        .winner-image-preview--empty svg { width:18px; height:18px; }
         .widget-color-row { display:grid; grid-template-columns:44px minmax(0,1fr); gap:8px; align-items:end; }
         input[type="color"] { min-height:40px; padding:3px; cursor:pointer; }
         input[type="range"] { padding:0; }
@@ -363,6 +378,8 @@ function page(title, active, body) {
           .widget-editor-body { grid-template-columns:1fr; }
           .widget-editor-body .form-grid { grid-template-columns:1fr; }
           .widget-preview { position:static; }
+          .winner-publication-list { grid-template-columns:1fr; }
+          .winner-publication-card { border-radius:16px; }
           table { min-width:760px; }
         }
         @media (max-width:560px) {
@@ -655,6 +672,11 @@ function winnerAdminRows(limit = 40) {
       d.prize_value,
       d.draw_at,
       d.status AS draw_status,
+      d.winner_public_status,
+      d.winner_public_name,
+      d.winner_public_statement,
+      d.winner_public_image_url,
+      d.winner_public_approved_at,
       e.id AS entry_id,
       e.entry_number,
       e.source,
@@ -704,6 +726,7 @@ function manualWinnerCards(settings) {
 function winnerPublicationState(settings, rows) {
   const source = textParam(settings.winnerSource) === "manual" ? "manual" : "automatic";
   const manualCards = manualWinnerCards(settings);
+  const publicRows = rows.filter((row) => row.winner_public_status === "PUBLIC" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
   if (source === "manual") {
     if (!manualCards.length) return { source, manualCards, status: "Actie", note: "Handmatige bron staat aan, maar er zijn nog geen publiceerbare kaarten ingevuld." };
     const missingStory = manualCards.filter((card) => !card.story).length;
@@ -711,8 +734,9 @@ function winnerPublicationState(settings, rows) {
     if (missingStory || missingImage) return { source, manualCards, status: "Controle", note: `${manualCards.length} kaart(en), ${missingStory} zonder statement en ${missingImage} zonder foto.` };
     return { source, manualCards, status: "Goed", note: `${manualCards.length} handmatige winnaarkaart(en) klaar voor de widget.` };
   }
-  if (!rows.length) return { source, manualCards, status: "Controle", note: "Automatisch staat aan, maar er is nog geen getrokken winnaar om te tonen." };
-  return { source, manualCards, status: "Goed", note: `${rows.length} getrokken winnaar(s) beschikbaar voor automatische publicatie.` };
+  if (!rows.length) return { source, manualCards, publicRows, status: "Controle", note: "Automatisch staat aan, maar er is nog geen getrokken winnaar om te tonen." };
+  if (!publicRows.length) return { source, manualCards, publicRows, status: "Actie", note: "Automatisch staat aan, maar nog geen winnaar is publiek goedgekeurd." };
+  return { source, manualCards, publicRows, status: "Goed", note: `${publicRows.length} goedgekeurde winnaar(s) klaar voor automatische publicatie.` };
 }
 
 function sourceSignal(row) {
@@ -734,10 +758,14 @@ function drawSignal(row) {
 }
 
 function winnerPublishSignal(row) {
+  if (row.winner_public_status !== "PUBLIC") return ["Controle", "Niet publiek goedgekeurd"];
+  if (!textParam(row.winner_public_name)) return ["Actie", "Publieke naam ontbreekt"];
+  if (!textParam(row.winner_public_statement)) return ["Actie", "Statement ontbreekt"];
+  if (!textParam(row.winner_public_image_url)) return ["Controle", "Publiek zonder foto"];
   if (!row.draw_at) return ["Controle", "Trekdatum ontbreekt"];
   if (!row.first_name && !row.email) return ["Controle", "Geen naam/e-mail gekoppeld"];
   if (!row.order_name && row.source === "ORDER_THRESHOLD") return ["Controle", "Orderlot zonder ordernaam"];
-  return ["Goed", "Klaar als automatische winner feed"];
+  return ["Goed", "Publiek goedgekeurd"];
 }
 
 function normalizeDrawStatusInput(status, draw = null) {
@@ -964,6 +992,84 @@ function manualWinnerCardsPanel(cards) {
       </div>`).join("") : `<div class="empty">Geen handmatige winnaarkaarten ingevuld. Gebruik dit alleen voor winnaars met goedgekeurde naam, foto en statement.</div>`}
     </div>
   </div>`;
+}
+
+function winnerPublicationCards(rows) {
+  if (!rows.length) return `<div class="empty">Nog geen winnaars om te publiceren.</div>`;
+  return `<div class="winner-publication-list">
+    ${rows.map((row) => {
+      const status = row.winner_public_status === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+      const publicName = textParam(row.winner_public_name) || winnerPublicName(row);
+      const statement = textParam(row.winner_public_statement);
+      const imageUrl = textParam(row.winner_public_image_url);
+      const preview = imageUrl
+        ? `<span class="winner-image-preview"><img src="${escapeHtml(imageUrl)}" alt=""></span>`
+        : `<span class="winner-image-preview winner-image-preview--empty">${icon("Image")}</span>`;
+      return `<article class="winner-publication-card">
+        <div class="winner-publication-head">
+          <div>
+            <strong>${escapeHtml(winnerFullName(row))}</strong>
+            <p class="muted">${escapeHtml(row.draw_title)} · ${escapeHtml(row.prize_name || "Prijs")}</p>
+            <div class="winner-publication-meta">
+              ${statusBadge(status)}
+              <span class="status">${escapeHtml(row.entry_number)}</span>
+              ${row.winner_public_approved_at ? `<span class="status status--goed">Goedgekeurd</span>` : ""}
+            </div>
+          </div>
+          ${preview}
+        </div>
+        <form method="post" action="/admin/winnaars/${escapeHtml(row.draw_id)}/publication" class="form-grid">
+          <label>Status<select name="publicStatus">${option("PRIVATE", status, "Privé houden")}${option("PUBLIC", status, "Publiek tonen")}</select></label>
+          <label>Publieke naam<input name="publicName" value="${escapeHtml(publicName)}" placeholder="${escapeHtml(winnerPublicName(row))}"></label>
+          <label class="wide">Statement<textarea name="publicStatement" placeholder="Bijv. &quot;Ik had net BBQ-vlees besteld en kreeg ineens de mail dat ik had gewonnen.&quot;">${escapeHtml(statement)}</textarea></label>
+          <label class="wide">Foto<input name="publicImageUrl" value="${escapeHtml(imageUrl)}" inputmode="url" placeholder="/uploads/... of Shopify CDN URL">
+            <div class="widget-upload">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-winner-upload="publicImageUrl" aria-label="Upload winnaar foto">
+              <span class="widget-upload-status" data-winner-upload-status>Max 4MB</span>
+            </div>
+          </label>
+          <div class="winner-publication-actions">
+            <span class="helper">Publieke feed toont alleen winnaars met status publiek, naam en statement.</span>
+            <button type="submit">${icon("Save")}Opslaan</button>
+          </div>
+        </form>
+      </article>`;
+    }).join("")}
+  </div>`;
+}
+
+function winnerPublicationUploadScript() {
+  return `<script>
+    (() => {
+      document.querySelectorAll("[data-winner-upload]").forEach((input) => {
+        input.addEventListener("change", async () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          const form = input.closest("form");
+          const target = form && form.querySelector('input[name="' + input.dataset.winnerUpload + '"]');
+          const status = form && form.querySelector("[data-winner-upload-status]");
+          const csrf = form && form.querySelector('input[name="_csrf"]');
+          if (!form || !target || !csrf) return;
+          const body = new FormData();
+          body.append("image", file);
+          body.append("field", input.dataset.winnerUpload || "winnerImage");
+          status.textContent = "Uploaden...";
+          status.classList.remove("widget-upload-status--ok", "widget-upload-status--error");
+          try {
+            const response = await fetch("/admin/uploads", { method: "POST", headers: { "X-CSRF-Token": csrf.value }, body });
+            const result = await response.json();
+            if (!response.ok || !result.url) throw new Error(result.error || "Upload mislukt");
+            target.value = result.url;
+            status.textContent = "Geüpload";
+            status.classList.add("widget-upload-status--ok");
+          } catch (error) {
+            status.textContent = error.message || "Upload mislukt";
+            status.classList.add("widget-upload-status--error");
+          }
+        });
+      });
+    })();
+  </script>`;
 }
 
 function auditRows(limit = 10) {
@@ -1540,18 +1646,20 @@ adminRouter.get("/winnaars", (_req, res) => {
   const settings = getWidgetSettings("winners");
   const publication = winnerPublicationState(settings, rows);
   const drawnCount = rows.length;
-  const readyRows = rows.filter((row) => winnerPublishSignal(row)[0] === "Goed").length;
+  const publicRows = publication.publicRows || rows.filter((row) => row.winner_public_status === "PUBLIC" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
   const lastWinner = rows[0] || null;
   const manualCards = publication.manualCards;
-  const visibleCount = publication.source === "manual" ? manualCards.length : readyRows;
+  const visibleCount = publication.source === "manual" ? manualCards.length : publicRows.length;
   const sourceLabelText = publication.source === "manual" ? "Handmatig" : "Automatisch";
 
   res.send(page("Winnaars | Meat For Free", "winnaars", `
     ${topbar("Winnaars", "Beheer publicatie van winnaars.", "Controleer getrokken winnaars en bepaal of de widget automatische data of handmatig goedgekeurde kaarten gebruikt.", `<a class="button button--gold" href="/admin/widgets#widget-winners">${icon("PanelTop")}Widget aanpassen</a><a class="button button--ghost" href="/admin/winacties?winnerState=yes">${icon("Gift")}Afgeronde winacties</a>`)}
+    <div class="section-head"><h2>Publicatie beheren</h2><span class="status">${publicRows.length} publiek</span></div>
+    <section class="panel panel-pad">${winnerPublicationCards(rows)}</section>
     ${kpiGrid([
       { label: "Getrokken winnaars", value: drawnCount, help: "Alle afgeronde acties met winnaar.", icon: "Trophy" },
       { label: "Widget bron", value: sourceLabelText, help: publication.note, icon: publication.source === "manual" ? "PencilLine" : "RefreshCw" },
-      { label: "Publiceerbaar", value: visibleCount, help: publication.source === "manual" ? "Handmatige kaarten met inhoud." : "Automatische winnaars met basisdata.", icon: "BadgeCheck" },
+      { label: "Publiceerbaar", value: visibleCount, help: publication.source === "manual" ? "Handmatige kaarten met inhoud." : "Goedgekeurd met publieke naam en statement.", icon: "BadgeCheck" },
       { label: "Laatste winnaar", value: lastWinner ? winnerPublicName(lastWinner) : "-", help: lastWinner ? lastWinner.draw_title : "Nog geen trekking afgerond.", icon: "UserCheck" }
     ])}
     <section class="grid grid-2">
@@ -1567,7 +1675,55 @@ adminRouter.get("/winnaars", (_req, res) => {
     </section>
     <div class="section-head"><h2>Getrokken winnaars</h2><a class="button button--ghost" href="/admin/winacties?winnerState=yes">${icon("Filter")}Filter winacties</a></div>
     <div class="panel">${rows.length ? winnerRowsTable(rows) : `<div class="empty">Nog geen getrokken winnaars. Zodra een live winactie is getrokken, verschijnt de winnaar hier.</div>`}</div>
+    ${winnerPublicationUploadScript()}
   `));
+});
+
+adminRouter.post("/winnaars/:drawId/publication", urlencoded, (req, res) => {
+  try {
+    const draw = db.prepare(`
+      SELECT d.*, e.entry_number
+      FROM lottery_draws d
+      LEFT JOIN lottery_entries e ON e.id = d.winner_entry_id
+      WHERE d.id = ?
+    `).get(req.params.drawId);
+    if (!draw || !draw.winner_entry_id) throw new Error("Winnaar niet gevonden.");
+
+    const publicStatus = textParam(req.body.publicStatus) === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+    const publicName = textParam(req.body.publicName).slice(0, 80);
+    const publicStatement = textParam(req.body.publicStatement).slice(0, 220);
+    const publicImageUrl = textParam(req.body.publicImageUrl).slice(0, 520);
+    if (publicStatus === "PUBLIC" && (!publicName || !publicStatement)) {
+      throw new Error("Vul een publieke naam en echt statement in voordat je deze winnaar publiceert.");
+    }
+
+    const approvedAt = publicStatus === "PUBLIC" ? (draw.winner_public_approved_at || nowIso()) : null;
+    db.prepare(`
+      UPDATE lottery_draws
+      SET winner_public_status = ?,
+          winner_public_name = ?,
+          winner_public_statement = ?,
+          winner_public_image_url = ?,
+          winner_public_approved_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(publicStatus, publicName, publicStatement, publicImageUrl, approvedAt, nowIso(), draw.id);
+    writeAuditLog({
+      actor: actor(req),
+      action: "WINNAAR_PUBLICATIE_BIJGEWERKT",
+      targetType: "lottery_draw",
+      targetId: draw.id,
+      message: `${draw.entry_number || "Winnaar"} publicatie: ${statusLabel(publicStatus)}`,
+      metadata: {
+        publicStatus,
+        hasStatement: Boolean(publicStatement),
+        hasImage: Boolean(publicImageUrl)
+      }
+    });
+    res.redirect("/admin/winnaars");
+  } catch (error) {
+    res.status(400).send(page("Winnaar fout | Meat For Free", "winnaars", topbar("Niet opgeslagen", "Winnaar kon niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/winnaars">Terug</a>`)));
+  }
 });
 
 adminRouter.get("/winacties", (req, res) => {
