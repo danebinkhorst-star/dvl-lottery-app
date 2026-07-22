@@ -1238,37 +1238,8 @@ function widgetRuntime() {
       const imageUrl = String(copy[imageKey] || "").trim();
       const stalePreview = name === "Voorbeeldwinnaar" || prizeName.toLowerCase().startsWith("voorbeeld ") || story.toLowerCase().startsWith("voorbeeldkaart");
       return { name, prizeName, story, imageUrl, stalePreview };
-    }).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
-  }
-
-  function fallbackWinnerItems() {
-    return [
-      {
-        name: "Mark",
-        prizeName: "BBQ Box",
-        story: "Niet verwacht, maar die BBQ Box kwam perfect uit voor het weekend.",
-        imageUrl: "https://i.pravatar.cc/160?img=12"
-      },
-      {
-        name: "Sanne",
-        prizeName: "250 euro vleestegoed",
-        story: "Mijn bestelling pakte automatisch een lot en ineens had ik 250 euro vleestegoed.",
-        imageUrl: "https://i.pravatar.cc/160?img=47"
-      },
-      {
-        name: "Youssef",
-        prizeName: "Kamado pakket",
-        story: "Ik checkte Mijn MFF en zag dat het kamado pakket gewoon van mij was.",
-        imageUrl: "https://i.pravatar.cc/160?img=32"
-      },
-      {
-        name: "Niels",
-        prizeName: "Dry-aged pakket",
-        story: "Tweede bestelling, tweede lot, en toen stond dat dry-aged pakket op mijn naam.",
-        imageUrl: "https://i.pravatar.cc/160?img=68"
-      }
-    ];
-  }
+	    }).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
+	  }
 
   function winnerInitial(name) {
     return String(name || "MFF winnaar").trim().slice(0, 1).toUpperCase() || "M";
@@ -1320,14 +1291,15 @@ function widgetRuntime() {
     </article>`;
   }
 
-  function winnerSet(data, limit = 4) {
-    const copy = widgetCopy(data, "winners");
-    const manualWinners = manualWinnerItems(copy);
-    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, limit) : [];
-    const usableManualWinners = manualWinners.filter((winner) => !winner.stalePreview);
-    const winners = (usableManualWinners.length ? usableManualWinners : (automaticWinners.length ? automaticWinners : fallbackWinnerItems())).slice(0, limit);
-    return { copy, winners };
-  }
+	  function winnerSet(data, limit = 4) {
+	    const copy = widgetCopy(data, "winners");
+	    const manualWinners = manualWinnerItems(copy);
+	    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, limit) : [];
+	    const usableManualWinners = manualWinners.filter((winner) => !winner.stalePreview);
+	    const winnerSource = String(copy.winnerSource || "automatic").trim();
+	    const winners = (winnerSource === "manual" ? usableManualWinners : automaticWinners).slice(0, limit);
+	    return { copy, winners };
+	  }
 
   function winnerMarquee(winners, compact = false) {
     if (!winners.length) return "";

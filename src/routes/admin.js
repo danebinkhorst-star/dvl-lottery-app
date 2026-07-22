@@ -2113,6 +2113,7 @@ const widgetFieldLabels = {
   primaryUrlEmpty: ["Link lege cart", "Meestal /collections/all."],
   emptyLabel: ["Lege staat tekst", "Als er nog geen winnaars zijn."],
   emptyValue: ["Lege staat waarde", "Rechter label in lege staat."],
+  winnerSource: ["Bron winnaars", "Automatisch gebruikt getrokken winnaars. Handmatig gebruikt de vier kaarten hieronder."],
   winnerOneName: ["Winnaar 1 naam", "Naam zoals bezoekers die mogen zien."],
   winnerOnePrize: ["Winnaar 1 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
   winnerOneStory: ["Winnaar 1 verhaal", "Een korte echte zin. Bijvoorbeeld: Mark won na zijn weekendbestelling."],
@@ -2224,6 +2225,9 @@ function widgetField(key, value) {
   }
   if (key === "productStatusFilter") {
     return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("", value, "Geen filter")}${option("Deal", value, "Alleen deals")}${option("Nieuw", value, "Alleen nieuw")}${option("Populair", value, "Alleen populair")}${option("Laatste kans", value, "Alleen urgentie")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "winnerSource") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("automatic", value, "Getrokken winnaars")}${option("manual", value, "Handmatig beheerd")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
   }
   if (key === "productLimit") {
     return `<label>${escapeHtml(labelText)}<input name="${escapeHtml(key)}" inputmode="numeric" value="${escapeHtml(value || "8")}">${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;

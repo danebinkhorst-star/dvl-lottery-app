@@ -44,6 +44,8 @@ test("site summary exposes editable widget copy to embeds", async () => {
   assert.equal(response.body.widgets.cart.badge, "Gratis lot");
   assert.equal(response.body.widgets["product-cards"].cartLabel, "In winkelwagen");
   assert.equal(response.body.widgets["product-cards"].productSource, "synced");
+  assert.equal(response.body.widgets.winners.winnerSource, "automatic");
+  assert.equal(response.body.widgets.winners.winnerOneName, "");
   assert.equal(response.body.siteStructure.headerMenu[0].label, "Shop");
 });
 
