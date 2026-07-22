@@ -1842,7 +1842,7 @@ embedRouter.get("/frame", (req, res) => {
         window.setInterval(sendHeight, 1200);
       })();
     </script>
-    <script src="${escapeHtml(scriptSrc)}"></script>
+    <script src="${scriptSrc}"></script>
   </body>
 </html>`);
 });
