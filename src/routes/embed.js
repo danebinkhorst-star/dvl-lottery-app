@@ -432,38 +432,76 @@ function widgetRuntime() {
         outline:0;
       }
       .mff-editorial{
+        isolation:isolate;
         display:grid;
-        grid-template-columns:minmax(320px,1fr) minmax(280px,.62fr);
-        gap:clamp(24px,4vw,56px);
+        grid-template-columns:minmax(320px,.98fr) minmax(300px,.72fr);
+        gap:0;
         align-items:center;
-        max-width:1180px;
+        max-width:1120px;
         margin:0 auto;
-        padding-top:clamp(26px,4vw,60px);
-        padding-bottom:clamp(28px,4vw,64px);
+        padding:clamp(34px,5vw,68px) clamp(16px,3vw,38px);
+      }
+      .mff-editorial:after{
+        content:"";
+        position:absolute;
+        z-index:0;
+        top:clamp(54px,7vw,88px);
+        right:clamp(4px,1.5vw,22px);
+        bottom:clamp(28px,4vw,54px);
+        left:34%;
+        border:3px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-gold);
+        box-shadow:8px 8px 0 #000;
       }
       .mff-editorial-copy{
-        max-width:460px;
-        justify-self:start;
+        z-index:3;
+        max-width:430px;
+        justify-self:end;
+        margin-left:clamp(-74px,-5vw,-38px);
+        border:3px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-paper);
+        box-shadow:6px 6px 0 #000;
+        padding:clamp(18px,2.7vw,30px);
+      }
+      .mff-editorial-label{
+        display:inline-flex;
+        align-items:center;
+        min-height:30px;
+        margin-bottom:16px;
+        padding:0 10px;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-gold);
+        color:var(--mff-ink);
+        box-shadow:3px 3px 0 #000;
+        font-size:11px;
+        font-weight:950;
+        line-height:1;
+        text-transform:uppercase;
       }
       .mff-editorial .mff-title{
-        font-size:clamp(34px,4.15vw,58px);
-        line-height:.9;
+        font-size:clamp(36px,4.45vw,62px);
+        line-height:.86;
       }
       .mff-editorial .mff-copy{
-        max-width:430px;
+        max-width:360px;
         font-size:clamp(14px,1.15vw,16px);
         line-height:1.45;
       }
       .mff-editorial-card{
         position:relative;
-        height:clamp(300px,34vw,440px);
+        z-index:2;
+        height:clamp(310px,32vw,410px);
         min-height:280px;
         max-height:500px;
         border:3px solid var(--mff-line);
         border-radius:10px 4px 10px 4px;
         background:var(--mff-paper);
-        box-shadow:8px 8px 0 #000;
+        box-shadow:10px 10px 0 #000;
         overflow:hidden;
+        transform:rotate(-1deg);
       }
       .mff-editorial-card .mff-visual{
         width:100%;
@@ -510,6 +548,15 @@ function widgetRuntime() {
         white-space:nowrap;
         overflow:hidden;
         text-overflow:ellipsis;
+      }
+      .mff-editorial .mff-actions{
+        margin-top:18px;
+      }
+      .mff-editorial .mff-button{
+        min-height:42px;
+        border-width:2px;
+        border-radius:12px 4px 12px 4px;
+        box-shadow:4px 4px 0 #000;
       }
       .mff-form{display:grid;gap:10px;margin-top:20px;max-width:680px}
       .mff-form input{width:100%;min-height:48px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-paper);padding:12px 14px;color:var(--mff-ink);font:inherit;font-weight:850}
@@ -797,9 +844,11 @@ function widgetRuntime() {
         .mff-membership-cta{min-height:70px;grid-template-columns:minmax(0,1fr) 40px;box-shadow:5px 5px 0 var(--mff-shadow)}
         .mff-membership-cta strong{font-size:30px}
         .mff-membership-cta i{width:38px;height:38px;font-size:21px}
-        .mff-editorial{grid-template-columns:1fr;gap:18px;padding:18px 8px 32px}
-        .mff-editorial-card{height:clamp(200px,62vw,240px);min-height:0;max-height:none;box-shadow:6px 6px 0 #000}
-        .mff-editorial-copy{max-width:100%}
+        .mff-editorial{grid-template-columns:1fr;gap:0;padding:18px 8px 34px}
+        .mff-editorial:after{top:128px;right:0;bottom:22px;left:28px;box-shadow:5px 5px 0 #000}
+        .mff-editorial-card{height:clamp(205px,58vw,245px);min-height:0;max-height:none;box-shadow:6px 6px 0 #000;transform:none}
+        .mff-editorial-copy{max-width:100%;justify-self:stretch;margin:-18px 0 0 18px;padding:17px;box-shadow:5px 5px 0 #000}
+        .mff-editorial-label{min-height:28px;margin-bottom:12px;font-size:10px}
         .mff-editorial .mff-title{font-size:clamp(32px,9.2vw,44px)}
         .mff-editorial .mff-copy{font-size:14px}
         .mff-editorial-chip{left:12px;bottom:12px}
@@ -1608,6 +1657,7 @@ function widgetRuntime() {
         ${chip ? `<span class="mff-editorial-chip">${escapeHtml(chip)}</span>` : ""}
       </div>
       <div class="mff-editorial-copy">
+        <span class="mff-editorial-label">${escapeHtml(copy.kicker || "BBQ inspiratie")}</span>
         <p class="mff-kicker">${escapeHtml(copy.kicker || "BBQ inspiratie")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Wat zet jij op het vuur?")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Laat recepten, klantfoto's en BBQ challenges zien zonder de shop uit het oog te verliezen.")}</p>
