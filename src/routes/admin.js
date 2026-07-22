@@ -4,6 +4,7 @@ import { createDraw, drawWinner, getOrCreateCustomer } from "../services/lottery
 import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
+import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -127,6 +128,7 @@ function page(title, active, body) {
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
     ["loten", "/admin/loten", "Tickets", "Loten"],
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
+    ["producten", "/admin/producten", "Beef", "Producten"],
     ["deelnemers", "/admin/deelnemers", "Users", "Deelnemers"],
     ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
     ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
@@ -270,6 +272,13 @@ function page(title, active, body) {
         .more-link { min-height:86px; display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-decoration:none; }
         .more-link:hover, .more-link:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
         .more-link strong { display:block; font-size:14px; font-weight:900; }
+        .product-cell { display:grid; grid-template-columns:58px minmax(0,1fr); gap:12px; align-items:center; }
+        .product-thumb { width:58px; aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f5ef; }
+        .product-thumb img { width:100%; height:100%; display:block; object-fit:cover; }
+        .product-thumb--empty { display:grid; place-items:center; color:var(--muted); }
+        .sync-health { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+        .sync-health-item { padding:12px; border:1px solid var(--line-soft); border-radius:10px; background:#fff; }
+        .sync-health-item strong { display:block; margin-top:4px; font-size:16px; font-weight:950; }
         .structure-grid { display:grid; gap:14px; }
         .structure-row { display:grid; grid-template-columns:88px minmax(160px,.9fr) minmax(160px,.9fr) minmax(220px,1.4fr); gap:12px; align-items:start; padding:14px; border:1px solid var(--line-soft); border-radius:10px; background:#fff; }
         .structure-row--compact { grid-template-columns:88px minmax(140px,.8fr) minmax(170px,1fr) minmax(150px,.85fr); }
@@ -337,6 +346,7 @@ function page(title, active, body) {
           .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
+          .sync-health { grid-template-columns:1fr; }
           .structure-row, .structure-row--compact { grid-template-columns:1fr; border-radius:16px; }
           .structure-meta { padding:0; }
           .widget-editor-head { grid-template-columns:1fr; }
@@ -373,11 +383,11 @@ function page(title, active, body) {
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
-            ${menu.slice(0, 5).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(0, 7).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(5, 9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(7, 11).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(11).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -998,6 +1008,14 @@ function customerFilter(req) {
   };
 }
 
+function productFilter(req) {
+  return {
+    q: textParam(req.query.q),
+    statusTag: textParam(req.query.statusTag),
+    available: textParam(req.query.available)
+  };
+}
+
 function checkbox(body, name) {
   return body?.[name] === "true";
 }
@@ -1284,6 +1302,7 @@ adminRouter.get("/menu", (_req, res) => {
     ["Beheer", [
       ["Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
       ["Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
+      ["Producten", "/admin/producten", "Beef", "Shopify producten, prijzen en kaart-tags."],
       ["Deelnemers", "/admin/deelnemers", "Users", "Klanten, winnaars en deelnamewaarde."]
     ]],
     ["Controle", [
@@ -1651,6 +1670,69 @@ adminRouter.get("/orders", (req, res) => {
   `));
 });
 
+adminRouter.get("/producten", (req, res) => {
+  const filter = productFilter(req);
+  const products = listSyncedProducts({ ...filter, limit: 120 });
+  const syncStatus = productSyncStatus();
+  const statusTags = db.prepare(`
+    SELECT status_tag, COUNT(*) AS count
+    FROM shopify_products
+    WHERE status_tag IS NOT NULL AND status_tag != ''
+    GROUP BY status_tag
+    ORDER BY count DESC, status_tag ASC
+  `).all();
+  const availableCount = products.filter((product) => Number(product.available || 0) === 1).length;
+  const dealCount = products.filter((product) => product.status_tag === "Deal").length;
+  const staleLabel = syncStatus.stale ? "Sync nodig" : "Actueel";
+  const productImage = (product) => product.image_url
+    ? `<span class="product-thumb"><img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(product.title)}" loading="lazy"></span>`
+    : `<span class="product-thumb product-thumb--empty">${icon("Image")}</span>`;
+
+  res.send(page("Producten | Meat For Free", "producten", `
+    ${topbar("Producten", "Shopify data voor productkaarten.", "Gebruik deze pagina om homepage productkaarten echt te houden: actuele prijzen, afbeeldingen, voorraadstatus en status-tags.", `<form class="inline-form" method="post" action="/admin/sync-products"><button class="button--gold" type="submit">${icon("RefreshCw")}Producten syncen</button></form><a class="button button--ghost" href="/admin/widgets">${icon("PanelTop")}Product widget</a>`)}
+    ${kpiGrid([
+      { label: "Gecachet", value: syncStatus.total, help: "Aantal Shopify producten in de lokale cache.", icon: "Beef" },
+      { label: "Beschikbaar", value: syncStatus.available, help: "Producten met bruikbare variant/voorraad.", icon: "ShoppingBag" },
+      { label: "Status-tags", value: statusTags.length, help: "Deal, Nieuw, Populair of Laatste kans.", icon: "BadgePercent" },
+      { label: "Laatste sync", value: staleLabel, help: syncStatus.lastSyncedAt || "Nog niet gesynchroniseerd.", icon: "RefreshCw" }
+    ])}
+    <section class="panel panel-pad">
+      <div class="panel-title"><div><h2>Sync gezondheid</h2><p class="helper">Deze data voedt de productkaarten op de storefront zodra de widget op Shopify-sync staat.</p></div></div>
+      <div class="sync-health">
+        <div class="sync-health-item"><span class="muted">Beschikbaar in selectie</span><strong>${availableCount}</strong></div>
+        <div class="sync-health-item"><span class="muted">Deals in selectie</span><strong>${dealCount}</strong></div>
+        <div class="sync-health-item"><span class="muted">Laatste sync</span><strong>${escapeHtml(syncStatus.lastSyncedAt ? syncStatus.lastSyncedAt.slice(0, 16).replace("T", " ") : "Nooit")}</strong></div>
+      </div>
+    </section>
+    <section class="filters">
+      <form method="get" action="/admin/producten" class="filter-grid">
+        <label class="wide">Zoek product<input name="q" value="${escapeHtml(filter.q)}" placeholder="Ribeye, BBQ, handle of tag"></label>
+        <label>Status-tag<select name="statusTag">${option("", filter.statusTag, "Alle tags")}${statusTags.map((row) => option(row.status_tag, filter.statusTag, `${row.status_tag} (${row.count})`)).join("")}</select></label>
+        <label>Beschikbaar<select name="available">${option("", filter.available, "Alles")}${option("yes", filter.available, "Alleen beschikbaar")}${option("no", filter.available, "Niet beschikbaar")}</select></label>
+        <div class="actions"><button type="submit">Filter</button><a class="button button--ghost" href="/admin/producten">Reset</a></div>
+      </form>
+    </section>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Product</th><th>Prijs</th><th>Status-tag</th><th>Voorraad</th><th>Variant</th><th>Sync</th></tr></thead>
+        <tbody>${products.length ? products.map((product) => `<tr>
+          <td>
+            <div class="product-cell">
+              ${productImage(product)}
+              <span><strong>${escapeHtml(product.title)}</strong><span class="muted">${escapeHtml(product.handle)}${product.product_type ? ` · ${escapeHtml(product.product_type)}` : ""}</span></span>
+            </div>
+          </td>
+          <td><strong>${formatEuro(product.price_cents || 0)}</strong>${Number(product.compare_at_cents || 0) > Number(product.price_cents || 0) ? `<span class="muted">Was ${formatEuro(product.compare_at_cents || 0)}</span>` : ""}</td>
+          <td>${product.status_tag ? statusBadge(product.status_tag) : `<span class="muted">Geen badge</span>`}</td>
+          <td>${Number(product.available || 0) === 1 ? statusBadge("ACTIVE") : statusBadge("Controle")}<br><span class="muted">${product.inventory_quantity == null ? "Voorraad onbekend" : `${product.inventory_quantity} beschikbaar`}</span></td>
+          <td>${escapeHtml(product.variant_id || "-")}</td>
+          <td>${escapeHtml(product.synced_at || "-")}</td>
+        </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen producten gesynchroniseerd. Klik op Producten syncen.</div></td></tr>`}</tbody>
+      </table>
+    </div>
+  `));
+});
+
 adminRouter.get("/deelnemers", (req, res) => {
   const filter = customerFilter(req);
   const customers = db.prepare(`
@@ -1815,12 +1897,14 @@ adminRouter.post("/regels", urlencoded, (req, res) => {
 
 adminRouter.get("/sync", (_req, res) => {
   const metrics = getMetrics();
+  const products = productSyncStatus();
   res.send(page("Synchronisatie | Meat For Free", "sync", `
     ${topbar("Synchronisatie", "Systeemacties voor datakwaliteit.", "Gebruik deze pagina als Shopify data, klantdashboards of loten niet gelijk lopen.", "")}
-    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen.", icon: "PackageSearch" }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties.", icon: "Tickets" }, { label: "Laatste 7 dagen", value: metrics.recentEntries, help: "Nieuwe lotactiviteit.", icon: "Activity" }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt.", icon: "ShoppingCart" }])}
-    <section class="grid grid-2">
+    ${kpiGrid([{ label: "Geschikt zonder lot", value: metrics.eligibleWithoutEntry, help: "Na ordersynchronisatie moet dit dalen.", icon: "PackageSearch" }, { label: "Live loten", value: metrics.activeLiveEntries, help: "Beschikbaar in live acties.", icon: "Tickets" }, { label: "Producten", value: products.available, help: products.lastSyncedAt ? `Laatste sync ${products.lastSyncedAt.slice(0, 10)}.` : "Nog geen product-sync.", icon: "Beef" }, { label: "Vandaag orders", value: metrics.todayOrders, help: "Vandaag verwerkt.", icon: "ShoppingCart" }])}
+    <section class="grid grid-3">
       <div class="panel panel-pad"><div class="panel-title"><h2>Orders met loten synchroniseren</h2></div><p class="muted">Reconcilieert orders die recht hebben op loten maar nog geen lot kregen.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Klantdashboards synchroniseren</h2></div><p class="muted">Schrijft de huidige lotdata terug naar Shopify klantmetafields.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Klantdashboards synchroniseren</button></form></div></div>
+      <div class="panel panel-pad"><div class="panel-title"><h2>Productkaarten synchroniseren</h2></div><p class="muted">Haalt actieve Shopify producten, prijzen, afbeeldingen en status-tags op voor de storefront kaarten.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-products"><button class="button--gold" type="submit">Producten synchroniseren</button></form></div></div>
     </section>
   `));
 });
@@ -1898,6 +1982,9 @@ const widgetFieldLabels = {
   cartLabel: ["Cart knop", "Label voor directe add-to-cart."],
   soldOutLabel: ["Fallback knop", "Als er geen variant ID is ingevuld."],
   lotLabel: ["Lot label", "Korte tekst bij productbijdrage richting gratis lot."],
+  productSource: ["Productbron", "Shopify-sync gebruikt actuele producten. Handmatig gebruikt de velden hieronder."],
+  productLimit: ["Aantal producten", "Aantal gesynchroniseerde producten in de carousel."],
+  productStatusFilter: ["Status-filter", "Optioneel: toon alleen Deal, Nieuw, Populair of Laatste kans."],
   productOneTitle: ["Product 1 titel", "Naam op de kaart."],
   productOneTag: ["Product 1 tag", "Korte status-tag op de afbeelding, bijvoorbeeld Deal."],
   productOneDescription: ["Product 1 tekst", "Korte beschrijving."],
@@ -1954,6 +2041,15 @@ const visualFieldKeys = Object.keys(widgetVisualDefaults);
 
 function widgetField(key, value) {
   const [labelText, help] = widgetFieldLabels[key] || [key, ""];
+  if (key === "productSource") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("synced", value, "Shopify-sync")}${option("manual", value, "Handmatig")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "productStatusFilter") {
+    return `<label>${escapeHtml(labelText)}<select name="${escapeHtml(key)}">${option("", value, "Geen filter")}${option("Deal", value, "Alleen deals")}${option("Nieuw", value, "Alleen nieuw")}${option("Populair", value, "Alleen populair")}${option("Laatste kans", value, "Alleen urgentie")}</select>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
+  if (key === "productLimit") {
+    return `<label>${escapeHtml(labelText)}<input name="${escapeHtml(key)}" inputmode="numeric" value="${escapeHtml(value || "8")}">${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  }
   const isLong = /body|text|story/i.test(key) || String(value || "").length > 80;
   const input = isLong
     ? `<textarea name="${escapeHtml(key)}">${escapeHtml(value)}</textarea>`
@@ -2292,6 +2388,28 @@ adminRouter.post("/sync-dashboards", async (_req, res) => {
     metadata: result
   });
   res.redirect("/admin/sync");
+});
+
+adminRouter.post("/sync-products", async (req, res) => {
+  try {
+    const result = await syncShopifyProducts({ limit: 100 });
+    writeAuditLog({
+      actor: actor(req),
+      action: "SHOPIFY_PRODUCTEN_GESYNCHRONISEERD",
+      targetType: "shopify_products",
+      message: `${result.synced || 0} producten bijgewerkt`,
+      metadata: result
+    });
+    res.redirect("/admin/producten");
+  } catch (error) {
+    writeAuditLog({
+      actor: actor(req),
+      action: "SHOPIFY_PRODUCTEN_SYNC_MISLUKT",
+      targetType: "shopify_products",
+      message: error.message
+    });
+    res.status(400).send(page("Product sync fout | Meat For Free", "producten", topbar("Sync mislukt", "Shopify producten konden niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/producten">Terug</a>`)));
+  }
 });
 
 function drawForm(draw, action, submitLabel) {

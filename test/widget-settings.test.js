@@ -7,6 +7,7 @@ import { getSiteStructure, getWidgetSettings, updateSiteStructure, updateWidgetS
 
 function resetSettings() {
   db.exec("DELETE FROM app_settings WHERE key LIKE 'widget:%' OR key = 'site_structure'");
+  db.exec("DELETE FROM shopify_products");
 }
 
 afterEach(() => {
@@ -42,6 +43,7 @@ test("site summary exposes editable widget copy to embeds", async () => {
   assert.equal(response.body.widgets.pdp.qualifiesHeading, "Product haalt direct een lot");
   assert.equal(response.body.widgets.cart.badge, "Gratis lot");
   assert.equal(response.body.widgets["product-cards"].cartLabel, "In winkelwagen");
+  assert.equal(response.body.widgets["product-cards"].productSource, "synced");
   assert.equal(response.body.siteStructure.headerMenu[0].label, "Shop");
 });
 

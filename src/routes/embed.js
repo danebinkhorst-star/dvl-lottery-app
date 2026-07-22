@@ -1418,7 +1418,7 @@ function widgetRuntime() {
     </section>`;
   }
 
-  function productCardItems(copy) {
+  function manualProductCardItems(copy) {
     return [
       ["productOne", "Deal"],
       ["productTwo", "Nieuw"],
@@ -1439,6 +1439,24 @@ function widgetRuntime() {
         compareAtCents
       };
     }).filter((item) => item.title && item.priceCents > 0);
+  }
+
+  function productCardItems(copy, data) {
+    const synced = Array.isArray(data?.products?.productCards) ? data.products.productCards : [];
+    if (copy.productSource !== "manual" && synced.length) {
+      return synced.map((item) => ({
+        title: String(item.title || "").trim(),
+        tag: String(item.tag || "").trim(),
+        description: String(item.description || "").trim(),
+        imageUrl: String(item.imageUrl || "").trim(),
+        url: String(item.url || copy.collectionUrl || "/collections/all").trim(),
+        variantId: String(item.variantId || "").trim(),
+        priceCents: Math.max(0, Number(item.priceCents || 0) || 0),
+        compareAtCents: Math.max(0, Number(item.compareAtCents || 0) || 0),
+        available: item.available !== false
+      })).filter((item) => item.title && item.priceCents > 0);
+    }
+    return manualProductCardItems(copy);
   }
 
   function productBadge(item) {
@@ -1515,7 +1533,7 @@ function widgetRuntime() {
   function productCardsWidget(el, data) {
     const copy = widgetCopy(data, "product-cards");
     const structure = data.siteStructure?.productCards || {};
-    const products = productCardItems(copy);
+    const products = productCardItems(copy, data);
     const showSavings = structure.showSavings !== false;
     const showDetails = structure.showDetailsLink !== false;
     const directAdd = structure.directAddEnabled !== false;
@@ -1545,7 +1563,7 @@ function widgetRuntime() {
               ${showSavings && item.compareAtCents > item.priceCents ? `<s>${formatEuro(item.compareAtCents)}</s>` : ""}
             </div>
             <div class="mff-product-actions">
-              ${directAdd && item.variantId
+              ${directAdd && item.variantId && item.available !== false
                 ? `<form data-mff-product-form data-variant-id="${escapeHtml(item.variantId)}"><button class="mff-button" type="submit">${escapeHtml(copy.cartLabel || "In winkelwagen")}</button></form>`
                 : `<a class="mff-button" href="${escapeHtml(storeHref(item.url))}" target="_top">${escapeHtml(copy.soldOutLabel || "Bekijk product")}</a>`}
               ${showDetails ? `<a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(item.url))}" target="_top">${escapeHtml(copy.detailLabel || "Alle gegevens bekijken")}</a>` : ""}

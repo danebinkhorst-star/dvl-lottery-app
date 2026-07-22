@@ -6,6 +6,7 @@ import { createDraw, createFreeEntry } from "../services/lottery.js";
 import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../services/settings.js";
+import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -90,6 +91,10 @@ apiRouter.get("/site/summary", async (_req, res) => {
     ORDER BY d.draw_at DESC
     LIMIT 6
   `).all();
+  const widgets = getAllWidgetSettings();
+  const productWidget = widgets["product-cards"] || {};
+  const syncedProductLimit = Math.max(1, Math.min(12, Number(productWidget.productLimit || 8)));
+  const productStatusFilter = String(productWidget.productStatusFilter || "").trim();
   res.json({
     rule: {
       label: rule.LOT_RULE_MODE === "PER_AMOUNT"
@@ -119,8 +124,14 @@ apiRouter.get("/site/summary", async (_req, res) => {
       createdAt: winner.created_at,
       avatarSeed: `${winner.entry_number}-${winner.draw_title || winner.prize_name || "mff"}`
     })),
-    widgets: getAllWidgetSettings(),
-    siteStructure: getSiteStructure()
+    widgets,
+    siteStructure: getSiteStructure(),
+    products: {
+      productCards: productWidget.productSource === "manual"
+        ? []
+        : productCardsForEmbed({ limit: syncedProductLimit, statusTag: productStatusFilter }),
+      sync: productSyncStatus()
+    }
   });
 });
 
@@ -224,5 +235,14 @@ apiRouter.post("/sync/customer-dashboards", adminWriteLimiter, async (req, res) 
     return res.status(401).json({ error: "Unauthorized" });
   }
   const result = await syncAllCustomerDashboardMetafields();
+  return res.json({ ok: true, ...result });
+});
+
+apiRouter.post("/sync/products", adminWriteLimiter, async (req, res) => {
+  const suppliedSecret = req.get("x-dvl-admin-secret") || "";
+  if (!isValidWriteSecret(suppliedSecret)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const result = await syncShopifyProducts({ limit: req.body?.limit || 100 });
   return res.json({ ok: true, ...result });
 });

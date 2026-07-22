@@ -103,6 +103,27 @@ export function initDb() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS shopify_products (
+      id TEXT PRIMARY KEY,
+      shopify_product_id TEXT NOT NULL UNIQUE,
+      handle TEXT NOT NULL,
+      title TEXT NOT NULL,
+      vendor TEXT,
+      product_type TEXT,
+      status TEXT,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      image_url TEXT,
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      compare_at_cents INTEGER NOT NULL DEFAULT 0,
+      variant_id TEXT,
+      available INTEGER NOT NULL DEFAULT 0,
+      inventory_quantity INTEGER,
+      product_url TEXT,
+      status_tag TEXT,
+      synced_at TEXT NOT NULL,
+      raw_json TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_draws_status_starts ON lottery_draws(status, starts_at);
     CREATE INDEX IF NOT EXISTS idx_entries_draw_status ON lottery_entries(draw_id, status);
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
@@ -111,6 +132,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_free_claims_draw ON free_entry_claims(draw_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_free_claims_ip ON free_entry_claims(ip_hash, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
+    CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
+    CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);
   `);
 }
 
