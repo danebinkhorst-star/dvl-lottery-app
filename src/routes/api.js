@@ -8,6 +8,7 @@ import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../services/settings.js";
 import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { clientIp, recordSecurityEvent } from "../services/security-events.js";
+import { recordAnalyticsEvent } from "../services/analytics.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
 
 export const apiRouter = express.Router();
@@ -50,6 +51,26 @@ const adminWriteLimiter = rateLimit({
     });
     res.status(429).json({ error: "Te veel schrijfacties in korte tijd. Probeer het straks opnieuw." });
   }
+});
+const analyticsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(204).end();
+  }
+});
+const analyticsEventSchema = z.object({
+  eventType: z.string().trim().max(64).optional().default("widget_event"),
+  widget: z.string().trim().max(40),
+  action: z.string().trim().max(80),
+  target: z.string().trim().max(180).optional().default(""),
+  value: z.union([z.string().trim().max(240), z.number(), z.boolean()]).optional().default(""),
+  pageUrl: z.string().trim().max(520).optional().default(""),
+  referrer: z.string().trim().max(520).optional().default(""),
+  shopOrigin: z.string().trim().max(520).optional().default(""),
+  metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default({})
 });
 
 function allowFreeEntryAttempt(key) {
@@ -159,6 +180,16 @@ apiRouter.get("/site/summary", async (_req, res) => {
       sync: productSyncStatus()
     }
   });
+});
+
+apiRouter.post("/events", analyticsLimiter, async (req, res) => {
+  try {
+    const payload = analyticsEventSchema.parse(req.body || {});
+    recordAnalyticsEvent(req, payload);
+    return res.status(204).end();
+  } catch (_error) {
+    return res.status(204).end();
+  }
 });
 
 apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {

@@ -6,6 +6,7 @@ import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { recentSecurityEvents, securityEventSummary } from "../services/security-events.js";
+import { analyticsActionItems, analyticsSummary } from "../services/analytics.js";
 import { writeAuditLog } from "../services/audit.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
@@ -129,6 +130,7 @@ function page(title, active, body) {
   const menu = [
     ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
     ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
+    ["groei", "/admin/groei", "LineChart", "Groei"],
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
     ["winnaars", "/admin/winnaars", "Trophy", "Winnaars"],
     ["loten", "/admin/loten", "Tickets", "Loten"],
@@ -146,7 +148,7 @@ function page(title, active, body) {
   const mobileTabs = [
     ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
     ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
-    ["winacties", "/admin/winacties", "Gift", "Winacties"],
+    ["groei", "/admin/groei", "LineChart", "Groei"],
     ["site", "/admin/site-structuur", "LayoutTemplate", "Site"],
     ["meer", "/admin/menu", "Menu", "Meer"]
   ];
@@ -410,11 +412,11 @@ function page(title, active, body) {
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
-            ${menu.slice(0, 8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(0, 9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(8, 12).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(9, 13).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(12).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(13).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -445,7 +447,7 @@ function menuLink(active, key, href, iconName, label) {
 }
 
 function mobileTabLink(active, key, href, iconName, label) {
-  const primaryKeys = new Set(["overzicht", "analyse", "winacties", "orders"]);
+  const primaryKeys = new Set(["overzicht", "analyse", "groei", "site"]);
   const isActive = active === key || (key === "meer" && !primaryKeys.has(active));
   return `<a class="mobile-tab-link${isActive ? " mobile-tab-link--active" : ""}" href="${href}">
     ${icon(iconName)}<span class="mobile-tab-label">${escapeHtml(label)}</span>
@@ -907,6 +909,113 @@ function breakdownPanel(title, rows, total, keyName = "status") {
         <div><span>${escapeHtml(statusLabel(row[keyName]))}</span><strong>${row.count}</strong></div>
         <div class="bar"><span style="width:${ratio(row.count, total)}%"></span></div>
       </div>`).join("") : `<p class="empty">Nog geen data.</p>`}
+    </div>
+  </div>`;
+}
+
+function analyticsActionLabel(action) {
+  const labels = {
+    view: "Widget view",
+    cta_click: "CTA klik",
+    product_open: "Product geopend",
+    product_add_attempt: "Add-to-cart poging",
+    product_add_success: "Add-to-cart gelukt",
+    product_add_error: "Add-to-cart fout",
+    free_entry_submit: "Gratis deelname start",
+    free_entry_success: "Gratis deelname gelukt",
+    free_entry_error: "Gratis deelname fout",
+    cart_threshold_reached: "Gratis lot bereikt"
+  };
+  return labels[action] || action || "-";
+}
+
+function eventRate(part, total) {
+  if (!Number(total || 0)) return "0%";
+  return `${Math.round((Number(part || 0) / Number(total || 0)) * 100)}%`;
+}
+
+function analyticsFunnelPanel(summary) {
+  const totals = summary.totals;
+  const rows = [
+    ["Views", totals.views, 100],
+    ["Kliks", totals.clicks, ratio(totals.clicks, totals.views || 1)],
+    ["Add-to-cart success", totals.addSuccesses, ratio(totals.addSuccesses, totals.addAttempts || 1)],
+    ["Gratis deelname success", totals.freeEntrySuccesses, ratio(totals.freeEntrySuccesses, totals.freeEntrySubmits || 1)]
+  ];
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Conversie</p><h2>Widget funnel</h2></div><span class="status">${summary.days} dagen</span></div>
+    <div class="stack">
+      ${rows.map(([label, value, width]) => `<div class="metric-row">
+        <div><span>${escapeHtml(label)}</span><strong>${value}</strong></div>
+        <div class="bar"><span style="width:${width}%"></span></div>
+      </div>`).join("")}
+    </div>
+    <p class="helper">Meet shopinteractie zonder klantdata op te slaan.</p>
+  </div>`;
+}
+
+function analyticsWidgetTable(rows) {
+  return `<table>
+    <thead><tr><th>Widget</th><th>Views</th><th>Kliks</th><th>Add-to-cart</th><th>Gratis deelname</th><th>Laatst gezien</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => `<tr>
+      <td><strong>${escapeHtml(row.widget)}</strong><span class="muted">${row.total_events || 0} events</span></td>
+      <td>${row.views || 0}</td>
+      <td>${row.clicks || 0}<br><span class="muted">${eventRate(row.clicks || 0, row.views || 0)}</span></td>
+      <td>${row.add_successes || 0}</td>
+      <td>${row.free_entry_successes || 0}</td>
+      <td>${escapeHtml(row.last_seen || "-")}</td>
+    </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen widget events. Zodra de live embed wordt bekeken, verschijnt dit hier.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function analyticsActionsTable(rows) {
+  return `<table>
+    <thead><tr><th>Actie</th><th>Widget</th><th>Aantal</th><th>Laatst gezien</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => `<tr>
+      <td><strong>${escapeHtml(analyticsActionLabel(row.action))}</strong><span class="muted">${escapeHtml(row.action)}</span></td>
+      <td>${escapeHtml(row.widget)}</td>
+      <td>${row.count || 0}</td>
+      <td>${escapeHtml(row.last_seen || "-")}</td>
+    </tr>`).join("") : `<tr><td colspan="4"><div class="empty">Nog geen acties gemeten.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function analyticsPagesPanel(rows) {
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Pagina's</p><h2>Waar widgets gebruikt worden</h2></div></div>
+    <div class="stack">
+      ${rows.length ? rows.map((row) => `<div class="metric-row">
+        <div><span>${escapeHtml(row.page_url)}</span><strong>${row.count}</strong></div>
+        <div class="bar"><span style="width:${ratio(row.count, rows[0]?.count || 1)}%"></span></div>
+      </div>`).join("") : `<p class="empty">Nog geen paginaevents.</p>`}
+    </div>
+  </div>`;
+}
+
+function readinessRows({ summary, productStatus, metrics, winnerRows, rule, siteStructure }) {
+  const widgetViews = Number(summary.totals.views || 0);
+  const publicWinners = winnerRows.filter((row) => row.winner_public_status === "PUBLIC").length;
+  const activeHomeSections = siteStructure.homepageSections.filter((row) => row.enabled).length;
+  return [
+    ["Activity", "Tracking actief", widgetViews > 0, widgetViews ? `${widgetViews} widget views gemeten.` : "Wacht op live storefront verkeer of test de embed.", "/admin/embed"],
+    ["Gift", "Live winactie", metrics.liveDraws > 0, metrics.liveDraws ? `${metrics.activeLiveEntries} actieve loten in live acties.` : "Maak of publiceer minimaal één live winactie.", "/admin/winacties"],
+    ["Beef", "Productdata", productStatus.available >= 4 && !productStatus.stale, `${productStatus.available} beschikbare producten · ${productStatus.stale ? "sync ouder dan 24u" : "sync vers"}.`, "/admin/producten"],
+    ["Trophy", "Social proof", publicWinners > 0, publicWinners ? `${publicWinners} publieke winnaar(s).` : "Publiceer pas na consent een echte winnaar.", "/admin/winnaars"],
+    ["ShieldCheck", "Gratis deelname controle", Boolean(rule.FREE_ENTRY_ENABLED), rule.FREE_ENTRY_ENABLED ? "IP + e-mail beperking actief." : "Gratis deelname staat uit.", "/admin/regels"],
+    ["LayoutTemplate", "Homepage structuur", activeHomeSections >= 5, `${activeHomeSections} homepageblokken actief.`, "/admin/site-structuur"]
+  ];
+}
+
+function readinessPanel(rows) {
+  const readyCount = rows.filter((row) => row[2]).length;
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Readiness</p><h2>Franchise live-check</h2></div><span class="status status--${readyCount === rows.length ? "goed" : "controle"}">${readyCount}/${rows.length}</span></div>
+    <div class="stack">
+      ${rows.map(([iconName, title, ready, body, href]) => `<a class="ops-item" href="${href}" style="text-decoration:none">
+        <span class="ops-icon">${icon(iconName)}</span>
+        <span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span>
+        <span class="status status--${ready ? "goed" : "actie"}">${ready ? "Goed" : "Actie"}</span>
+      </a>`).join("")}
     </div>
   </div>`;
 }
@@ -1600,9 +1709,70 @@ adminRouter.get("/analyse", (_req, res) => {
   `));
 });
 
+adminRouter.get("/groei", (_req, res) => {
+  const summary = analyticsSummary({ days: 14 });
+  const metrics = getMetrics();
+  const rule = getLotteryRule();
+  const productStatus = productSyncStatus();
+  const winnerRows = winnerAdminRows(60);
+  const siteStructure = getSiteStructure();
+  const actionItems = analyticsActionItems(summary);
+  const readiness = readinessRows({ summary, productStatus, metrics, winnerRows, rule, siteStructure });
+  const totals = summary.totals;
+
+  res.send(page("Groei | Meat For Free", "groei", `
+    ${topbar("Groei", "Conversie en live readiness.", "Geen Klaviyo: eerst meten wat de widgets zelf doen, waar bezoekers klikken en welke onderdelen klaar zijn om verkeer op te schalen.", `<a class="button button--ghost" href="/admin/groei/events.csv">${icon("Download")}CSV export</a><a class="button button--gold" href="/admin/widgets">${icon("PanelTop")}Widgets aanpassen</a>`)}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Actiepunten</p><h2>Wat nu verbeteren?</h2></div><span class="status">${summary.days} dagen</span></div>
+        <div class="stack">${actionItems.map(([iconName, title, body, badge, href]) => `<a class="ops-item" href="${href}" style="text-decoration:none"><span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></a>`).join("")}</div>
+      </div>
+      ${readinessPanel(readiness)}
+    </section>
+    ${kpiGrid([
+      { label: "Widget views", value: totals.views || 0, help: `${totals.uniqueVisitors || 0} unieke gehashte bezoekersignalen.`, icon: "Eye" },
+      { label: "Klikratio", value: eventRate(totals.clicks || 0, totals.views || 0), help: `${totals.clicks || 0} CTA/productkliks uit ${totals.views || 0} views.`, icon: "MousePointerClick" },
+      { label: "Add-to-cart", value: eventRate(totals.addSuccesses || 0, totals.addAttempts || 0), help: `${totals.addSuccesses || 0} gelukt van ${totals.addAttempts || 0} pogingen.`, icon: "ShoppingCart" },
+      { label: "Gratis deelname", value: eventRate(totals.freeEntrySuccesses || 0, totals.freeEntrySubmits || 0), help: `${totals.freeEntrySuccesses || 0} gelukt van ${totals.freeEntrySubmits || 0} aanvragen.`, icon: "TicketPlus" }
+    ])}
+    <section class="grid grid-2">
+      ${analyticsFunnelPanel(summary)}
+      ${analyticsPagesPanel(summary.pages)}
+    </section>
+    <div class="section-head"><h2>Widget performance</h2><span class="muted">Views, kliks en commerce-acties per widget.</span></div>
+    <div class="panel">${analyticsWidgetTable(summary.widgets)}</div>
+    <div class="section-head"><h2>Meest gemeten acties</h2><span class="muted">Laatste 14 dagen, gegroepeerd per widget.</span></div>
+    <div class="panel">${analyticsActionsTable(summary.actions)}</div>
+  `));
+});
+
+adminRouter.get("/groei/events.csv", (_req, res) => {
+  const rows = db.prepare(`
+    SELECT created_at, widget, action, target, value, page_url, referrer, shop_origin
+    FROM analytics_events
+    ORDER BY created_at DESC
+    LIMIT 1000
+  `).all();
+  const header = ["aangemaakt", "widget", "actie", "target", "waarde", "pagina", "referrer", "shop_origin"];
+  const body = rows.map((row) => [
+    row.created_at,
+    row.widget,
+    analyticsActionLabel(row.action),
+    row.target,
+    row.value,
+    row.page_url,
+    row.referrer,
+    row.shop_origin
+  ].map(csv).join(","));
+  res.setHeader("content-type", "text/csv; charset=utf-8");
+  res.setHeader("content-disposition", "attachment; filename=\"mff-widget-events.csv\"");
+  return res.send([header.map(csv).join(","), ...body].join("\n"));
+});
+
 adminRouter.get("/menu", (_req, res) => {
   const groups = [
     ["Beheer", [
+      ["Groei", "/admin/groei", "LineChart", "Conversie, widgetperformance en live readiness."],
       ["Winnaars", "/admin/winnaars", "Trophy", "Getrokken winnaars en social-proof publicatie."],
       ["Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
       ["Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],

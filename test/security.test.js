@@ -23,6 +23,7 @@ const { assignEntriesForOrder, createDraw, drawWinner } = await import("../src/s
 function resetDb() {
   db.exec(`
     UPDATE lottery_draws SET winner_entry_id = NULL;
+    DELETE FROM analytics_events;
     DELETE FROM free_entry_claims;
     DELETE FROM audit_logs;
     DELETE FROM lottery_entries;
@@ -201,4 +202,44 @@ test("admin can approve winner publication with CSRF", async () => {
   assert.equal(updated.winner_public_image_url, "/uploads/winnaar-bas.png");
   assert.ok(updated.winner_public_approved_at);
   assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'WINNAAR_PUBLICATIE_BIJGEWERKT'").get().action, "WINNAAR_PUBLICATIE_BIJGEWERKT");
+});
+
+test("widget analytics events are stored privacy-safe and visible in admin growth", async () => {
+  resetDb();
+  const app = createApp();
+  await request(app)
+    .post("/api/events")
+    .set("x-forwarded-for", "203.0.113.77")
+    .send({
+      widget: "product-cards",
+      action: "product_add_success",
+      target: "variant-1",
+      pageUrl: "https://meatforfree.nl/products/ribeye?customer_email=secret@example.com",
+      referrer: "https://meatforfree.nl/",
+      shopOrigin: "https://meatforfree.nl",
+      metadata: { product: "Ribeye", label: "In winkelwagen", email: "secret@example.com" }
+    })
+    .expect(204);
+
+  const stored = db.prepare("SELECT * FROM analytics_events WHERE widget = 'product-cards'").get();
+  assert.equal(stored.action, "product_add_success");
+  assert.equal(stored.target, "variant-1");
+  assert.equal(stored.page_url, "https://meatforfree.nl/products/ribeye");
+  assert.ok(stored.ip_hash);
+  assert.doesNotMatch(String(stored.metadata || ""), /secret@example.com/);
+
+  const agent = request.agent(app);
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const page = await agent.get("/admin/groei").expect(200);
+  assert.match(page.text, /Conversie en live readiness/);
+  assert.match(page.text, /product-cards/);
+
+  const csv = await agent.get("/admin/groei/events.csv").expect(200);
+  assert.match(csv.text, /product-cards/);
+  assert.doesNotMatch(csv.text, /secret@example.com/);
 });

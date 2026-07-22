@@ -1078,6 +1078,56 @@ function widgetRuntime() {
     return data;
   }
 
+  function trackEvent(widget, action, detail = {}) {
+    if (window.DVL_WIDGET_PREVIEW) return;
+    const payload = {
+      eventType: "widget_event",
+      widget,
+      action,
+      target: detail.target || "",
+      value: detail.value || "",
+      pageUrl: window.location.href,
+      referrer: document.referrer || "",
+      shopOrigin: SHOP_ORIGIN || window.location.origin,
+      metadata: detail.metadata || {}
+    };
+    const body = JSON.stringify(payload);
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon(API + "/api/events", blob)) return;
+      }
+      fetch(API + "/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true
+      }).catch(() => {});
+    } catch (_error) {}
+  }
+
+  function bindWidgetTracking(el, widget) {
+    if (el.dataset.mffTrackingBound === "true") return;
+    el.dataset.mffTrackingBound = "true";
+    el.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest("a,button") : null;
+      if (!target) return;
+      const productCard = target.closest(".mff-product-card");
+      const action = target.closest(".mff-product-media")
+        ? "product_open"
+        : target.closest("[data-mff-product-form]")
+          ? "product_add_attempt"
+          : "cta_click";
+      trackEvent(widget, action, {
+        target: target.getAttribute("href") || target.textContent || "",
+        metadata: {
+          label: target.textContent || "",
+          product: productCard?.querySelector(".mff-product-title")?.textContent || ""
+        }
+      });
+    }, true);
+  }
+
   async function fetchCart() {
     const endpoint = SHOP_ORIGIN ? `${SHOP_ORIGIN}/cart.js` : "/cart.js";
     if (new URL(endpoint, window.location.href).origin === API) {
@@ -1146,6 +1196,10 @@ function widgetRuntime() {
       const remaining = Math.max(0, threshold - total);
       const progress = threshold > 0 ? Math.min(100, Math.round((total / threshold) * 100)) : 0;
       const reached = remaining === 0 && itemCount > 0;
+      if (reached && el.dataset.mffThresholdTracked !== "true") {
+        el.dataset.mffThresholdTracked = "true";
+        trackEvent("cart", "cart_threshold_reached", { value: total, metadata: { itemCount, threshold } });
+      }
       const statusHeading = reached
         ? (copy.reachedHeading || "Gratis lot unlocked.")
         : itemCount === 0
@@ -1566,6 +1620,7 @@ function widgetRuntime() {
         if (message) message.textContent = "";
         try {
           await addVariantToCart(variantId);
+          trackEvent("product-cards", "product_add_success", { target: variantId });
           if (button) button.textContent = "Toegevoegd";
           if (message) message.textContent = "Toegevoegd aan je winkelwagen.";
           window.setTimeout(() => {
@@ -1575,6 +1630,7 @@ function widgetRuntime() {
             }
           }, 1200);
         } catch (error) {
+          trackEvent("product-cards", "product_add_error", { target: variantId, metadata: { message: error.message } });
           if (button) {
             button.disabled = false;
             button.textContent = original;
@@ -1765,6 +1821,7 @@ function widgetRuntime() {
       event.preventDefault();
       message.textContent = copy.loadingText || "Aanvraag wordt verwerkt...";
       const payload = Object.fromEntries(new FormData(form).entries());
+      trackEvent("free-entry", "free_entry_submit", { target: drawId });
       try {
         const result = await fetchJson("/api/free-entry", {
           method: "POST",
@@ -1772,8 +1829,10 @@ function widgetRuntime() {
           body: JSON.stringify(payload)
         });
         message.textContent = result.skipped ? (copy.duplicateText || "Je gratis deelname stond al geregistreerd.") : (copy.successPrefix || "Gelukt. Lotnummer:") + " " + result.entry.entryNumber;
+        trackEvent("free-entry", "free_entry_success", { target: drawId, metadata: { skipped: Boolean(result.skipped) } });
       } catch (error) {
         message.textContent = error.message;
+        trackEvent("free-entry", "free_entry_error", { target: drawId, metadata: { message: error.message } });
       }
     });
   }
@@ -1789,17 +1848,23 @@ function widgetRuntime() {
       if (preview && preview.key === type && preview.settings && typeof preview.settings === "object") {
         nextData.widgets = { ...(nextData.widgets || {}), [type]: { ...((nextData.widgets || {})[type] || {}), ...preview.settings } };
       }
-      if (type === "free-entry") return freeEntryWidget(el, nextData);
-      if (type === "customer") return customerWidget(el, nextData);
-      if (type === "cart") return cartWidget(el, nextData);
-      if (type === "winners") return winnersWidget(el, nextData);
-      if (type === "product-cards") return productCardsWidget(el, nextData);
-      if (type === "pdp") return pdpWidget(el, nextData);
-      if (type === "how-it-works") return howItWorksWidget(el, nextData);
-      if (type === "trust") return trustWidget(el, nextData);
-      if (type === "membership") return membershipWidget(el, nextData);
-      if (type === "community") return communityWidget(el, nextData);
-      return liveWidget(el, nextData);
+      const renderers = {
+        "free-entry": freeEntryWidget,
+        customer: customerWidget,
+        cart: cartWidget,
+        winners: winnersWidget,
+        "product-cards": productCardsWidget,
+        pdp: pdpWidget,
+        "how-it-works": howItWorksWidget,
+        trust: trustWidget,
+        membership: membershipWidget,
+        community: communityWidget,
+        live: liveWidget
+      };
+      const renderer = renderers[type] || liveWidget;
+      renderer(el, nextData);
+      bindWidgetTracking(el, renderers[type] ? type : "live");
+      trackEvent(renderers[type] ? type : "live", "view", { target: nextData.liveDraw?.id || "" });
     } catch (error) {
       el.innerHTML = '<section class="mff-widget mff-shell"><p class="mff-kicker">Fout</p><h2 class="mff-title mff-title--ink">Niet geladen.</h2><p class="mff-copy">' + escapeHtml(error.message) + '</p></section>';
     }

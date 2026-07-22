@@ -157,6 +157,22 @@ export function initDb() {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      widget TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT,
+      value TEXT,
+      page_url TEXT,
+      referrer TEXT,
+      shop_origin TEXT,
+      ip_hash TEXT,
+      user_agent_hash TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_draws_status_starts ON lottery_draws(status, starts_at);
     CREATE INDEX IF NOT EXISTS idx_entries_draw_status ON lottery_entries(draw_id, status);
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
@@ -174,6 +190,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_security_events_created ON security_events(created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip_hash, created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_created ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_widget_action ON analytics_events(widget, action, created_at);
   `);
   ensureColumn("lottery_draws", "winner_public_status", "TEXT NOT NULL DEFAULT 'PRIVATE'");
   ensureColumn("lottery_draws", "winner_public_name", "TEXT");
