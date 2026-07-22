@@ -65,6 +65,13 @@ function statusLabel(status) {
     SUBSCRIPTION: "Abonnement",
     PRIVATE: "Privé",
     PUBLIC: "Publiek",
+    NOT_CONTACTED: "Niet benaderd",
+    CONTACTED: "Benaderd",
+    REPLIED: "Reactie ontvangen",
+    UNKNOWN: "Onbekend",
+    REQUESTED: "Aangevraagd",
+    APPROVED: "Goedgekeurd",
+    DECLINED: "Geweigerd",
     paid: "Betaald",
     pending: "In afwachting",
     refunded: "Terugbetaald",
@@ -227,9 +234,11 @@ function page(title, active, body) {
         .card--tint-1 { background:linear-gradient(180deg,#fcfdf8,#f4f8e9); }
         .card--tint-2 { background:linear-gradient(180deg,#fffdf8,#f8f3e7); }
         .card--tint-3 { background:linear-gradient(180deg,#fcfdf9,#eef4e5); }
-        .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; }
+        .card-head strong { min-width:0; overflow-wrap:anywhere; }
         .card-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:10px; background:rgba(95,141,62,.12); color:var(--moss); }
-        .stat { margin-top:10px; color:var(--ink); font-size:clamp(28px,3.5vw,42px); line-height:1; font-weight:950; letter-spacing:0; }
+        .stat { max-width:100%; margin-top:10px; color:var(--ink); font-size:clamp(28px,3.2vw,40px); line-height:1.05; font-weight:950; letter-spacing:0; overflow-wrap:anywhere; }
+        .stat--text { font-size:clamp(20px,2vw,28px); line-height:1.1; }
         .card p:last-child { margin-top:8px; color:var(--muted); font-size:13px; }
         .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:30px 0 12px; }
         .panel { overflow:hidden; }
@@ -244,6 +253,10 @@ function page(title, active, body) {
         .status--live, .status--active, .status--paid { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
         .status--public { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
         .status--private { background:#f4f1e8; border-color:#ddd6c8; color:#60584d; }
+        .status--approved, .status--replied { background:#edf6ee; border-color:#c9e1cb; color:var(--success); }
+        .status--unknown, .status--not-contacted { background:#f4f1e8; border-color:#ddd6c8; color:#60584d; }
+        .status--requested, .status--contacted { background:#fff6df; border-color:#e5cb73; color:var(--warning); }
+        .status--declined { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
         .status--pending { background:#fff6df; border-color:#e5cb73; color:#9a6700; }
         .status--drawn, .status--winner { background:#faf2dd; border-color:#ead59f; color:var(--warning); }
         .status--void, .status--cancelled, .status--refunded, .status--archived { background:#faeceb; border-color:#e7c1bf; color:var(--danger); }
@@ -318,6 +331,7 @@ function page(title, active, body) {
         .winner-publication-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start; }
         .winner-publication-head strong { display:block; font-size:15px; font-weight:950; }
         .winner-publication-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+        .winner-publication-note { grid-column:1 / -1; margin:0; padding:10px 12px; border:1px solid var(--line-soft); border-radius:10px; background:#fffaf0; color:var(--muted); font-size:12px; font-weight:750; line-height:1.35; }
         .winner-publication-card textarea { min-height:86px; }
         .winner-publication-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; align-items:center; grid-column:1 / -1; }
         .winner-image-preview { width:72px; aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f5ef; }
@@ -679,6 +693,10 @@ function winnerAdminRows(limit = 40) {
       d.winner_public_statement,
       d.winner_public_image_url,
       d.winner_public_approved_at,
+      d.winner_contact_status,
+      d.winner_consent_status,
+      d.winner_consent_reference,
+      d.winner_internal_note,
       e.id AS entry_id,
       e.entry_number,
       e.source,
@@ -728,7 +746,7 @@ function manualWinnerCards(settings) {
 function winnerPublicationState(settings, rows) {
   const source = textParam(settings.winnerSource) === "manual" ? "manual" : "automatic";
   const manualCards = manualWinnerCards(settings);
-  const publicRows = rows.filter((row) => row.winner_public_status === "PUBLIC" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
+  const publicRows = rows.filter((row) => row.winner_public_status === "PUBLIC" && row.winner_consent_status === "APPROVED" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
   if (source === "manual") {
     if (!manualCards.length) return { source, manualCards, status: "Actie", note: "Handmatige bron staat aan, maar er zijn nog geen publiceerbare kaarten ingevuld." };
     const missingStory = manualCards.filter((card) => !card.story).length;
@@ -760,6 +778,7 @@ function drawSignal(row) {
 }
 
 function winnerPublishSignal(row) {
+  if (row.winner_consent_status !== "APPROVED") return ["Controle", "Consent niet goedgekeurd"];
   if (row.winner_public_status !== "PUBLIC") return ["Controle", "Niet publiek goedgekeurd"];
   if (!textParam(row.winner_public_name)) return ["Actie", "Publieke naam ontbreekt"];
   if (!textParam(row.winner_public_statement)) return ["Actie", "Statement ontbreekt"];
@@ -793,11 +812,15 @@ function drawChecklist(draw, counts = []) {
 
 function kpiGrid(items) {
   const tints = ["card--tint-0", "card--tint-1", "card--tint-2", "card--tint-3"];
-  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => `<div class="card ${tints[index % tints.length]}">
-    <div class="card-head"><p class="muted">${escapeHtml(item.label)}</p><span class="card-icon">${icon(item.icon || "Activity")}</span></div>
-    <div class="stat">${item.value}</div>
-    <p>${escapeHtml(item.help)}</p>
-  </div>`).join("")}</section>`;
+  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => {
+    const value = String(item.value ?? "-");
+    const isTextValue = /[A-Za-zÀ-ÿ]/.test(value);
+    return `<div class="card ${tints[index % tints.length]}">
+      <div class="card-head"><p class="muted">${escapeHtml(item.label)}</p><span class="card-icon">${icon(item.icon || "Activity")}</span></div>
+      <div class="stat${isTextValue ? " stat--text" : ""}">${escapeHtml(value)}</div>
+      <p>${escapeHtml(item.help)}</p>
+    </div>`;
+  }).join("")}</section>`;
 }
 
 function trendChart() {
@@ -1105,12 +1128,18 @@ function manualWinnerCardsPanel(cards) {
 
 function winnerPublicationCards(rows) {
   if (!rows.length) return `<div class="empty">Nog geen winnaars om te publiceren.</div>`;
+  const contactStatuses = ["NOT_CONTACTED", "CONTACTED", "REPLIED"];
+  const consentStatuses = ["UNKNOWN", "REQUESTED", "APPROVED", "DECLINED"];
   return `<div class="winner-publication-list">
     ${rows.map((row) => {
       const status = row.winner_public_status === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+      const contactStatus = contactStatuses.includes(row.winner_contact_status) ? row.winner_contact_status : "NOT_CONTACTED";
+      const consentStatus = consentStatuses.includes(row.winner_consent_status) ? row.winner_consent_status : "UNKNOWN";
       const publicName = textParam(row.winner_public_name) || winnerPublicName(row);
       const statement = textParam(row.winner_public_statement);
       const imageUrl = textParam(row.winner_public_image_url);
+      const consentReference = textParam(row.winner_consent_reference);
+      const internalNote = textParam(row.winner_internal_note);
       const preview = imageUrl
         ? `<span class="winner-image-preview"><img src="${escapeHtml(imageUrl)}" alt=""></span>`
         : `<span class="winner-image-preview winner-image-preview--empty">${icon("Image")}</span>`;
@@ -1121,6 +1150,8 @@ function winnerPublicationCards(rows) {
             <p class="muted">${escapeHtml(row.draw_title)} · ${escapeHtml(row.prize_name || "Prijs")}</p>
             <div class="winner-publication-meta">
               ${statusBadge(status)}
+              ${statusBadge(contactStatus)}
+              ${statusBadge(consentStatus)}
               <span class="status">${escapeHtml(row.entry_number)}</span>
               ${row.winner_public_approved_at ? `<span class="status status--goed">Goedgekeurd</span>` : ""}
             </div>
@@ -1128,6 +1159,9 @@ function winnerPublicationCards(rows) {
           ${preview}
         </div>
         <form method="post" action="/admin/winnaars/${escapeHtml(row.draw_id)}/publication" class="form-grid">
+          <label>Contactstatus<select name="contactStatus">${contactStatuses.map((item) => option(item, contactStatus, statusLabel(item))).join("")}</select></label>
+          <label>Consent<select name="consentStatus">${consentStatuses.map((item) => option(item, consentStatus, statusLabel(item))).join("")}</select></label>
+          <label class="wide">Consent referentie<input name="consentReference" value="${escapeHtml(consentReference)}" placeholder="Bijv. e-mail akkoord, Shopify note of ondertekend bestand"></label>
           <label>Status<select name="publicStatus">${option("PRIVATE", status, "Privé houden")}${option("PUBLIC", status, "Publiek tonen")}</select></label>
           <label>Publieke naam<input name="publicName" value="${escapeHtml(publicName)}" placeholder="${escapeHtml(winnerPublicName(row))}"></label>
           <label class="wide">Statement<textarea name="publicStatement" placeholder="Bijv. &quot;Ik had net BBQ-vlees besteld en kreeg ineens de mail dat ik had gewonnen.&quot;">${escapeHtml(statement)}</textarea></label>
@@ -1137,8 +1171,10 @@ function winnerPublicationCards(rows) {
               <span class="widget-upload-status" data-winner-upload-status>Max 4MB</span>
             </div>
           </label>
+          <label class="wide">Interne notitie<textarea name="internalNote" placeholder="Alleen intern: contactmoment, voorkeuren, opvolging.">${escapeHtml(internalNote)}</textarea></label>
+          <p class="winner-publication-note">Publiek tonen werkt alleen met goedgekeurde consent, publieke naam en echt statement. Geen klanten of toestemming betekent: niet publiceren.</p>
           <div class="winner-publication-actions">
-            <span class="helper">Publieke feed toont alleen winnaars met status publiek, naam en statement.</span>
+            <span class="helper">Foto en statement pas invullen wanneer de winnaar akkoord heeft gegeven.</span>
             <button type="submit">${icon("Save")}Opslaan</button>
           </div>
         </form>
@@ -1816,7 +1852,7 @@ adminRouter.get("/winnaars", (_req, res) => {
   const settings = getWidgetSettings("winners");
   const publication = winnerPublicationState(settings, rows);
   const drawnCount = rows.length;
-  const publicRows = publication.publicRows || rows.filter((row) => row.winner_public_status === "PUBLIC" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
+  const publicRows = publication.publicRows || rows.filter((row) => row.winner_public_status === "PUBLIC" && row.winner_consent_status === "APPROVED" && textParam(row.winner_public_name) && textParam(row.winner_public_statement));
   const lastWinner = rows[0] || null;
   const manualCards = publication.manualCards;
   const visibleCount = publication.source === "manual" ? manualCards.length : publicRows.length;
@@ -1829,7 +1865,7 @@ adminRouter.get("/winnaars", (_req, res) => {
     ${kpiGrid([
       { label: "Getrokken winnaars", value: drawnCount, help: "Alle afgeronde acties met winnaar.", icon: "Trophy" },
       { label: "Widget bron", value: sourceLabelText, help: publication.note, icon: publication.source === "manual" ? "PencilLine" : "RefreshCw" },
-      { label: "Publiceerbaar", value: visibleCount, help: publication.source === "manual" ? "Handmatige kaarten met inhoud." : "Goedgekeurd met publieke naam en statement.", icon: "BadgeCheck" },
+      { label: "Publiceerbaar", value: visibleCount, help: publication.source === "manual" ? "Handmatige kaarten met inhoud." : "Consent goedgekeurd met publieke naam en statement.", icon: "BadgeCheck" },
       { label: "Laatste winnaar", value: lastWinner ? winnerPublicName(lastWinner) : "-", help: lastWinner ? lastWinner.draw_title : "Nog geen trekking afgerond.", icon: "UserCheck" }
     ])}
     <section class="grid grid-2">
@@ -1859,10 +1895,21 @@ adminRouter.post("/winnaars/:drawId/publication", urlencoded, (req, res) => {
     `).get(req.params.drawId);
     if (!draw || !draw.winner_entry_id) throw new Error("Winnaar niet gevonden.");
 
+    const contactStatuses = ["NOT_CONTACTED", "CONTACTED", "REPLIED"];
+    const consentStatuses = ["UNKNOWN", "REQUESTED", "APPROVED", "DECLINED"];
+    const contactInput = textParam(req.body.contactStatus);
+    const consentInput = textParam(req.body.consentStatus);
+    const contactStatus = contactStatuses.includes(contactInput) ? contactInput : "NOT_CONTACTED";
+    const consentStatus = consentStatuses.includes(consentInput) ? consentInput : "UNKNOWN";
+    const consentReference = textParam(req.body.consentReference).slice(0, 220);
+    const internalNote = textParam(req.body.internalNote).slice(0, 520);
     const publicStatus = textParam(req.body.publicStatus) === "PUBLIC" ? "PUBLIC" : "PRIVATE";
     const publicName = textParam(req.body.publicName).slice(0, 80);
     const publicStatement = textParam(req.body.publicStatement).slice(0, 220);
     const publicImageUrl = textParam(req.body.publicImageUrl).slice(0, 520);
+    if (publicStatus === "PUBLIC" && consentStatus !== "APPROVED") {
+      throw new Error("Consent moet goedgekeurd zijn voordat je deze winnaar publiek toont.");
+    }
     if (publicStatus === "PUBLIC" && (!publicName || !publicStatement)) {
       throw new Error("Vul een publieke naam en echt statement in voordat je deze winnaar publiceert.");
     }
@@ -1875,9 +1922,13 @@ adminRouter.post("/winnaars/:drawId/publication", urlencoded, (req, res) => {
           winner_public_statement = ?,
           winner_public_image_url = ?,
           winner_public_approved_at = ?,
+          winner_contact_status = ?,
+          winner_consent_status = ?,
+          winner_consent_reference = ?,
+          winner_internal_note = ?,
           updated_at = ?
       WHERE id = ?
-    `).run(publicStatus, publicName, publicStatement, publicImageUrl, approvedAt, nowIso(), draw.id);
+    `).run(publicStatus, publicName, publicStatement, publicImageUrl, approvedAt, contactStatus, consentStatus, consentReference, internalNote, nowIso(), draw.id);
     writeAuditLog({
       actor: actor(req),
       action: "WINNAAR_PUBLICATIE_BIJGEWERKT",
@@ -1886,6 +1937,10 @@ adminRouter.post("/winnaars/:drawId/publication", urlencoded, (req, res) => {
       message: `${draw.entry_number || "Winnaar"} publicatie: ${statusLabel(publicStatus)}`,
       metadata: {
         publicStatus,
+        contactStatus,
+        consentStatus,
+        hasConsentReference: Boolean(consentReference),
+        hasInternalNote: Boolean(internalNote),
         hasStatement: Boolean(publicStatement),
         hasImage: Boolean(publicImageUrl)
       }
@@ -2607,6 +2662,9 @@ const widgetFieldLabels = {
   personalValue: ["Persoonlijke waarde", "Waarde voordat klant is ingelogd."],
   qualifiesHeading: ["Titel product haalt lot", "Als productprijs boven de lotgrens zit."],
   qualifiesBody: ["Tekst product haalt lot", "Uitleg bij kwalificerend product."],
+  proofOne: ["PDP bewijs 1", "Korte chip onder de productpagina lot-uitleg."],
+  proofTwo: ["PDP bewijs 2", "Korte chip onder de productpagina lot-uitleg."],
+  proofThree: ["PDP bewijs 3", "Korte chip onder de productpagina lot-uitleg."],
   firstNamePlaceholder: ["Placeholder voornaam", "Formulier placeholder."],
   lastNamePlaceholder: ["Placeholder achternaam", "Formulier placeholder."],
   emailPlaceholder: ["Placeholder e-mail", "Formulier placeholder."],
@@ -2618,6 +2676,9 @@ const widgetFieldLabels = {
   cartLabel: ["Cart knop", "Label voor directe add-to-cart."],
   soldOutLabel: ["Fallback knop", "Als er geen variant ID is ingevuld."],
   lotLabel: ["Lot label", "Korte tekst bij productbijdrage richting gratis lot."],
+  cueOne: ["Product cue 1", "Korte trust/lot chip boven productkaarten."],
+  cueTwo: ["Product cue 2", "Korte trust/lot chip boven productkaarten."],
+  cueThree: ["Product cue 3", "Korte trust/lot chip boven productkaarten."],
   productSource: ["Productbron", "Shopify-sync gebruikt actuele producten. Handmatig gebruikt de velden hieronder."],
   productLimit: ["Aantal producten", "Aantal gesynchroniseerde producten in de carousel."],
   productStatusFilter: ["Status-filter", "Optioneel: toon alleen Deal, Nieuw, Populair of Laatste kans."],

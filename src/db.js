@@ -74,6 +74,10 @@ export function initDb() {
       winner_public_statement TEXT,
       winner_public_image_url TEXT,
       winner_public_approved_at TEXT,
+      winner_contact_status TEXT NOT NULL DEFAULT 'NOT_CONTACTED',
+      winner_consent_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+      winner_consent_reference TEXT,
+      winner_internal_note TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (winner_entry_id) REFERENCES lottery_entries(id)
@@ -198,6 +202,10 @@ export function initDb() {
   ensureColumn("lottery_draws", "winner_public_statement", "TEXT");
   ensureColumn("lottery_draws", "winner_public_image_url", "TEXT");
   ensureColumn("lottery_draws", "winner_public_approved_at", "TEXT");
+  ensureColumn("lottery_draws", "winner_contact_status", "TEXT NOT NULL DEFAULT 'NOT_CONTACTED'");
+  ensureColumn("lottery_draws", "winner_consent_status", "TEXT NOT NULL DEFAULT 'UNKNOWN'");
+  ensureColumn("lottery_draws", "winner_consent_reference", "TEXT");
+  ensureColumn("lottery_draws", "winner_internal_note", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_draws_winner_public ON lottery_draws(winner_public_status, draw_at)");
 }
 

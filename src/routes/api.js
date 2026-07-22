@@ -131,6 +131,7 @@ apiRouter.get("/site/summary", async (_req, res) => {
     LEFT JOIN customers c ON c.id = e.customer_id
     WHERE e.status = 'WINNER'
       AND d.winner_public_status = 'PUBLIC'
+      AND d.winner_consent_status = 'APPROVED'
       AND LENGTH(TRIM(COALESCE(d.winner_public_name, ''))) > 0
       AND LENGTH(TRIM(COALESCE(d.winner_public_statement, ''))) > 0
     ORDER BY COALESCE(d.winner_public_approved_at, d.draw_at) DESC

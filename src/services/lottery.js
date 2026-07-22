@@ -351,7 +351,7 @@ export async function drawWinner(drawId) {
   db.exec("BEGIN");
   try {
     db.prepare("UPDATE lottery_entries SET status = 'WINNER' WHERE id = ?").run(winner.id);
-    db.prepare("UPDATE lottery_draws SET status = 'DRAWN', winner_entry_id = ?, draw_at = ?, winner_public_status = 'PRIVATE', winner_public_approved_at = NULL, updated_at = ? WHERE id = ?")
+    db.prepare("UPDATE lottery_draws SET status = 'DRAWN', winner_entry_id = ?, draw_at = ?, winner_public_status = 'PRIVATE', winner_public_approved_at = NULL, winner_contact_status = 'NOT_CONTACTED', winner_consent_status = 'UNKNOWN', winner_consent_reference = NULL, winner_internal_note = NULL, updated_at = ? WHERE id = ?")
       .run(winner.id, nowIso(), nowIso(), draw.id);
     db.exec("COMMIT");
   } catch (error) {

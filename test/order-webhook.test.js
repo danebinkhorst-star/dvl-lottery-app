@@ -113,6 +113,7 @@ test("draw winner cannot be run twice", async () => {
         winner_public_name = 'Bas',
         winner_public_statement = 'Ik bestelde voor het weekend en kreeg later de winmail.',
         winner_public_image_url = '/uploads/winnaar-bas.png',
+        winner_consent_status = 'APPROVED',
         winner_public_approved_at = ?
     WHERE id = ?
   `).run(new Date().toISOString(), draw.id);

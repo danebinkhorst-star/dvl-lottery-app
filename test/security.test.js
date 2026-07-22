@@ -188,6 +188,9 @@ test("admin can approve winner publication with CSRF", async () => {
     .type("form")
     .send({
       _csrf: token,
+      contactStatus: "REPLIED",
+      consentStatus: "APPROVED",
+      consentReference: "E-mail akkoord",
       publicStatus: "PUBLIC",
       publicName: "Bas",
       publicStatement: "Ik had vlees besteld voor de BBQ en won daarna het pakket.",
@@ -195,13 +198,65 @@ test("admin can approve winner publication with CSRF", async () => {
     })
     .expect(302);
 
-  const updated = db.prepare("SELECT winner_public_status, winner_public_name, winner_public_statement, winner_public_image_url, winner_public_approved_at FROM lottery_draws WHERE id = ?").get(draw.id);
+  const updated = db.prepare("SELECT winner_public_status, winner_public_name, winner_public_statement, winner_public_image_url, winner_public_approved_at, winner_contact_status, winner_consent_status, winner_consent_reference FROM lottery_draws WHERE id = ?").get(draw.id);
   assert.equal(updated.winner_public_status, "PUBLIC");
   assert.equal(updated.winner_public_name, "Bas");
   assert.equal(updated.winner_public_statement, "Ik had vlees besteld voor de BBQ en won daarna het pakket.");
   assert.equal(updated.winner_public_image_url, "/uploads/winnaar-bas.png");
+  assert.equal(updated.winner_contact_status, "REPLIED");
+  assert.equal(updated.winner_consent_status, "APPROVED");
+  assert.equal(updated.winner_consent_reference, "E-mail akkoord");
   assert.ok(updated.winner_public_approved_at);
   assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'WINNAAR_PUBLICATIE_BIJGEWERKT'").get().action, "WINNAAR_PUBLICATIE_BIJGEWERKT");
+});
+
+test("admin cannot publish winner without approved consent", async () => {
+  resetDb();
+  const draw = await createDraw({
+    title: "Consent guard",
+    prizeName: "Ribeye box",
+    status: "LIVE"
+  });
+  await assignEntriesForOrder({
+    id: 62346,
+    name: "#6202",
+    total_price: "80.00",
+    currency: "EUR",
+    financial_status: "paid",
+    email: "consent@example.com",
+    customer: { id: 6202, email: "consent@example.com", first_name: "Sem", last_name: "Tester" }
+  });
+  await drawWinner(draw.id);
+
+  const app = createApp();
+  const agent = request.agent(app);
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const page = await agent.get("/admin/winnaars").expect(200);
+  const token = page.text.match(/name="_csrf" value="([^"]+)"/)?.[1];
+  assert.ok(token);
+
+  await agent
+    .post(`/admin/winnaars/${draw.id}/publication`)
+    .type("form")
+    .send({
+      _csrf: token,
+      contactStatus: "CONTACTED",
+      consentStatus: "REQUESTED",
+      publicStatus: "PUBLIC",
+      publicName: "Sem",
+      publicStatement: "Ik won na mijn bestelling.",
+      publicImageUrl: "/uploads/winnaar-sem.png"
+    })
+    .expect(400);
+
+  const updated = db.prepare("SELECT winner_public_status, winner_consent_status FROM lottery_draws WHERE id = ?").get(draw.id);
+  assert.equal(updated.winner_public_status, "PRIVATE");
+  assert.equal(updated.winner_consent_status, "UNKNOWN");
 });
 
 test("widget analytics events are stored privacy-safe and visible in admin growth", async () => {
