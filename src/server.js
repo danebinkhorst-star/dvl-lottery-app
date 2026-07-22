@@ -10,7 +10,7 @@ import { adminRouter } from "./routes/admin.js";
 import { apiRouter } from "./routes/api.js";
 import { embedRouter } from "./routes/embed.js";
 import { webhookRouter } from "./routes/webhooks.js";
-import { getOrCreateLiveDraw } from "./services/lottery.js";
+import { getOrCreateLiveDraw, syncStoredOrderLineItems } from "./services/lottery.js";
 import { syncShopifyProducts } from "./services/shopify-products.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
@@ -22,6 +22,7 @@ const adminSessionCookie = "mff_admin_session";
 const adminCsrfCookie = "mff_admin_csrf";
 const adminSessionMaxAgeSeconds = 60 * 60 * 12;
 const productSyncIntervalMs = 1000 * 60 * 60 * 6;
+const orderItemSyncIntervalMs = 1000 * 60 * 60 * 12;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -112,6 +113,21 @@ function startProductSyncScheduler() {
   };
   const bootTimer = setTimeout(run, 2500);
   const interval = setInterval(run, productSyncIntervalMs);
+  bootTimer.unref?.();
+  interval.unref?.();
+}
+
+function startOrderItemSyncScheduler() {
+  const run = async () => {
+    try {
+      const result = await syncStoredOrderLineItems({ limit: 75 });
+      console.log(`Order line-item sync complete: ${result.updatedLineItems || 0} item(s), ${result.checked || 0} order(s) checked`);
+    } catch (error) {
+      console.warn(`Order line-item sync skipped: ${error.message}`);
+    }
+  };
+  const bootTimer = setTimeout(run, 6500);
+  const interval = setInterval(run, orderItemSyncIntervalMs);
   bootTimer.unref?.();
   interval.unref?.();
 }
@@ -462,6 +478,7 @@ const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
   await getOrCreateLiveDraw();
   startProductSyncScheduler();
+  startOrderItemSyncScheduler();
   createApp().listen(config.PORT, () => {
     console.log(`Meat For Free lottery app running on http://localhost:${config.PORT}`);
   });
