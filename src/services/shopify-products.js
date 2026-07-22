@@ -34,10 +34,12 @@ function tagMatches(tags, values) {
   return values.some((value) => normalized.includes(value));
 }
 
-export function productStatusTag({ tags = [], priceCents = 0, compareAtCents = 0, inventoryQuantity = null } = {}) {
+export function productStatusTag({ tags = [], priceCents = 0, compareAtCents = 0, inventoryQuantity = null, createdAt = "" } = {}) {
   if (tagMatches(tags, ["deal", "sale", "korting", "aanbieding", "weekdeal"])) return "Deal";
   if (compareAtCents > priceCents && priceCents > 0) return "Deal";
   if (tagMatches(tags, ["nieuw", "new", "net binnen"])) return "Nieuw";
+  const createdTime = Date.parse(createdAt || "");
+  if (Number.isFinite(createdTime) && Date.now() - createdTime <= 1000 * 60 * 60 * 24 * 60) return "Nieuw";
   if (tagMatches(tags, ["populair", "hardloper", "bestseller"])) return "Populair";
   if (tagMatches(tags, ["laatste kans", "limited", "bijna op", "op is op"])) return "Laatste kans";
   if (Number.isFinite(Number(inventoryQuantity)) && Number(inventoryQuantity) > 0 && Number(inventoryQuantity) <= 5) return "Laatste kans";
@@ -79,7 +81,7 @@ export function normalizeShopifyProduct(product) {
     available: available ? 1 : 0,
     inventory_quantity: Number.isFinite(inventoryQuantity) ? inventoryQuantity : null,
     product_url: product?.handle ? `/products/${product.handle}` : "/collections/all",
-    status_tag: productStatusTag({ tags, priceCents, compareAtCents, inventoryQuantity }),
+    status_tag: productStatusTag({ tags, priceCents, compareAtCents, inventoryQuantity, createdAt: product?.created_at }),
     synced_at: nowIso(),
     raw_json: JSON.stringify({
       id: product?.id,
@@ -87,6 +89,7 @@ export function normalizeShopifyProduct(product) {
       title: product?.title,
       status: product?.status,
       tags,
+      createdAt: product?.created_at || null,
       variantId: variant?.id || null
     })
   };
@@ -150,6 +153,7 @@ export async function syncShopifyProducts({ limit = 100 } = {}) {
     "product_type",
     "status",
     "tags",
+    "created_at",
     "image",
     "images",
     "variants"
@@ -206,7 +210,16 @@ export function listSyncedProducts({ q = "", statusTag = "", available = "", lim
     SELECT *
     FROM shopify_products
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY available DESC, synced_at DESC, title ASC
+    ORDER BY available DESC,
+      CASE status_tag
+        WHEN 'Deal' THEN 1
+        WHEN 'Nieuw' THEN 2
+        WHEN 'Laatste kans' THEN 3
+        WHEN 'Populair' THEN 4
+        ELSE 9
+      END ASC,
+      synced_at DESC,
+      title ASC
     LIMIT ?
   `).all(...params).map((row) => ({
     ...row,

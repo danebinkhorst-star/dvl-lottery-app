@@ -19,6 +19,7 @@ test("product status tags use commercial state instead of category tags", () => 
   assert.equal(productStatusTag({ tags: ["Rundvlees", "Deal"], priceCents: 2500, compareAtCents: 0 }), "Deal");
   assert.equal(productStatusTag({ tags: ["Rundvlees"], priceCents: 1999, compareAtCents: 2499 }), "Deal");
   assert.equal(productStatusTag({ tags: ["Nieuw"], priceCents: 1999, compareAtCents: 0 }), "Nieuw");
+  assert.equal(productStatusTag({ tags: ["Rundvlees"], priceCents: 1999, compareAtCents: 0, createdAt: new Date().toISOString() }), "Nieuw");
   assert.equal(productStatusTag({ tags: ["BBQ"], priceCents: 1999, compareAtCents: 0, inventoryQuantity: 3 }), "Laatste kans");
 });
 
