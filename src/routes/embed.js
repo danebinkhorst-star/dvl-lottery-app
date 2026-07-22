@@ -385,6 +385,58 @@ function widgetRuntime() {
       }
       .mff-membership-stat b{display:block;font-size:20px;font-weight:950;line-height:1}
       .mff-membership-stat span{display:block;margin-top:4px;color:var(--mff-muted);font-size:10px;font-weight:950;line-height:1.1;text-transform:uppercase}
+      .mff-membership-cta{
+        position:relative;
+        z-index:2;
+        min-height:76px;
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        align-items:center;
+        gap:16px;
+        border:3px solid var(--mff-line);
+        border-radius:22px 7px 22px 7px;
+        background:var(--mff-gold);
+        box-shadow:7px 7px 0 var(--mff-shadow);
+        color:var(--mff-ink);
+        padding:14px 16px;
+        text-decoration:none;
+        transition:transform 160ms ease, box-shadow 160ms ease;
+      }
+      .mff-membership-cta strong{
+        font-size:clamp(24px,3.4vw,44px);
+        line-height:.86;
+      }
+      .mff-membership-cta-copy{
+        min-width:0;
+      }
+      .mff-membership-cta-sub{
+        display:block;
+        margin-top:5px;
+        color:#3b2a1b;
+        font-size:11px;
+        font-weight:950;
+        line-height:1.15;
+        text-transform:uppercase;
+      }
+      .mff-membership-cta i{
+        width:44px;
+        height:44px;
+        display:grid;
+        place-items:center;
+        border:2px solid var(--mff-line);
+        border-radius:15px 5px 15px 5px;
+        background:var(--mff-paper);
+        box-shadow:3px 3px 0 var(--mff-shadow);
+        font-style:normal;
+        font-size:24px;
+        font-weight:950;
+        line-height:1;
+      }
+      .mff-membership-cta:hover,.mff-membership-cta:focus-visible{
+        transform:translate(4px,4px);
+        box-shadow:3px 3px 0 var(--mff-shadow);
+        outline:0;
+      }
       .mff-editorial{
         display:grid;
         grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);
@@ -706,6 +758,9 @@ function widgetRuntime() {
         .mff-membership-media--fallback{grid-template-columns:1fr;padding:18px}
         .mff-membership-steak{width:150px;justify-self:end;margin-top:-18px}
         .mff-membership-stats{grid-template-columns:1fr}
+        .mff-membership-cta{min-height:70px;grid-template-columns:minmax(0,1fr) 40px;box-shadow:5px 5px 0 var(--mff-shadow)}
+        .mff-membership-cta strong{font-size:30px}
+        .mff-membership-cta i{width:38px;height:38px;font-size:21px}
         .mff-editorial{grid-template-columns:1fr}
         .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
         .mff-note{min-width:72%;scroll-snap-align:start}
@@ -1462,6 +1517,7 @@ function widgetRuntime() {
     const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
     const imageSrc = visualImageSrc(copy);
     const imageAlt = copy.visualImageAlt || draw?.prizeName || "Meat For Free vleespakket";
+    const primaryLabel = copy.primaryLabel === "Word lid" ? "Lid worden" : (copy.primaryLabel || "Lid worden");
     el.innerHTML = `<section ${sectionAttrs(copy, "mff-membership")}>
       <div class="mff-membership-copy">
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
@@ -1471,7 +1527,6 @@ function widgetRuntime() {
           ${(features.length ? features : ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"]).map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
         </div>
         <div class="mff-actions">
-          <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/memberships"))}" target="_top">${escapeHtml(copy.primaryLabel || "Word lid")}</a>
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Mijn MFF")}</a>
         </div>
       </div>
@@ -1484,6 +1539,10 @@ function widgetRuntime() {
         <div class="mff-membership-content">
           <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
           <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
+          <a class="mff-membership-cta" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/memberships"))}" target="_top">
+            <span class="mff-membership-cta-copy"><strong>${escapeHtml(primaryLabel)}</strong><span class="mff-membership-cta-sub">Automatisch meedoen met iedere geldige bestelling.</span></span>
+            <i aria-hidden="true">+</i>
+          </a>
           <div class="mff-membership-stats">
             <div class="mff-membership-stat"><b>Auto</b><span>Loten actief</span></div>
             <div class="mff-membership-stat"><b>€70</b><span>Lotdrempel</span></div>

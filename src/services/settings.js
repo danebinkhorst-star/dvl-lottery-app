@@ -218,7 +218,7 @@ export const widgetDefinitions = [
       featureTwo: "Vroege toegang",
       featureThree: "Clubvoordeel",
       featureFour: "Mijn MFF dashboard",
-      primaryLabel: "Word lid",
+      primaryLabel: "Lid worden",
       primaryUrl: "/pages/memberships",
       secondaryLabel: "Mijn MFF",
       secondaryUrl: "/pages/mijn-mff-dashboard"
