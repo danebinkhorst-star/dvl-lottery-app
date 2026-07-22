@@ -456,9 +456,9 @@ function widgetRuntime() {
       }
       .mff-editorial-card{
         position:relative;
+        height:clamp(300px,34vw,440px);
         min-height:280px;
         max-height:500px;
-        aspect-ratio:1.28;
         border:3px solid var(--mff-line);
         border-radius:10px 4px 10px 4px;
         background:var(--mff-paper);
@@ -798,7 +798,7 @@ function widgetRuntime() {
         .mff-membership-cta strong{font-size:30px}
         .mff-membership-cta i{width:38px;height:38px;font-size:21px}
         .mff-editorial{grid-template-columns:1fr;gap:18px;padding:18px 8px 32px}
-        .mff-editorial-card{min-height:0;max-height:280px;aspect-ratio:1.12;box-shadow:6px 6px 0 #000}
+        .mff-editorial-card{height:clamp(200px,62vw,240px);min-height:0;max-height:none;box-shadow:6px 6px 0 #000}
         .mff-editorial-copy{max-width:100%}
         .mff-editorial .mff-title{font-size:clamp(32px,9.2vw,44px)}
         .mff-editorial .mff-copy{font-size:14px}
