@@ -248,8 +248,8 @@ export const widgetDefinitions = [
     label: "Homepage productkaarten",
     description: "Productblok met korting, prijs, details-link, directe add-to-cart en lot-progress.",
     defaults: {
-      heading: "Populaire keuzes",
-      body: "Shop snel met echte Meat For Free producten: prijs, details, winkelwagen en je voortgang naar een gratis lot.",
+      heading: "Vlees voor pan, grill en BBQ.",
+      body: "Kies je cut. Vanaf €70 ontvang je automatisch 1 lot voor de actieve winactie.",
       collectionUrl: "/collections/all",
       detailLabel: "Alle gegevens bekijken",
       cartLabel: "In winkelwagen",

@@ -708,22 +708,25 @@ function widgetRuntime() {
       .mff-products{display:grid;gap:20px}
       .mff-products-head{display:flex;align-items:end;justify-content:space-between;gap:16px}
       .mff-products .mff-title{font-size:clamp(34px,4.6vw,64px)}
-      .mff-product-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-      .mff-product-card{min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr);border:2px solid var(--mff-line);border-radius:20px 7px 20px 7px;background:var(--mff-paper);overflow:hidden}
-      .mff-product-media{position:relative;aspect-ratio:1/1;background:linear-gradient(135deg,#fff8ed,#f0e0bf)}
+      .mff-product-grid{display:flex;gap:12px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x mandatory;padding:0 4px 12px;scrollbar-width:none}
+      .mff-product-grid::-webkit-scrollbar{display:none}
+      .mff-product-card{min-width:0;flex:0 0 min(292px,78vw);scroll-snap-align:start;display:grid;grid-template-rows:auto minmax(0,1fr);border:2px solid var(--mff-line);border-radius:8px;background:var(--mff-paper);overflow:hidden}
+      .mff-product-media{position:relative;aspect-ratio:1/.9;background:linear-gradient(135deg,#fff8ed,#f0e0bf)}
       .mff-product-media img{width:100%;height:100%;display:block;object-fit:cover}
       .mff-product-badge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-red);color:var(--mff-cream);padding:0 9px;font-size:11px;font-weight:950;text-transform:uppercase}
-      .mff-product-body{display:grid;gap:10px;padding:13px}
-      .mff-product-title{display:block;color:var(--mff-ink);font-size:18px;font-weight:950;line-height:1.05;text-transform:uppercase}
-      .mff-product-desc{color:var(--mff-muted);font-size:12px;font-weight:850;line-height:1.35}
+      .mff-product-body{display:grid;gap:12px;align-content:space-between;padding:16px}
+      .mff-product-title{display:block;min-height:2.15em;color:var(--mff-ink);font-size:18px;font-weight:950;line-height:1.08;text-transform:uppercase}
+      .mff-product-desc{display:none}
       .mff-product-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;color:var(--mff-ink);font-weight:950}
-      .mff-product-price strong{font-size:20px;line-height:1}
+      .mff-product-price strong{color:var(--mff-gold);font-size:19px;line-height:1}
       .mff-product-price s{color:var(--mff-muted);font-size:13px;font-weight:850}
-      .mff-product-lot{display:grid;gap:6px}
+      .mff-product-lot{display:none}
       .mff-product-lot span{color:var(--mff-muted);font-size:11px;font-weight:900}
       .mff-product-actions{display:grid;gap:8px;margin-top:auto}
-      .mff-product-actions .mff-button{width:100%;min-height:40px;border-width:2px;border-radius:14px 5px 14px 5px;box-shadow:3px 3px 0 var(--mff-shadow);font-size:10px}
+      .mff-product-actions .mff-button{width:100%;min-height:42px;border-width:2px;border-radius:10px;box-shadow:4px 4px 0 var(--mff-shadow);font-size:10px}
+      .mff-product-actions .mff-button--paper{background:var(--mff-paper);box-shadow:none}
       .mff-product-actions .mff-button:hover,.mff-product-actions .mff-button:focus-visible{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--mff-shadow)}
+      .mff-product-actions .mff-button--paper:hover,.mff-product-actions .mff-button--paper:focus-visible{box-shadow:none;transform:none}
       .mff-product-message{min-height:16px;color:var(--mff-red);font-size:11px;font-weight:900}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 var(--mff-shadow)}
@@ -774,9 +777,8 @@ function widgetRuntime() {
         .mff-pdp .mff-title{font-size:clamp(15px,4.3vw,18px)}
         .mff-pdp .mff-copy{font-size:11px}
         .mff-products-head{display:grid;gap:12px}
-        .mff-product-grid{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 2px 8px;scrollbar-width:none}
-        .mff-product-grid::-webkit-scrollbar{display:none}
-        .mff-product-card{flex:0 0 min(82vw,330px);scroll-snap-align:start}
+        .mff-product-grid{padding-bottom:10px}
+        .mff-product-card{flex-basis:min(80vw,310px)}
       }
       @media(prefers-reduced-motion:reduce){.mff-button,.mff-form button,.mff-progress i{transition:none}.mff-cart--reached .mff-cart-reward:before,.mff-cart--reached .mff-progress i,.mff-winners-track--marquee{animation:none}}
     `;
@@ -1424,12 +1426,16 @@ function widgetRuntime() {
     const showSavings = structure.showSavings !== false;
     const showDetails = structure.showDetailsLink !== false;
     const directAdd = structure.directAddEnabled !== false;
+    const heading = copy.heading === "Populaire keuzes" ? "Vlees voor pan, grill en BBQ." : (copy.heading || "Vlees voor pan, grill en BBQ.");
+    const body = copy.body === "Shop snel met echte Meat For Free producten: prijs, details, winkelwagen en je voortgang naar een gratis lot."
+      ? "Kies je cut. Vanaf €70 ontvang je automatisch 1 lot voor de actieve winactie."
+      : (copy.body || "Kies je cut. Vanaf €70 ontvang je automatisch 1 lot voor de actieve winactie.");
     el.innerHTML = `<section ${sectionAttrs(copy, "mff-products")}>
       <div class="mff-products-head">
         <div>
           <p class="mff-kicker">Producten</p>
-          <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Populaire pakketten")}</h2>
-          <p class="mff-copy">${escapeHtml(copy.body || "Snel shoppen met prijs, korting, details en direct in de winkelwagen.")}</p>
+          <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
+          <p class="mff-copy">${escapeHtml(body)}</p>
         </div>
         <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.collectionUrl || "/collections/all"))}" target="_top">Alles bekijken</a>
       </div>
@@ -1441,12 +1447,10 @@ function widgetRuntime() {
           </a>
           <div class="mff-product-body">
             <strong class="mff-product-title">${escapeHtml(item.title)}</strong>
-            ${item.description ? `<p class="mff-product-desc">${escapeHtml(item.description)}</p>` : ""}
             <div class="mff-product-price">
               <strong>${formatEuro(item.priceCents)}</strong>
               ${showSavings && item.compareAtCents > item.priceCents ? `<s>${formatEuro(item.compareAtCents)}</s>` : ""}
             </div>
-            ${productLotMarkup(item, data, structure)}
             <div class="mff-product-actions">
               ${directAdd && item.variantId
                 ? `<form data-mff-product-form data-variant-id="${escapeHtml(item.variantId)}"><button class="mff-button" type="submit">${escapeHtml(copy.cartLabel || "In winkelwagen")}</button></form>`
