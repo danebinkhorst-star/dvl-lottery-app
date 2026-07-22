@@ -12,6 +12,7 @@ const envBoolean = z.preprocess((value) => {
 const configSchema = z.object({
   NODE_ENV: z.string().default("development"),
   SQLITE_PATH: z.string().default("./data/dvl-lottery.db"),
+  UPLOAD_DIR: z.string().default("./storage/uploads"),
   PORT: z.coerce.number().default(8787),
   ADMIN_USERNAME: z.string().default("dvl"),
   ADMIN_PASSWORD: z.string().optional().default(""),

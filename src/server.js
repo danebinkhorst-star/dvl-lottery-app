@@ -2,8 +2,10 @@ import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
+import multer from "multer";
 import crypto from "node:crypto";
-import { resolve } from "node:path";
+import { mkdirSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { config } from "./config.js";
 import { adminRouter } from "./routes/admin.js";
@@ -23,6 +25,12 @@ const adminCsrfCookie = "mff_admin_csrf";
 const adminSessionMaxAgeSeconds = 60 * 60 * 12;
 const productSyncIntervalMs = 1000 * 60 * 60 * 6;
 const orderItemSyncIntervalMs = 1000 * 60 * 60 * 12;
+const uploadMimeTypes = new Map([
+  ["image/jpeg", ".jpg"],
+  ["image/png", ".png"],
+  ["image/webp", ".webp"],
+  ["image/gif", ".gif"]
+]);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -101,6 +109,41 @@ function auditAdminEvent(req, { actor = "admin", action, targetId = null, messag
     console.warn("Could not write admin audit log", error);
   }
 }
+
+function safeUploadExtension(file) {
+  const fromMime = uploadMimeTypes.get(file.mimetype);
+  if (fromMime) return fromMime;
+  const ext = extname(file.originalname || "").toLowerCase();
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext) ? ext : ".img";
+}
+
+function ensureUploadDir() {
+  mkdirSync(config.UPLOAD_DIR, { recursive: true });
+}
+
+const adminImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      try {
+        ensureUploadDir();
+        cb(null, config.UPLOAD_DIR);
+      } catch (error) {
+        cb(error);
+      }
+    },
+    filename: (_req, file, cb) => {
+      cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${safeUploadExtension(file)}`);
+    }
+  }),
+  limits: {
+    files: 1,
+    fileSize: 4 * 1024 * 1024
+  },
+  fileFilter: (_req, file, cb) => {
+    if (uploadMimeTypes.has(file.mimetype)) return cb(null, true);
+    return cb(new Error("Alleen JPG, PNG, WebP of GIF is toegestaan."));
+  }
+});
 
 function startProductSyncScheduler() {
   const run = async () => {
@@ -366,6 +409,7 @@ export function createApp() {
   app.use("/assets", express.static(resolve("public"), { maxAge: "1d" }));
   app.use("/brand", express.static(resolve("public", "brand"), { maxAge: "1d" }));
   app.use("/placeholders", express.static(resolve("public", "placeholders"), { maxAge: "1d" }));
+  app.use("/uploads", express.static(config.UPLOAD_DIR, { maxAge: "30d", immutable: true }));
   app.use((req, res, next) => {
     if (req.path.startsWith("/admin")) {
       res.setHeader("Cache-Control", "no-store");
@@ -452,6 +496,28 @@ export function createApp() {
       res.setHeader("Set-Cookie", `${adminSessionCookie}=${encodeURIComponent(createAdminSessionToken())}; ${adminCookieOptions()}`);
       return res.redirect(safeAdminRedirect(req.body.next));
     }
+  });
+
+  app.post("/admin/uploads", requireAdminAuth, adminCsrfProtection, (req, res) => {
+    adminImageUpload.single("image")(req, res, (error) => {
+      if (error) return res.status(400).json({ error: error.message || "Upload mislukt." });
+      if (!req.file) return res.status(400).json({ error: "Geen afbeelding ontvangen." });
+      auditAdminEvent(req, {
+        action: "ADMIN_IMAGE_UPLOAD",
+        targetId: req.file.filename,
+        message: "Admin afbeelding geupload.",
+        metadata: {
+          field: req.body?.field || "",
+          mimetype: req.file.mimetype,
+          size: req.file.size
+        }
+      });
+      return res.json({
+        ok: true,
+        url: `/uploads/${req.file.filename}`,
+        filename: req.file.filename
+      });
+    });
   });
 
   app.post("/admin/logout", requireAdminAuth, adminCsrfProtection, (req, res) => {

@@ -1,6 +1,8 @@
 node_modules/
 .env
 data/
+storage/
+tmp-test-uploads/
 *.log
 .server.pid
 .style-check.pid

@@ -301,6 +301,11 @@ function page(title, active, body) {
         .widget-fieldset + .widget-fieldset { margin-top:12px; }
         .widget-fieldset-title { display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--ink); font-size:12px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
         .widget-field-help { display:block; margin-top:6px; color:var(--muted); font-size:11px; font-weight:650; letter-spacing:0; text-transform:none; }
+        .widget-upload { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; margin-top:8px; }
+        .widget-upload input[type="file"] { min-height:40px; margin:0; padding:8px; border-style:dashed; background:#fffdf8; font-size:11px; cursor:pointer; }
+        .widget-upload-status { align-self:center; color:var(--muted); font-size:11px; font-weight:800; line-height:1.2; text-transform:none; letter-spacing:0; }
+        .widget-upload-status--ok { color:var(--success); }
+        .widget-upload-status--error { color:var(--danger); }
         .widget-color-row { display:grid; grid-template-columns:44px minmax(0,1fr); gap:8px; align-items:end; }
         input[type="color"] { min-height:40px; padding:3px; cursor:pointer; }
         input[type="range"] { padding:0; }
@@ -2111,19 +2116,19 @@ const widgetFieldLabels = {
   winnerOneName: ["Winnaar 1 naam", "Naam zoals bezoekers die mogen zien."],
   winnerOnePrize: ["Winnaar 1 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
   winnerOneStory: ["Winnaar 1 verhaal", "Een korte echte zin. Bijvoorbeeld: Mark won na zijn weekendbestelling."],
-  winnerOneImageUrl: ["Winnaar 1 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerOneImageUrl: ["Winnaar 1 foto", "Upload hier of gebruik een bestaande CDN-link."],
   winnerTwoName: ["Winnaar 2 naam", "Naam zoals bezoekers die mogen zien."],
   winnerTwoPrize: ["Winnaar 2 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
   winnerTwoStory: ["Winnaar 2 verhaal", "Een korte echte zin."],
-  winnerTwoImageUrl: ["Winnaar 2 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerTwoImageUrl: ["Winnaar 2 foto", "Upload hier of gebruik een bestaande CDN-link."],
   winnerThreeName: ["Winnaar 3 naam", "Naam zoals bezoekers die mogen zien."],
   winnerThreePrize: ["Winnaar 3 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
   winnerThreeStory: ["Winnaar 3 verhaal", "Een korte echte zin."],
-  winnerThreeImageUrl: ["Winnaar 3 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerThreeImageUrl: ["Winnaar 3 foto", "Upload hier of gebruik een bestaande CDN-link."],
   winnerFourName: ["Winnaar 4 naam", "Naam zoals bezoekers die mogen zien."],
   winnerFourPrize: ["Winnaar 4 prijs", "Bijv. BBQ Box, vleespakket of shoptegoed."],
   winnerFourStory: ["Winnaar 4 verhaal", "Een korte echte zin."],
-  winnerFourImageUrl: ["Winnaar 4 foto URL", "Upload de foto in Shopify Files en plak de CDN-link hier."],
+  winnerFourImageUrl: ["Winnaar 4 foto", "Upload hier of gebruik een bestaande CDN-link."],
   loggedInFallback: ["Dashboard fallback", "Tekst in ingelogde dashboard als er geen actie is."],
   buttonLabel: ["Knoptekst", "Tekst op de knop."],
   buttonUrl: ["Knoplink", "Waar de knop naartoe gaat."],
@@ -2149,7 +2154,7 @@ const widgetFieldLabels = {
   productOneTitle: ["Product 1 titel", "Naam op de kaart."],
   productOneTag: ["Product 1 tag", "Korte status-tag op de afbeelding, bijvoorbeeld Deal."],
   productOneDescription: ["Product 1 tekst", "Korte beschrijving."],
-  productOneImageUrl: ["Product 1 afbeelding", "Shopify CDN URL of app asset."],
+  productOneImageUrl: ["Product 1 afbeelding", "Upload hier of gebruik een bestaande CDN-link."],
   productOneUrl: ["Product 1 link", "Productpagina of collectie."],
   productOneVariantId: ["Product 1 variant ID", "Nodig voor directe add-to-cart."],
   productOnePriceCents: ["Product 1 prijs centen", "Bijv. 3495 voor EUR 34,95."],
@@ -2157,7 +2162,7 @@ const widgetFieldLabels = {
   productTwoTitle: ["Product 2 titel", "Naam op de kaart."],
   productTwoTag: ["Product 2 tag", "Korte status-tag op de afbeelding, bijvoorbeeld Nieuw."],
   productTwoDescription: ["Product 2 tekst", "Korte beschrijving."],
-  productTwoImageUrl: ["Product 2 afbeelding", "Shopify CDN URL of app asset."],
+  productTwoImageUrl: ["Product 2 afbeelding", "Upload hier of gebruik een bestaande CDN-link."],
   productTwoUrl: ["Product 2 link", "Productpagina of collectie."],
   productTwoVariantId: ["Product 2 variant ID", "Nodig voor directe add-to-cart."],
   productTwoPriceCents: ["Product 2 prijs centen", "Bijv. 5995 voor EUR 59,95."],
@@ -2165,7 +2170,7 @@ const widgetFieldLabels = {
   productThreeTitle: ["Product 3 titel", "Naam op de kaart."],
   productThreeTag: ["Product 3 tag", "Korte status-tag op de afbeelding, bijvoorbeeld Populair."],
   productThreeDescription: ["Product 3 tekst", "Korte beschrijving."],
-  productThreeImageUrl: ["Product 3 afbeelding", "Shopify CDN URL of app asset."],
+  productThreeImageUrl: ["Product 3 afbeelding", "Upload hier of gebruik een bestaande CDN-link."],
   productThreeUrl: ["Product 3 link", "Productpagina of collectie."],
   productThreeVariantId: ["Product 3 variant ID", "Nodig voor directe add-to-cart."],
   productThreePriceCents: ["Product 3 prijs centen", "Bijv. 7995 voor EUR 79,95."],
@@ -2173,7 +2178,7 @@ const widgetFieldLabels = {
   productFourTitle: ["Product 4 titel", "Naam op de kaart."],
   productFourTag: ["Product 4 tag", "Korte status-tag op de afbeelding, bijvoorbeeld Laatste kans."],
   productFourDescription: ["Product 4 tekst", "Korte beschrijving."],
-  productFourImageUrl: ["Product 4 afbeelding", "Shopify CDN URL of app asset."],
+  productFourImageUrl: ["Product 4 afbeelding", "Upload hier of gebruik een bestaande CDN-link."],
   productFourUrl: ["Product 4 link", "Productpagina of collectie."],
   productFourVariantId: ["Product 4 variant ID", "Nodig voor directe add-to-cart."],
   productFourPriceCents: ["Product 4 prijs centen", "Bijv. 2500 voor EUR 25,00."],
@@ -2189,16 +2194,28 @@ const widgetVisualLabels = {
   accentColor: ["Accent", "Knoppen, badges en beloningen."],
   secondaryColor: ["Tweede accent", "Meestal rood voor urgentie of live."],
   borderColor: ["Lijnen", "Randen, harde schaduw en outline."],
-  backgroundImageUrl: ["Achtergrondafbeelding URL", "Gebruik een Shopify CDN of externe image URL."],
+  backgroundImageUrl: ["Achtergrondafbeelding", "Upload een beeld of gebruik een bestaande CDN-link."],
   backgroundImageOpacity: ["Afbeelding dekking", "0 is uit. 100 is volledig zichtbaar."],
   backgroundImagePosition: ["Achtergrondpositie", "Bijv. center center, center bottom of 80% 50%."],
-  visualImageUrl: ["Los beeld / PNG URL", "Product, prijs of sfeerbeeld dat in de widget meeloopt."],
+  visualImageUrl: ["Los beeld / PNG", "Upload product, prijs of sfeerbeeld dat in de widget meeloopt."],
   visualImageAlt: ["Alt tekst beeld", "Korte beschrijving voor toegankelijkheid."],
   cornerStyle: ["Hoekstijl", "MFF is de huidige branded vorm."],
   shadowStyle: ["Schaduw", "Harde MFF-schaduw, zacht of uit."]
 };
 
 const visualFieldKeys = Object.keys(widgetVisualDefaults);
+
+function isUploadableImageField(key) {
+  return key === "backgroundImageUrl" || key === "visualImageUrl" || /ImageUrl$/i.test(key);
+}
+
+function widgetUploadControl(key) {
+  if (!isUploadableImageField(key)) return "";
+  return `<div class="widget-upload">
+    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-widget-upload="${escapeHtml(key)}" aria-label="Upload afbeelding voor ${escapeHtml(key)}">
+    <span class="widget-upload-status" data-upload-status="${escapeHtml(key)}">Max 4MB</span>
+  </div>`;
+}
 
 function widgetField(key, value) {
   const [labelText, help] = widgetFieldLabels[key] || [key, ""];
@@ -2215,7 +2232,7 @@ function widgetField(key, value) {
   const input = isLong
     ? `<textarea name="${escapeHtml(key)}">${escapeHtml(value)}</textarea>`
     : `<input name="${escapeHtml(key)}" value="${escapeHtml(value)}">`;
-  return `<label${isLong ? ' class="wide"' : ""}>${escapeHtml(labelText)}${input}${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  return `<label${isLong || isUploadableImageField(key) ? ' class="wide"' : ""}>${escapeHtml(labelText)}${input}${widgetUploadControl(key)}${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
 }
 
 function widgetVisualField(key, value) {
@@ -2238,7 +2255,7 @@ function widgetVisualField(key, value) {
   }
   const isUrl = /Url$/i.test(key);
   const isLong = key === "backgroundImagePosition";
-  return `<label${isLong || isUrl ? ' class="wide"' : ""}>${escapeHtml(labelText)}<input name="${escapeHtml(key)}" value="${escapeHtml(value)}"${isUrl ? ' inputmode="url" placeholder="https://cdn.shopify.com/..."' : ""}>${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
+  return `<label${isLong || isUrl ? ' class="wide"' : ""}>${escapeHtml(labelText)}<input name="${escapeHtml(key)}" value="${escapeHtml(value)}"${isUrl ? ' inputmode="url" placeholder="/uploads/... of Shopify CDN URL"' : ""}>${widgetUploadControl(key)}${help ? `<span class="widget-field-help">${escapeHtml(help)}</span>` : ""}</label>`;
 }
 
 function widgetPreviewScript() {
@@ -2304,6 +2321,46 @@ function widgetPreviewScript() {
           input.addEventListener("input", () => {
             const color = form.querySelector('input[type="color"][name="' + input.dataset.colorText + '"]');
             if (color && /^#[0-9a-f]{6}$/i.test(input.value)) color.value = input.value;
+          });
+        });
+        form.querySelectorAll("[data-widget-upload]").forEach((input) => {
+          input.addEventListener("change", async () => {
+            const field = input.dataset.widgetUpload;
+            const file = input.files && input.files[0];
+            const status = form.querySelector('[data-upload-status="' + field + '"]');
+            const target = form.querySelector('[name="' + field + '"]');
+            if (!file || !target) return;
+            if (status) {
+              status.textContent = "Uploaden...";
+              status.classList.remove("widget-upload-status--ok", "widget-upload-status--error");
+            }
+            try {
+              const body = new FormData();
+              body.append("image", file);
+              body.append("field", field);
+              const csrf = form.querySelector('[name="_csrf"]')?.value || "";
+              const response = await fetch("/admin/uploads", {
+                method: "POST",
+                headers: csrf ? { "X-CSRF-Token": csrf } : {},
+                body
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok || !data.url) throw new Error(data.error || "Upload mislukt.");
+              target.value = data.url;
+              target.dispatchEvent(new Event("input", { bubbles: true }));
+              refresh();
+              if (status) {
+                status.textContent = "Geupload";
+                status.classList.add("widget-upload-status--ok");
+              }
+            } catch (error) {
+              if (status) {
+                status.textContent = error.message || "Upload mislukt";
+                status.classList.add("widget-upload-status--error");
+              }
+            } finally {
+              input.value = "";
+            }
           });
         });
         refresh();
