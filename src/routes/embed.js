@@ -258,10 +258,14 @@ function widgetRuntime() {
       .mff-proof span{color:var(--mff-muted);font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
       .mff-membership{
         display:grid;
-        grid-template-columns:minmax(0,.9fr) minmax(280px,1.1fr);
-        gap:clamp(24px,5vw,72px);
-        align-items:center;
+        grid-template-columns:minmax(0,.82fr) minmax(320px,1.18fr);
+        gap:clamp(18px,4vw,54px);
+        align-items:stretch;
         background:transparent;
+      }
+      .mff-membership-copy{
+        min-width:0;
+        align-self:center;
       }
       .mff-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
       .mff-chip{
@@ -278,27 +282,109 @@ function widgetRuntime() {
         text-transform:uppercase;
       }
       .mff-chip i{width:28px;height:28px;font-size:11px;box-shadow:2px 2px 0 var(--mff-shadow)}
-      .mff-ticket{
+      .mff-membership-card{
         position:relative;
-        min-height:300px;
+        min-height:330px;
+        display:grid;
+        grid-template-rows:minmax(170px,1fr) auto;
         border:3px solid var(--mff-line);
-        border-radius:0;
         background:var(--mff-paper);
         box-shadow:10px 10px 0 var(--mff-shadow);
-        padding:clamp(18px,3vw,30px);
         overflow:hidden;
       }
-      .mff-ticket:after{
+      .mff-membership-card:after{
         content:"MFF";
         position:absolute;
         right:-18px;
         bottom:-22px;
-        color:rgba(33,21,15,.08);
-        font-size:112px;
+        color:rgba(33,21,15,.07);
+        font-size:clamp(88px,9vw,132px);
         font-weight:950;
         line-height:1;
       }
-      .mff-ticket strong{position:relative;z-index:1;display:block;font-size:clamp(34px,5vw,72px);font-weight:950;line-height:.84;text-transform:uppercase}
+      .mff-membership-media{
+        position:relative;
+        min-height:190px;
+        overflow:hidden;
+        border-bottom:3px solid var(--mff-line);
+        background:linear-gradient(135deg,var(--mff-gold),#fff0bd);
+      }
+      .mff-membership-media img{
+        width:100%;
+        height:100%;
+        min-height:190px;
+        display:block;
+        object-fit:cover;
+        object-position:center;
+      }
+      .mff-membership-media--fallback{
+        display:grid;
+        grid-template-columns:1fr .72fr;
+        align-items:end;
+        gap:0;
+        padding:clamp(18px,3vw,30px);
+      }
+      .mff-membership-pack{
+        position:relative;
+        z-index:1;
+        display:grid;
+        gap:8px;
+        align-content:end;
+      }
+      .mff-membership-pack b{
+        display:block;
+        font-size:clamp(38px,5.8vw,86px);
+        font-weight:950;
+        line-height:.82;
+        text-transform:uppercase;
+      }
+      .mff-membership-pack span{
+        display:inline-flex;
+        width:max-content;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-paper);
+        box-shadow:3px 3px 0 var(--mff-shadow);
+        padding:7px 9px;
+        font-size:11px;
+        font-weight:950;
+        text-transform:uppercase;
+      }
+      .mff-membership-steak{
+        width:min(210px,34vw);
+        aspect-ratio:1.16;
+        justify-self:end;
+        border:3px solid var(--mff-line);
+        border-radius:50% 44% 54% 42%;
+        background:
+          radial-gradient(circle at 34% 45%, #fff4dd 0 9%, transparent 10%),
+          radial-gradient(circle at 42% 50%, #8e2b20 0 36%, transparent 37%),
+          linear-gradient(135deg,#d95b42,#812319 70%);
+        box-shadow:7px 7px 0 var(--mff-shadow);
+        transform:rotate(-8deg);
+      }
+      .mff-membership-content{
+        position:relative;
+        z-index:1;
+        display:grid;
+        gap:14px;
+        padding:clamp(18px,3vw,30px);
+      }
+      .mff-membership-card strong{display:block;font-size:clamp(30px,4vw,58px);font-weight:950;line-height:.86;text-transform:uppercase}
+      .mff-membership-stats{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:8px;
+      }
+      .mff-membership-stat{
+        min-width:0;
+        border:2px solid var(--mff-line);
+        border-radius:14px 5px 14px 5px;
+        background:var(--mff-cream);
+        padding:10px;
+      }
+      .mff-membership-stat b{display:block;font-size:20px;font-weight:950;line-height:1}
+      .mff-membership-stat span{display:block;margin-top:4px;color:var(--mff-muted);font-size:10px;font-weight:950;line-height:1.1;text-transform:uppercase}
       .mff-editorial{
         display:grid;
         grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);
@@ -614,6 +700,12 @@ function widgetRuntime() {
         .mff-proof-board{grid-template-columns:1fr 1fr}
         .mff-proof{border-left:0}
         .mff-membership{grid-template-columns:1fr;background:transparent}
+        .mff-membership-card{min-height:0;box-shadow:6px 6px 0 var(--mff-shadow)}
+        .mff-membership-media{min-height:180px}
+        .mff-membership-media img{min-height:180px}
+        .mff-membership-media--fallback{grid-template-columns:1fr;padding:18px}
+        .mff-membership-steak{width:150px;justify-self:end;margin-top:-18px}
+        .mff-membership-stats{grid-template-columns:1fr}
         .mff-editorial{grid-template-columns:1fr}
         .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
         .mff-note{min-width:72%;scroll-snap-align:start}
@@ -708,6 +800,31 @@ function widgetRuntime() {
     const src = appAssetHref(copy.visualImageUrl);
     if (!src) return "";
     return `<img class="mff-visual" src="${escapeHtml(src)}" alt="${escapeHtml(copy.visualImageAlt || "")}" loading="lazy">`;
+  }
+
+  function visualImageSrc(copy) {
+    return appAssetHref(copy.visualImageUrl);
+  }
+
+  function applyFrameCustomizations(data, type) {
+    const widget = { ...(data?.widgets?.[type] || {}) };
+    const cardImage = frameParams.get("card_image");
+    const cardOverlay = frameParams.get("card_overlay");
+    const cardPosition = frameParams.get("card_position");
+    const contentImage = frameParams.get("content_image");
+    const contentAlt = frameParams.get("content_alt");
+    if (cardImage) widget.backgroundImageUrl = cardImage;
+    if (cardOverlay) widget.backgroundImageOpacity = cardOverlay;
+    if (cardPosition) widget.backgroundImagePosition = cardPosition;
+    if (contentImage) widget.visualImageUrl = contentImage;
+    if (contentAlt) widget.visualImageAlt = contentAlt;
+    return {
+      ...data,
+      widgets: {
+        ...(data?.widgets || {}),
+        [type]: widget
+      }
+    };
   }
 
   function copyText(template, replacements = {}) {
@@ -1343,8 +1460,10 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "membership");
     const draw = data.liveDraw;
     const features = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
+    const imageSrc = visualImageSrc(copy);
+    const imageAlt = copy.visualImageAlt || draw?.prizeName || "Meat For Free vleespakket";
     el.innerHTML = `<section ${sectionAttrs(copy, "mff-membership")}>
-      <div>
+      <div class="mff-membership-copy">
         <p class="mff-kicker">${escapeHtml(copy.kicker || "Meat For Free club")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Altijd meedoen.")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.")}</p>
@@ -1356,11 +1475,21 @@ function widgetRuntime() {
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Mijn MFF")}</a>
         </div>
       </div>
-      ${visualImage(copy)}
-      <div class="mff-ticket">
-        <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
-        ${visualImage(copy)}
-        <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
+      <div class="mff-membership-card">
+        <div class="mff-membership-media${imageSrc ? "" : " mff-membership-media--fallback"}">
+          ${imageSrc
+            ? `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(imageAlt)}" loading="lazy">`
+            : `<div class="mff-membership-pack"><span>${escapeHtml(draw?.status || "Club")}</span><b>MFF<br>Club</b></div><div class="mff-membership-steak" aria-hidden="true"></div>`}
+        </div>
+        <div class="mff-membership-content">
+          <span class="mff-badge">${escapeHtml(draw?.status || "Club")}</span>
+          <strong>${escapeHtml(draw?.prizeName || "Meer kans. Meer vlees.")}</strong>
+          <div class="mff-membership-stats">
+            <div class="mff-membership-stat"><b>Auto</b><span>Loten actief</span></div>
+            <div class="mff-membership-stat"><b>€70</b><span>Lotdrempel</span></div>
+            <div class="mff-membership-stat"><b>MFF</b><span>Dashboard</span></div>
+          </div>
+        </div>
       </div>
     </section>`;
   }
@@ -1427,21 +1556,22 @@ function widgetRuntime() {
     try {
       const data = await fetchJson("/api/site/summary");
       const type = el.getAttribute("data-dvl-lottery") || "live";
+      let nextData = applyFrameCustomizations(data, type);
       const preview = window.DVL_WIDGET_PREVIEW;
       if (preview && preview.key === type && preview.settings && typeof preview.settings === "object") {
-        data.widgets = { ...(data.widgets || {}), [type]: { ...((data.widgets || {})[type] || {}), ...preview.settings } };
+        nextData.widgets = { ...(nextData.widgets || {}), [type]: { ...((nextData.widgets || {})[type] || {}), ...preview.settings } };
       }
-      if (type === "free-entry") return freeEntryWidget(el, data);
-      if (type === "customer") return customerWidget(el, data);
-      if (type === "cart") return cartWidget(el, data);
-      if (type === "winners") return winnersWidget(el, data);
-      if (type === "product-cards") return productCardsWidget(el, data);
-      if (type === "pdp") return pdpWidget(el, data);
-      if (type === "how-it-works") return howItWorksWidget(el, data);
-      if (type === "trust") return trustWidget(el, data);
-      if (type === "membership") return membershipWidget(el, data);
-      if (type === "community") return communityWidget(el, data);
-      return liveWidget(el, data);
+      if (type === "free-entry") return freeEntryWidget(el, nextData);
+      if (type === "customer") return customerWidget(el, nextData);
+      if (type === "cart") return cartWidget(el, nextData);
+      if (type === "winners") return winnersWidget(el, nextData);
+      if (type === "product-cards") return productCardsWidget(el, nextData);
+      if (type === "pdp") return pdpWidget(el, nextData);
+      if (type === "how-it-works") return howItWorksWidget(el, nextData);
+      if (type === "trust") return trustWidget(el, nextData);
+      if (type === "membership") return membershipWidget(el, nextData);
+      if (type === "community") return communityWidget(el, nextData);
+      return liveWidget(el, nextData);
     } catch (error) {
       el.innerHTML = '<section class="mff-widget mff-shell"><p class="mff-kicker">Fout</p><h2 class="mff-title mff-title--ink">Niet geladen.</h2><p class="mff-copy">' + escapeHtml(error.message) + '</p></section>';
     }
