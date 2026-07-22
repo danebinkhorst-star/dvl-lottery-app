@@ -1256,6 +1256,7 @@ adminRouter.post("/site-structuur", urlencoded, (req, res) => {
 adminRouter.get("/", (_req, res) => {
   const metrics = getMetrics();
   const funnel = funnelMetrics();
+  const productSales = productSalesSummary();
   const rule = getLotteryRule();
   const { totals, orderTotals } = metrics;
   const sourceRows = db.prepare("SELECT source, COUNT(*) AS count FROM lottery_entries GROUP BY source ORDER BY count DESC").all();
@@ -1271,6 +1272,7 @@ adminRouter.get("/", (_req, res) => {
   const opsItems = [
     ["PackageSearch", `${metrics.eligibleWithoutEntry} geschikte orders zonder lot`, metrics.eligibleWithoutEntry ? "Ordersynchronisatie controleren" : "Geen actie nodig", metrics.eligibleWithoutEntry ? "Controle" : "Goed"],
     ["Gift", `${metrics.liveDraws} live winactie(s)`, metrics.liveDrawsWithoutEntries ? `${metrics.liveDrawsWithoutEntries} zonder loten` : `${metrics.activeLiveEntries} actieve loten`, metrics.liveDraws ? "Live" : "Maak"],
+    ["Beef", `${productSales.lineCount} productregels`, productSales.lineCount ? `${formatEuro(productSales.revenueCents)} productomzet zichtbaar` : "Verrijk orderregels op de sync-pagina", productSales.lineCount ? "Data" : "Actie"],
     ["ShieldCheck", `${percent(totals.free_entries || 0, totals.total_entries || 0)} gratis deelname`, "Gratis route zichtbaar houden voor compliance", "Monitoren"]
   ];
 
@@ -1290,7 +1292,11 @@ adminRouter.get("/", (_req, res) => {
       <div class="panel panel-pad">
         <div class="panel-title"><div><p class="eyebrow">Actielijst</p><h2>Vandaag belangrijk</h2></div></div>
         <div class="stack">
-          ${opsItems.map(([iconName, title, body, badge]) => `<div class="ops-item"><span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span></div>`).join("")}
+          ${opsItems.map(([iconName, title, body, badge]) => {
+            const href = iconName === "Beef" ? (productSales.lineCount ? "/admin/producten" : "/admin/sync") : "";
+            const content = `<span class="ops-icon">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(body)}</span></span><span class="status">${escapeHtml(badge)}</span>`;
+            return href ? `<a class="ops-item" href="${href}" style="text-decoration:none">${content}</a>` : `<div class="ops-item">${content}</div>`;
+          }).join("")}
         </div>
       </div>
     </section>
