@@ -1752,7 +1752,7 @@ const widgetScript = `(${widgetRuntime.toString()})();`;
 
 embedRouter.get("/dvl-lottery.js", (_req, res) => {
   res.setHeader("content-type", "application/javascript; charset=utf-8");
-  res.setHeader("cache-control", "public, max-age=60");
+  res.setHeader("cache-control", "public, max-age=30, must-revalidate");
   res.send(widgetScript);
 });
 
@@ -1795,6 +1795,8 @@ embedRouter.get("/frame", (req, res) => {
   const allowedWidgets = new Set(["live", "free-entry", "customer", "cart", "winners", "product-cards", "pdp", "how-it-works", "trust", "membership", "community"]);
   const widget = allowedWidgets.has(String(req.query.widget || "")) ? String(req.query.widget) : "live";
   const sectionId = String(req.query.section_id || "");
+  const assetVersion = String(req.query.v || "").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 48);
+  const scriptSrc = `/embed/dvl-lottery.js${assetVersion ? `?v=${assetVersion}` : ""}`;
   let previewPayload = null;
   const preview = String(req.query.preview || "");
   if (preview) {
@@ -1840,7 +1842,7 @@ embedRouter.get("/frame", (req, res) => {
         window.setInterval(sendHeight, 1200);
       })();
     </script>
-    <script src="/embed/dvl-lottery.js"></script>
+    <script src="${escapeHtml(scriptSrc)}"></script>
   </body>
 </html>`);
 });
