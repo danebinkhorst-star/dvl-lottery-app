@@ -128,6 +128,7 @@ function page(title, active, body) {
     ["overzicht", "/admin", "LayoutDashboard", "Overzicht"],
     ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
+    ["winnaars", "/admin/winnaars", "Trophy", "Winnaars"],
     ["loten", "/admin/loten", "Tickets", "Loten"],
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
     ["producten", "/admin/producten", "Beef", "Producten"],
@@ -392,11 +393,11 @@ function page(title, active, body) {
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
-            ${menu.slice(0, 7).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(0, 8).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(7, 11).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(8, 12).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(11).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(12).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -645,6 +646,75 @@ function drawPerformanceRows(limit = 12) {
   `).all(limit);
 }
 
+function winnerAdminRows(limit = 40) {
+  return db.prepare(`
+    SELECT
+      d.id AS draw_id,
+      d.title AS draw_title,
+      d.prize_name,
+      d.prize_value,
+      d.draw_at,
+      d.status AS draw_status,
+      e.id AS entry_id,
+      e.entry_number,
+      e.source,
+      e.created_at AS entry_created_at,
+      c.first_name,
+      c.last_name,
+      c.email,
+      c.shopify_customer_id,
+      o.order_name,
+      o.total_cents
+    FROM lottery_draws d
+    JOIN lottery_entries e ON e.id = d.winner_entry_id
+    LEFT JOIN customers c ON c.id = e.customer_id
+    LEFT JOIN orders o ON o.id = e.order_id
+    WHERE e.status = 'WINNER'
+    ORDER BY COALESCE(d.draw_at, e.created_at) DESC
+    LIMIT ?
+  `).all(Math.max(1, Math.min(120, Number(limit || 40))));
+}
+
+function winnerPublicName(row) {
+  const firstName = textParam(row.first_name);
+  if (firstName) return firstName;
+  if (row.email) return `${String(row.email).slice(0, 2)}***`;
+  return "Winnaar";
+}
+
+function winnerFullName(row) {
+  return [row.first_name, row.last_name].map(textParam).filter(Boolean).join(" ") || winnerPublicName(row);
+}
+
+function manualWinnerCards(settings) {
+  return [
+    ["winnerOneName", "winnerOnePrize", "winnerOneStory", "winnerOneImageUrl"],
+    ["winnerTwoName", "winnerTwoPrize", "winnerTwoStory", "winnerTwoImageUrl"],
+    ["winnerThreeName", "winnerThreePrize", "winnerThreeStory", "winnerThreeImageUrl"],
+    ["winnerFourName", "winnerFourPrize", "winnerFourStory", "winnerFourImageUrl"]
+  ].map(([nameKey, prizeKey, storyKey, imageKey], index) => ({
+    index: index + 1,
+    name: textParam(settings[nameKey]),
+    prize: textParam(settings[prizeKey]),
+    story: textParam(settings[storyKey]),
+    imageUrl: textParam(settings[imageKey])
+  })).filter((card) => card.name || card.prize || card.story || card.imageUrl);
+}
+
+function winnerPublicationState(settings, rows) {
+  const source = textParam(settings.winnerSource) === "manual" ? "manual" : "automatic";
+  const manualCards = manualWinnerCards(settings);
+  if (source === "manual") {
+    if (!manualCards.length) return { source, manualCards, status: "Actie", note: "Handmatige bron staat aan, maar er zijn nog geen publiceerbare kaarten ingevuld." };
+    const missingStory = manualCards.filter((card) => !card.story).length;
+    const missingImage = manualCards.filter((card) => !card.imageUrl).length;
+    if (missingStory || missingImage) return { source, manualCards, status: "Controle", note: `${manualCards.length} kaart(en), ${missingStory} zonder statement en ${missingImage} zonder foto.` };
+    return { source, manualCards, status: "Goed", note: `${manualCards.length} handmatige winnaarkaart(en) klaar voor de widget.` };
+  }
+  if (!rows.length) return { source, manualCards, status: "Controle", note: "Automatisch staat aan, maar er is nog geen getrokken winnaar om te tonen." };
+  return { source, manualCards, status: "Goed", note: `${rows.length} getrokken winnaar(s) beschikbaar voor automatische publicatie.` };
+}
+
 function sourceSignal(row) {
   const total = Number(row.total_entries || 0);
   const voidRate = total ? Number(row.void_entries || 0) / total : 0;
@@ -661,6 +731,13 @@ function drawSignal(row) {
   if (row.status === "DRAWN" && !row.winner_entry_number) return ["Actie", "Getrokken status zonder winnaar"];
   if (total > 0 && Number(row.customer_count || 0) === 0) return ["Controle", "Loten zonder klantkoppeling"];
   return ["Goed", "Normaal"];
+}
+
+function winnerPublishSignal(row) {
+  if (!row.draw_at) return ["Controle", "Trekdatum ontbreekt"];
+  if (!row.first_name && !row.email) return ["Controle", "Geen naam/e-mail gekoppeld"];
+  if (!row.order_name && row.source === "ORDER_THRESHOLD") return ["Controle", "Orderlot zonder ordernaam"];
+  return ["Goed", "Klaar als automatische winner feed"];
 }
 
 function normalizeDrawStatusInput(status, draw = null) {
@@ -857,6 +934,36 @@ function drawPerformanceTable(rows) {
       </tr>`;
     }).join("") : `<tr><td colspan="7"><div class="empty">Nog geen winacties.</div></td></tr>`}</tbody>
   </table>`;
+}
+
+function winnerRowsTable(rows) {
+  return `<table>
+    <thead><tr><th>Winnaar</th><th>Winactie</th><th>Prijs</th><th>Lot</th><th>Order</th><th>Publicatie</th></tr></thead>
+    <tbody>${rows.map((row) => {
+      const [badge, note] = winnerPublishSignal(row);
+      return `<tr>
+        <td><strong>${escapeHtml(winnerFullName(row))}</strong><span class="muted">${escapeHtml(row.email || row.shopify_customer_id || "Geen klantkoppeling")}</span></td>
+        <td><a href="/admin/winacties/${escapeHtml(row.draw_id)}"><strong>${escapeHtml(row.draw_title)}</strong></a><span class="muted">${escapeHtml(row.draw_at ? row.draw_at.slice(0, 16).replace("T", " ") : "-")}</span></td>
+        <td><strong>${escapeHtml(row.prize_name || "-")}</strong><span class="muted">${escapeHtml(row.prize_value || "-")}</span></td>
+        <td><strong>${escapeHtml(row.entry_number)}</strong><span class="muted">${escapeHtml(statusLabel(row.source))}</span></td>
+        <td>${escapeHtml(row.order_name || "-")}<br><span class="muted">${row.total_cents ? formatEuro(row.total_cents) : "-"}</span></td>
+        <td>${statusBadge(badge)}<br><span class="muted">${escapeHtml(note)}</span></td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>`;
+}
+
+function manualWinnerCardsPanel(cards) {
+  return `<div class="panel panel-pad">
+    <div class="panel-title"><div><p class="eyebrow">Handmatig</p><h2>Goedgekeurde kaarten</h2></div><span class="status">${cards.length}/4</span></div>
+    <div class="stack">
+      ${cards.length ? cards.map((card) => `<div class="ops-item">
+        <span class="ops-icon">${icon(card.imageUrl ? "Image" : "UserRound")}</span>
+        <span><strong>${escapeHtml(card.name || `Kaart ${card.index}`)}</strong><br><span class="muted">${escapeHtml(card.prize || "Geen prijs")} · ${escapeHtml(card.story ? "Statement ingevuld" : "Statement mist")}</span></span>
+        <span class="status status--${card.story && card.imageUrl ? "goed" : "controle"}">${card.story && card.imageUrl ? "Klaar" : "Check"}</span>
+      </div>`).join("") : `<div class="empty">Geen handmatige winnaarkaarten ingevuld. Gebruik dit alleen voor winnaars met goedgekeurde naam, foto en statement.</div>`}
+    </div>
+  </div>`;
 }
 
 function auditRows(limit = 10) {
@@ -1390,6 +1497,7 @@ adminRouter.get("/analyse", (_req, res) => {
 adminRouter.get("/menu", (_req, res) => {
   const groups = [
     ["Beheer", [
+      ["Winnaars", "/admin/winnaars", "Trophy", "Getrokken winnaars en social-proof publicatie."],
       ["Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
       ["Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
       ["Producten", "/admin/producten", "Beef", "Shopify producten, prijzen en kaart-tags."],
@@ -1424,6 +1532,41 @@ adminRouter.get("/menu", (_req, res) => {
     <section class="panel panel-pad">
       <form method="post" action="/admin/logout" class="inline-form"><button type="submit">${icon("LogOut")}Uitloggen</button></form>
     </section>
+  `));
+});
+
+adminRouter.get("/winnaars", (_req, res) => {
+  const rows = winnerAdminRows(60);
+  const settings = getWidgetSettings("winners");
+  const publication = winnerPublicationState(settings, rows);
+  const drawnCount = rows.length;
+  const readyRows = rows.filter((row) => winnerPublishSignal(row)[0] === "Goed").length;
+  const lastWinner = rows[0] || null;
+  const manualCards = publication.manualCards;
+  const visibleCount = publication.source === "manual" ? manualCards.length : readyRows;
+  const sourceLabelText = publication.source === "manual" ? "Handmatig" : "Automatisch";
+
+  res.send(page("Winnaars | Meat For Free", "winnaars", `
+    ${topbar("Winnaars", "Beheer publicatie van winnaars.", "Controleer getrokken winnaars en bepaal of de widget automatische data of handmatig goedgekeurde kaarten gebruikt.", `<a class="button button--gold" href="/admin/widgets#widget-winners">${icon("PanelTop")}Widget aanpassen</a><a class="button button--ghost" href="/admin/winacties?winnerState=yes">${icon("Gift")}Afgeronde winacties</a>`)}
+    ${kpiGrid([
+      { label: "Getrokken winnaars", value: drawnCount, help: "Alle afgeronde acties met winnaar.", icon: "Trophy" },
+      { label: "Widget bron", value: sourceLabelText, help: publication.note, icon: publication.source === "manual" ? "PencilLine" : "RefreshCw" },
+      { label: "Publiceerbaar", value: visibleCount, help: publication.source === "manual" ? "Handmatige kaarten met inhoud." : "Automatische winnaars met basisdata.", icon: "BadgeCheck" },
+      { label: "Laatste winnaar", value: lastWinner ? winnerPublicName(lastWinner) : "-", help: lastWinner ? lastWinner.draw_title : "Nog geen trekking afgerond.", icon: "UserCheck" }
+    ])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Publicatie</p><h2>Widget status</h2></div>${statusBadge(publication.status)}</div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">${icon(publication.source === "manual" ? "PencilLine" : "RefreshCw")}</span><span><strong>${escapeHtml(sourceLabelText)} als bron</strong><br><span class="muted">${escapeHtml(publication.note)}</span></span><span class="status">${escapeHtml(sourceLabelText)}</span></div>
+          <a class="ops-item" href="/admin/widgets#widget-winners" style="text-decoration:none"><span class="ops-icon">${icon("ImagePlus")}</span><span><strong>Naam, statement en foto beheren</strong><br><span class="muted">Upload alleen goedgekeurde beelden en zet handmatig pas aan wanneer de kaarten compleet zijn.</span></span><span class="status">Open</span></a>
+          <a class="ops-item" href="/admin/compliance" style="text-decoration:none"><span class="ops-icon">${icon("ShieldCheck")}</span><span><strong>Privacy check</strong><br><span class="muted">Publieke winnaars tonen alleen beperkte data. Volledige klantdata blijft in admin.</span></span><span class="status">Controle</span></a>
+        </div>
+      </div>
+      ${manualWinnerCardsPanel(manualCards)}
+    </section>
+    <div class="section-head"><h2>Getrokken winnaars</h2><a class="button button--ghost" href="/admin/winacties?winnerState=yes">${icon("Filter")}Filter winacties</a></div>
+    <div class="panel">${rows.length ? winnerRowsTable(rows) : `<div class="empty">Nog geen getrokken winnaars. Zodra een live winactie is getrokken, verschijnt de winnaar hier.</div>`}</div>
   `));
 });
 
@@ -2388,7 +2531,7 @@ function widgetEditorCard(definition) {
   const settings = getWidgetSettings(definition.key);
   const contentKeys = Object.keys(definition.defaults);
   const savedSettings = escapeHtml(JSON.stringify(settings));
-  return `<article class="widget-editor-card">
+  return `<article class="widget-editor-card" id="widget-${escapeHtml(definition.key)}">
     <div class="widget-editor-head">
       <div>
         <h2>${escapeHtml(definition.label)}</h2>

@@ -134,3 +134,19 @@ test("admin image upload requires CSRF and serves the stored asset", async () =>
   await agent.get(response.body.url).expect(200);
   assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'ADMIN_IMAGE_UPLOAD'").get().action, "ADMIN_IMAGE_UPLOAD");
 });
+
+test("admin winners page is available after login", async () => {
+  resetDb();
+  const app = createApp();
+  const agent = request.agent(app);
+
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const response = await agent.get("/admin/winnaars").expect(200);
+  assert.match(response.text, /Beheer publicatie van winnaars/);
+  assert.match(response.text, /Widget aanpassen/);
+});
