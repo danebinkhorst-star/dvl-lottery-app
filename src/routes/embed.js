@@ -433,43 +433,83 @@ function widgetRuntime() {
       }
       .mff-editorial{
         display:grid;
-        grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);
-        gap:clamp(24px,5vw,72px);
+        grid-template-columns:minmax(320px,1fr) minmax(280px,.62fr);
+        gap:clamp(24px,4vw,56px);
         align-items:center;
+        max-width:1180px;
+        margin:0 auto;
+        padding-top:clamp(26px,4vw,60px);
+        padding-bottom:clamp(28px,4vw,64px);
       }
-      .mff-editorial-rail{
-        display:grid;
-        grid-template-columns:1.15fr .85fr;
-        grid-auto-rows:minmax(150px,1fr);
-        gap:0;
+      .mff-editorial-copy{
+        max-width:460px;
+        justify-self:start;
+      }
+      .mff-editorial .mff-title{
+        font-size:clamp(34px,4.15vw,58px);
+        line-height:.9;
+      }
+      .mff-editorial .mff-copy{
+        max-width:430px;
+        font-size:clamp(14px,1.15vw,16px);
+        line-height:1.45;
+      }
+      .mff-editorial-card{
+        position:relative;
+        min-height:280px;
+        max-height:500px;
+        aspect-ratio:1.28;
         border:3px solid var(--mff-line);
+        border-radius:10px 4px 10px 4px;
         background:var(--mff-paper);
-      }
-      .mff-note{
-        min-height:170px;
-        display:flex;
-        align-items:flex-end;
-        background:transparent;
-        box-shadow:none;
-        padding:clamp(16px,2vw,24px);
-        color:var(--mff-ink);
-        font-size:clamp(22px,3vw,44px);
-        font-weight:950;
-        line-height:.95;
-        text-transform:uppercase;
+        box-shadow:8px 8px 0 #000;
         overflow:hidden;
-        overflow-wrap:anywhere;
       }
-      .mff-note:first-child{grid-row:span 2;background:var(--mff-gold)}
-      .mff-editorial-rail .mff-visual{
-        grid-row:span 2;
+      .mff-editorial-card .mff-visual{
         width:100%;
         height:100%;
-        min-height:340px;
         max-height:none;
+        display:block;
         object-fit:cover;
+        object-position:center;
         filter:none;
+      }
+      .mff-editorial-card--empty{
+        display:grid;
+        place-items:center;
+        padding:22px;
+        background:linear-gradient(135deg,var(--mff-gold),var(--mff-soft));
+      }
+      .mff-editorial-card--empty strong{
+        color:var(--mff-ink);
+        font-size:clamp(36px,5vw,72px);
+        font-weight:950;
+        line-height:.88;
+        text-align:center;
+        text-transform:uppercase;
+      }
+      .mff-editorial-chip{
+        position:absolute;
+        left:16px;
+        bottom:16px;
+        z-index:2;
+        display:inline-flex;
+        align-items:center;
+        min-height:30px;
+        max-width:calc(100% - 32px);
+        padding:0 10px;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
         background:var(--mff-gold);
+        color:var(--mff-ink);
+        box-shadow:3px 3px 0 #000;
+        font-size:11px;
+        font-weight:950;
+        line-height:1;
+        text-transform:uppercase;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
       }
       .mff-form{display:grid;gap:10px;margin-top:20px;max-width:680px}
       .mff-form input{width:100%;min-height:48px;border:2px solid var(--mff-line);border-radius:14px 5px 14px 5px;background:var(--mff-paper);padding:12px 14px;color:var(--mff-ink);font:inherit;font-weight:850}
@@ -757,10 +797,12 @@ function widgetRuntime() {
         .mff-membership-cta{min-height:70px;grid-template-columns:minmax(0,1fr) 40px;box-shadow:5px 5px 0 var(--mff-shadow)}
         .mff-membership-cta strong{font-size:30px}
         .mff-membership-cta i{width:38px;height:38px;font-size:21px}
-        .mff-editorial{grid-template-columns:1fr}
-        .mff-editorial-rail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
-        .mff-note{min-width:72%;scroll-snap-align:start}
-        .mff-editorial-rail .mff-visual{min-width:78%;min-height:260px;scroll-snap-align:start}
+        .mff-editorial{grid-template-columns:1fr;gap:18px;padding:18px 8px 32px}
+        .mff-editorial-card{min-height:0;max-height:280px;aspect-ratio:1.12;box-shadow:6px 6px 0 #000}
+        .mff-editorial-copy{max-width:100%}
+        .mff-editorial .mff-title{font-size:clamp(32px,9.2vw,44px)}
+        .mff-editorial .mff-copy{font-size:14px}
+        .mff-editorial-chip{left:12px;bottom:12px}
         .mff-actions{gap:8px}
         .mff-button,.mff-form button{width:100%}
         .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1558,8 +1600,14 @@ function widgetRuntime() {
   function communityWidget(el, data) {
     const copy = widgetCopy(data, "community");
     const notes = [copy.noteOne, copy.noteTwo, copy.noteThree].filter(Boolean);
+    const image = visualImage(copy);
+    const chip = String(notes[0] || copy.kicker || "BBQ gids").trim();
     el.innerHTML = `<section ${sectionAttrs(copy, "mff-editorial")}>
-      <div>
+      <div class="mff-editorial-card${image ? "" : " mff-editorial-card--empty"}">
+        ${image || `<strong>${escapeHtml(copy.kicker || "BBQ gids")}</strong>`}
+        ${chip ? `<span class="mff-editorial-chip">${escapeHtml(chip)}</span>` : ""}
+      </div>
+      <div class="mff-editorial-copy">
         <p class="mff-kicker">${escapeHtml(copy.kicker || "BBQ inspiratie")}</p>
         <h2 class="mff-title mff-title--ink">${escapeHtml(copy.heading || "Wat zet jij op het vuur?")}</h2>
         <p class="mff-copy">${escapeHtml(copy.body || "Laat recepten, klantfoto's en BBQ challenges zien zonder de shop uit het oog te verliezen.")}</p>
@@ -1567,10 +1615,6 @@ function widgetRuntime() {
           <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/bbq-inspiratie"))}" target="_top">${escapeHtml(copy.primaryLabel || "Bekijk inspiratie")}</a>
           <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/pages/community"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Community")}</a>
         </div>
-      </div>
-      <div class="mff-editorial-rail">
-        ${visualImage(copy)}
-        ${(notes.length ? notes : ["Recepten", "Klantfoto's", "Challenges"]).map((note) => `<div class="mff-note">${escapeHtml(note)}</div>`).join("")}
       </div>
     </section>`;
   }
