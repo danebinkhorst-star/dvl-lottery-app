@@ -713,7 +713,7 @@ function widgetRuntime() {
       .mff-product-card{min-width:0;flex:0 0 min(292px,78vw);scroll-snap-align:start;display:grid;grid-template-rows:auto minmax(0,1fr);border:2px solid var(--mff-line);border-radius:8px;background:var(--mff-paper);overflow:hidden}
       .mff-product-media{position:relative;aspect-ratio:1/.9;background:linear-gradient(135deg,#fff8ed,#f0e0bf)}
       .mff-product-media img{width:100%;height:100%;display:block;object-fit:cover}
-      .mff-product-badge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-red);color:var(--mff-cream);padding:0 9px;font-size:11px;font-weight:950;text-transform:uppercase}
+      .mff-product-badge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;max-width:calc(100% - 20px);border:2px solid var(--mff-line);border-radius:12px 4px 12px 4px;background:var(--mff-gold);color:var(--mff-ink);box-shadow:3px 3px 0 #000;padding:0 9px;font-size:11px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .mff-product-body{display:grid;gap:12px;align-content:space-between;padding:16px}
       .mff-product-title{display:block;min-height:2.15em;color:var(--mff-ink);font-size:18px;font-weight:950;line-height:1.08;text-transform:uppercase}
       .mff-product-desc{display:none}
@@ -1333,12 +1333,13 @@ function widgetRuntime() {
       ["productTwo", "2"],
       ["productThree", "3"],
       ["productFour", "4"]
-    ].map(([prefix]) => {
+    ].map(([prefix, fallbackTag]) => {
       const title = String(copy[`${prefix}Title`] || "").trim();
       const priceCents = Math.max(0, Number(copy[`${prefix}PriceCents`] || 0) || 0);
       const compareAtCents = Math.max(0, Number(copy[`${prefix}CompareAtCents`] || 0) || 0);
       return {
         title,
+        tag: String(copy[`${prefix}Tag`] || fallbackTag || "").trim(),
         description: String(copy[`${prefix}Description`] || "").trim(),
         imageUrl: String(copy[`${prefix}ImageUrl`] || "").trim(),
         url: String(copy[`${prefix}Url`] || copy.collectionUrl || "/collections/all").trim(),
@@ -1349,7 +1350,8 @@ function widgetRuntime() {
     }).filter((item) => item.title && item.priceCents > 0);
   }
 
-  function saleBadge(item) {
+  function productBadge(item) {
+    if (item.tag) return `<span class="mff-product-badge">${escapeHtml(item.tag)}</span>`;
     if (!item.compareAtCents || item.compareAtCents <= item.priceCents) return "";
     const discount = Math.max(1, Math.round((1 - (item.priceCents / item.compareAtCents)) * 100));
     return `<span class="mff-product-badge">-${discount}%</span>`;
@@ -1443,7 +1445,7 @@ function widgetRuntime() {
         ${products.map((item) => `<article class="mff-product-card">
           <a class="mff-product-media" href="${escapeHtml(storeHref(item.url))}" target="_top" aria-label="${escapeHtml(item.title)} bekijken">
             ${item.imageUrl ? `<img src="${escapeHtml(appAssetHref(item.imageUrl))}" alt="${escapeHtml(item.title)}" loading="lazy">` : ""}
-            ${showSavings ? saleBadge(item) : ""}
+            ${productBadge(showSavings ? item : { ...item, compareAtCents: 0 })}
           </a>
           <div class="mff-product-body">
             <strong class="mff-product-title">${escapeHtml(item.title)}</strong>
