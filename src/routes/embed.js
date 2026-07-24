@@ -73,6 +73,65 @@ function widgetRuntime() {
       .mff-shell--soft{border-radius:24px}
       .mff-shell--no-shadow{box-shadow:none}
       .mff-shell--soft-shadow{box-shadow:0 18px 42px rgba(33,21,15,.12)}
+      .mff-live-widget{
+        overflow:visible;
+        margin-bottom:18px;
+        border:0;
+        border-radius:0;
+        background:linear-gradient(180deg,var(--mff-cream) 0%,var(--mff-paper) 100%);
+        box-shadow:none;
+        padding:clamp(30px,5vw,68px) clamp(16px,4vw,54px) clamp(42px,6vw,78px);
+      }
+      .mff-live-widget:after{
+        content:"";
+        position:absolute;
+        left:0;
+        right:0;
+        bottom:-18px;
+        height:18px;
+        z-index:2;
+        pointer-events:none;
+        background:
+          linear-gradient(135deg,var(--mff-paper) 25%,transparent 25%) 0 0/28px 18px repeat-x,
+          linear-gradient(225deg,var(--mff-paper) 25%,transparent 25%) 14px 0/28px 18px repeat-x;
+      }
+      .mff-live-widget .mff-hero{
+        max-width:1120px;
+        margin:0 auto;
+        grid-template-columns:minmax(0,.96fr) minmax(280px,.74fr);
+        align-items:center;
+      }
+      .mff-live-widget .mff-title{
+        max-width:620px;
+      }
+      .mff-live-widget .mff-panel--gold{
+        border:0;
+        border-top:2px solid var(--mff-line);
+        border-radius:0;
+        background:transparent;
+        box-shadow:none;
+        padding:clamp(18px,2.4vw,28px) 0 0;
+      }
+      .mff-live-widget .mff-panel--gold .mff-label{
+        display:inline-flex;
+        width:max-content;
+        max-width:100%;
+        align-items:center;
+        min-height:28px;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-gold);
+        box-shadow:3px 3px 0 var(--mff-shadow);
+        padding:0 9px;
+        color:var(--mff-ink);
+        opacity:1;
+      }
+      .mff-live-widget .mff-panel--gold .mff-number{
+        margin-top:12px;
+      }
+      .mff-live-widget .mff-countdown{
+        max-width:480px;
+      }
       .mff-section{
         position:relative;
         width:100%;
@@ -901,6 +960,11 @@ function widgetRuntime() {
       .mff-product-message{min-height:16px;color:var(--mff-red);font-size:11px;font-weight:900}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 var(--mff-shadow)}
+        .mff-live-widget{margin-bottom:16px;border-radius:0;box-shadow:none;padding:28px 14px 48px}
+        .mff-live-widget:after{bottom:-16px;height:16px;background-size:24px 16px,24px 16px;background-position:0 0,12px 0}
+        .mff-live-widget .mff-hero{grid-template-columns:1fr;gap:24px}
+        .mff-live-widget .mff-panel--gold{padding-top:18px}
+        .mff-live-widget .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
         .mff-section{padding:22px 14px}
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
@@ -1189,7 +1253,7 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "live");
     const draw = data.liveDraw;
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf €70";
-    el.innerHTML = `<section ${visualAttrs(copy)}>
+    el.innerHTML = `<section ${visualAttrs(copy, "mff-live-widget")}>
       <div class="mff-hero">
         <div>
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Live winactie")}</p>
