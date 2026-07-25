@@ -123,6 +123,36 @@ export function initDb() {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT UNIQUE,
+      name TEXT,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'ADMIN',
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      force_password_change INTEGER NOT NULL DEFAULT 0,
+      failed_login_count INTEGER NOT NULL DEFAULT 0,
+      locked_until TEXT,
+      last_login_at TEXT,
+      password_updated_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      ip TEXT,
+      user_agent TEXT,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -188,6 +218,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_free_claims_draw ON free_entry_claims(draw_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_free_claims_ip ON free_entry_claims(ip_hash, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_users_status ON admin_users(status, role);
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_active ON admin_sessions(revoked_at, expires_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);

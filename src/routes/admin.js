@@ -8,6 +8,17 @@ import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../s
 import { recentSecurityEvents, securityEventSummary } from "../services/security-events.js";
 import { analyticsActionItems, analyticsSummary } from "../services/analytics.js";
 import { writeAuditLog } from "../services/audit.js";
+import {
+  changeOwnAdminPassword,
+  createAdminUser,
+  getAdminUser,
+  listAdminSessions,
+  listAdminUsers,
+  revokeAdminSession,
+  revokeAdminUserSessions,
+  setAdminUserPassword,
+  updateAdminUser
+} from "../services/admin-accounts.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
 import { formatEuro, makeEntryNumber } from "../utils.js";
@@ -26,7 +37,11 @@ const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
 
 function actor(req) {
-  return req.get("authorization") ? "admin" : "admin";
+  return req.adminUser?.username || "admin";
+}
+
+function requireOwner(req) {
+  if (req.adminUser?.role !== "OWNER") throw new Error("Alleen een eigenaar mag admin accounts beheren.");
 }
 
 function escapeHtml(value) {
@@ -144,6 +159,7 @@ function page(title, active, body) {
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
     ["producten", "/admin/producten", "Beef", "Producten"],
     ["deelnemers", "/admin/deelnemers", "Users", "Deelnemers"],
+    ["accounts", "/admin/accounts", "UserCog", "Accounts"],
     ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
     ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
     ["regels", "/admin/regels", "SlidersHorizontal", "Regels"],
@@ -428,9 +444,9 @@ function page(title, active, body) {
             <p class="menu-title">Beheer</p>
             ${menu.slice(0, 9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(9, 13).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(9, 14).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(13).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(14).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -474,6 +490,101 @@ function titleBlock(eyebrow, title, copy = "") {
 
 function topbar(eyebrow, title, copy, actions = "") {
   return `<div class="topbar">${titleBlock(eyebrow, title, copy)}<div class="actions">${actions}</div></div>`;
+}
+
+function roleLabel(role) {
+  const labels = {
+    OWNER: "Eigenaar",
+    ADMIN: "Admin",
+    VIEWER: "Viewer"
+  };
+  return labels[role] || role || "-";
+}
+
+function formatShortDate(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString("nl-NL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function currentUserPanel(user, reason = "") {
+  const mustChange = reason === "password" || user?.forcePasswordChange;
+  return `<section class="panel panel-pad">
+    <div class="panel-title"><div><h2>Mijn account</h2><p class="helper">Ingelogd als ${escapeHtml(user?.username || "admin")} · ${escapeHtml(roleLabel(user?.role))}</p></div>${mustChange ? '<span class="status status--actie">Wachtwoord verplicht</span>' : '<span class="status status--active">Actief</span>'}</div>
+    <form method="post" action="/admin/account/password" class="form-grid">
+      <label>Huidig wachtwoord<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+      <label>Nieuw wachtwoord<input name="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label>Herhaal nieuw wachtwoord<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+      <div class="actions"><button class="button--gold" type="submit">${icon("KeyRound")}Wachtwoord wijzigen</button></div>
+    </form>
+  </section>`;
+}
+
+function createAccountPanel(canManage) {
+  if (!canManage) {
+    return `<section class="panel panel-pad"><div class="panel-title"><div><h2>Nieuw account</h2><p class="helper">Alleen eigenaren kunnen admin accounts aanmaken.</p></div></div></section>`;
+  }
+  return `<section class="panel panel-pad">
+    <div class="panel-title"><div><h2>Nieuw account</h2><p class="helper">Maak persoonlijke accounts aan. Deel geen login meer met meerdere mensen.</p></div></div>
+    <form method="post" action="/admin/accounts" class="form-grid">
+      <label>Gebruikersnaam<input name="username" autocomplete="off" required></label>
+      <label>Naam<input name="name" autocomplete="off"></label>
+      <label>E-mail<input name="email" type="email" autocomplete="off"></label>
+      <label>Rol<select name="role">${option("ADMIN", "", "Admin")}${option("OWNER", "", "Eigenaar")}${option("VIEWER", "", "Viewer")}</select></label>
+      <label>Tijdelijk wachtwoord<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1" checked> Wachtwoord wijzigen bij eerste login</label>
+      <div class="actions wide"><button class="button--gold" type="submit">${icon("UserPlus")}Account aanmaken</button></div>
+    </form>
+  </section>`;
+}
+
+function accountRows(users, currentUser, canManage) {
+  if (!users.length) return `<tr><td colspan="7">Nog geen accounts.</td></tr>`;
+  return users.map((user) => {
+    const isSelf = user.id === currentUser?.id;
+    return `<tr>
+      <td><strong>${escapeHtml(user.username)}</strong><span class="muted">${escapeHtml(user.name || user.email || "Geen profielinfo")}</span></td>
+      <td>${statusBadge(user.status === "ACTIVE" ? "active" : "void")}</td>
+      <td><span class="status">${escapeHtml(roleLabel(user.role))}</span></td>
+      <td>${escapeHtml(formatShortDate(user.lastLoginAt))}</td>
+      <td>${user.forcePasswordChange ? '<span class="status status--controle">Moet wijzigen</span>' : '<span class="status status--goed">Normaal</span>'}</td>
+      <td>
+        <form method="post" action="/admin/accounts/${escapeHtml(user.id)}/update" class="stack">
+          <div class="form-grid">
+            <label>Naam<input name="name" value="${escapeHtml(user.name)}"${canManage ? "" : " disabled"}></label>
+            <label>E-mail<input name="email" type="email" value="${escapeHtml(user.email)}"${canManage ? "" : " disabled"}></label>
+            <label>Rol<select name="role"${canManage ? "" : " disabled"}>${option("OWNER", user.role, "Eigenaar")}${option("ADMIN", user.role, "Admin")}${option("VIEWER", user.role, "Viewer")}</select></label>
+            <label>Status<select name="status"${canManage || isSelf ? "" : " disabled"}>${option("ACTIVE", user.status, "Actief")}${option("SUSPENDED", user.status, "Geblokkeerd")}</select></label>
+            <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1"${user.forcePasswordChange ? " checked" : ""}${canManage ? "" : " disabled"}> Wachtwoord reset verplichten</label>
+          </div>
+          <div class="actions">${canManage ? `<button type="submit">${icon("Save")}Opslaan</button>` : ""}</div>
+        </form>
+      </td>
+      <td>
+        ${canManage ? `<form method="post" action="/admin/accounts/${escapeHtml(user.id)}/password" class="stack">
+          <label>Nieuw wachtwoord<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+          <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1"${isSelf ? "" : " checked"}> Verplicht wijzigen</label>
+          <button class="button--ghost" type="submit">${icon("KeyRound")}Reset</button>
+        </form>` : ""}
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function sessionRows(sessions, currentSessionId, canManage) {
+  if (!sessions.length) return `<tr><td colspan="6">Geen actieve sessies.</td></tr>`;
+  return sessions.map((session) => {
+    const isCurrent = session.id === currentSessionId;
+    return `<tr>
+      <td><strong>${escapeHtml(session.username)}</strong><span class="muted">${escapeHtml(roleLabel(session.role))}${isCurrent ? " · huidige sessie" : ""}</span></td>
+      <td>${session.revokedAt ? '<span class="status status--void">Ingetrokken</span>' : '<span class="status status--active">Actief</span>'}</td>
+      <td>${escapeHtml(formatShortDate(session.lastSeenAt))}</td>
+      <td>${escapeHtml(session.ip || "-")}</td>
+      <td><span class="muted">${escapeHtml((session.userAgent || "-").slice(0, 84))}</span></td>
+      <td>${canManage && !session.revokedAt && !isCurrent ? `<form method="post" action="/admin/accounts/sessions/${escapeHtml(session.id)}/revoke" class="inline-form"><button class="button--ghost" type="submit">${icon("Ban")}Intrekken</button></form>` : ""}</td>
+    </tr>`;
+  }).join("");
 }
 
 async function createManualEntry({ drawId, email, firstName, lastName, reason }) {
@@ -1817,6 +1928,7 @@ adminRouter.get("/menu", (_req, res) => {
     ]],
     ["Controle", [
       ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
+      ["Accounts", "/admin/accounts", "UserCog", "Admin gebruikers, rollen en sessies."],
       ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
       ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
       ["Site structuur", "/admin/site-structuur", "LayoutTemplate", "Homepage, header, PDP en infopagina's."],
@@ -1845,6 +1957,166 @@ adminRouter.get("/menu", (_req, res) => {
       <form method="post" action="/admin/logout" class="inline-form"><button type="submit">${icon("LogOut")}Uitloggen</button></form>
     </section>
   `));
+});
+
+adminRouter.get("/accounts", (req, res) => {
+  const users = listAdminUsers();
+  const sessions = listAdminSessions();
+  const currentUser = req.adminUser || null;
+  const canManage = currentUser?.role === "OWNER";
+  const reason = textParam(req.query.reason);
+  res.send(page("Accounts | Meat For Free", "accounts", `
+    ${topbar("Security", "Admin accounts.", "Persoonlijke logins, rollen, wachtwoordbeheer en sessies. Geen gedeeld adminwachtwoord meer nodig.", `<form method="post" action="/admin/logout" class="inline-form"><button class="button--ghost" type="submit">${icon("LogOut")}Uitloggen</button></form>`)}
+    ${reason === "password" ? `<section class="panel panel-pad" style="margin-bottom:16px"><div class="ops-item"><span class="ops-icon">${icon("KeyRound")}</span><span><strong>Wachtwoord wijzigen vereist</strong><br><span class="muted">Wijzig je tijdelijke of recovery wachtwoord voordat je verder werkt.</span></span><span class="status status--actie">Actie</span></div></section>` : ""}
+    <section class="grid grid-3">
+      <div class="card card--tint-0"><div class="card-head"><strong>Admin gebruikers</strong><span class="card-icon">${icon("Users")}</span></div><div class="stat">${users.length}</div><p>Persoonlijke accounts met rollen.</p></div>
+      <div class="card card--tint-1"><div class="card-head"><strong>Actieve sessies</strong><span class="card-icon">${icon("MonitorCheck")}</span></div><div class="stat">${sessions.filter((session) => !session.revokedAt).length}</div><p>Browser sessies die nog geldig zijn.</p></div>
+      <div class="card card--tint-2"><div class="card-head"><strong>Jouw rol</strong><span class="card-icon">${icon("ShieldCheck")}</span></div><div class="stat stat--text">${escapeHtml(roleLabel(currentUser?.role))}</div><p>${canManage ? "Volledig accountbeheer." : "Eigen wachtwoord en sessie-inzicht."}</p></div>
+    </section>
+    <section class="grid grid-2">
+      ${currentUserPanel(currentUser, reason)}
+      ${createAccountPanel(canManage)}
+    </section>
+    <div class="section-head"><h2>Gebruikers</h2><span class="muted">${canManage ? "Beheer rollen, status en resets." : "Alleen eigenaren kunnen accounts aanpassen."}</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Gebruiker</th><th>Status</th><th>Rol</th><th>Laatste login</th><th>Policy</th><th>Profiel</th><th>Reset</th></tr></thead>
+        <tbody>${accountRows(users, currentUser, canManage)}</tbody>
+      </table>
+    </div>
+    <div class="section-head"><h2>Sessies</h2><span class="muted">Trek sessies in bij twijfel of rolwijzigingen.</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Account</th><th>Status</th><th>Laatst gezien</th><th>IP</th><th>Browser</th><th>Actie</th></tr></thead>
+        <tbody>${sessionRows(sessions, req.adminSession?.id || "", canManage)}</tbody>
+      </table>
+    </div>
+  `));
+});
+
+adminRouter.post("/account/password", urlencoded, (req, res) => {
+  try {
+    if (!req.adminUser?.id || req.adminUser.id === "legacy") throw new Error("Log opnieuw in om je wachtwoord te wijzigen.");
+    const nextPassword = textParam(req.body.newPassword);
+    if (nextPassword !== textParam(req.body.confirmPassword)) throw new Error("Nieuwe wachtwoorden zijn niet gelijk.");
+    changeOwnAdminPassword(req.adminUser.id, String(req.body.currentPassword || ""), nextPassword, req.adminSession?.id || "");
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_PASSWORD_CHANGED",
+      targetType: "admin_user",
+      targetId: req.adminUser.id,
+      message: "Admin wijzigde eigen wachtwoord."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Wachtwoord niet gewijzigd.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts", urlencoded, (req, res) => {
+  try {
+    requireOwner(req);
+    const user = createAdminUser({
+      username: req.body.username,
+      email: req.body.email,
+      name: req.body.name,
+      password: req.body.password,
+      role: req.body.role,
+      forcePasswordChange: req.body.forcePasswordChange === "1"
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_ACCOUNT_CREATED",
+      targetType: "admin_user",
+      targetId: user.id,
+      message: `Admin account ${user.username} aangemaakt.`,
+      metadata: { role: user.role }
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Account kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts/:userId/update", urlencoded, (req, res) => {
+  try {
+    requireOwner(req);
+    const user = updateAdminUser(req.params.userId, {
+      email: req.body.email,
+      name: req.body.name,
+      role: req.body.role,
+      status: req.body.status,
+      forcePasswordChange: req.body.forcePasswordChange === "1"
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_ACCOUNT_UPDATED",
+      targetType: "admin_user",
+      targetId: user.id,
+      message: `Admin account ${user.username} bijgewerkt.`,
+      metadata: { role: user.role, status: user.status }
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Account kon niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts/:userId/password", urlencoded, (req, res) => {
+  try {
+    requireOwner(req);
+    const user = getAdminUser(req.params.userId);
+    if (!user) throw new Error("Admin gebruiker niet gevonden.");
+    setAdminUserPassword(user.id, req.body.password, {
+      forcePasswordChange: req.body.forcePasswordChange === "1",
+      revokeSessions: true,
+      exceptSessionId: user.id === req.adminUser?.id ? req.adminSession?.id || "" : ""
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_ACCOUNT_PASSWORD_RESET",
+      targetType: "admin_user",
+      targetId: user.id,
+      message: `Wachtwoordreset voor admin account ${user.username}.`
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Wachtwoord kon niet worden gereset.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts/:userId/revoke-sessions", urlencoded, (req, res) => {
+  try {
+    requireOwner(req);
+    revokeAdminUserSessions(req.params.userId, req.params.userId === req.adminUser?.id ? req.adminSession?.id || "" : "");
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_ACCOUNT_SESSIONS_REVOKED",
+      targetType: "admin_user",
+      targetId: req.params.userId,
+      message: "Admin sessies ingetrokken."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Actie gestopt", "Sessies konden niet worden ingetrokken.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts/sessions/:sessionId/revoke", urlencoded, (req, res) => {
+  try {
+    requireOwner(req);
+    revokeAdminSession(req.params.sessionId);
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_SESSION_REVOKED",
+      targetType: "admin_session",
+      targetId: req.params.sessionId,
+      message: "Admin sessie ingetrokken."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Account fout | Meat For Free", "accounts", topbar("Actie gestopt", "Sessie kon niet worden ingetrokken.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
 });
 
 adminRouter.get("/winnaars", (_req, res) => {

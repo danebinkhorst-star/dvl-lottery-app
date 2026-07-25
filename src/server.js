@@ -17,6 +17,14 @@ import { syncShopifyProducts } from "./services/shopify-products.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
 import { safeEqual } from "./auth.js";
+import {
+  authenticateAdminUser,
+  createAdminSession,
+  ensureBootstrapAdminAccount,
+  ensureRecoveryAdminAccount,
+  revokeAdminSession,
+  validateAdminSessionToken
+} from "./services/admin-accounts.js";
 
 const adminLoginParser = express.urlencoded({ extended: false, limit: "8kb" });
 const adminCsrfParser = express.urlencoded({ extended: false, limit: "16kb" });
@@ -70,12 +78,7 @@ function signAdminSession(expiresAt) {
     .digest("base64url");
 }
 
-function createAdminSessionToken() {
-  const expiresAt = Date.now() + (adminSessionMaxAgeSeconds * 1000);
-  return `${expiresAt}.${signAdminSession(expiresAt)}`;
-}
-
-function isValidAdminSession(token) {
+function isValidLegacyAdminSession(token) {
   const [expiresAt, signature] = String(token || "").split(".");
   const expiry = Number(expiresAt);
   if (!Number.isFinite(expiry) || expiry <= Date.now() || !signature) return false;
@@ -108,6 +111,10 @@ function auditAdminEvent(req, { actor = "admin", action, targetId = null, messag
   } catch (error) {
     console.warn("Could not write admin audit log", error);
   }
+}
+
+function adminActor(req, fallback = "admin") {
+  return req.adminUser?.username || fallback;
 }
 
 function safeUploadExtension(file) {
@@ -338,10 +345,27 @@ function adminLoginPage({ error = "", next = "/admin" } = {}) {
 
 function requireAdminAuth(req, res, next) {
   const password = config.ADMIN_PASSWORD;
-  if (!password && config.NODE_ENV !== "production") return next();
+  if (!password && config.NODE_ENV !== "production") {
+    req.adminUser = { id: "dev", username: "dev-admin", role: "OWNER", status: "ACTIVE", forcePasswordChange: false };
+    req.adminSession = { id: "dev" };
+    return next();
+  }
 
   const cookies = parseCookies(req.get("cookie"));
-  if (isValidAdminSession(cookies[adminSessionCookie])) return next();
+  const sessionContext = validateAdminSessionToken(cookies[adminSessionCookie]);
+  if (sessionContext) {
+    req.adminUser = sessionContext.user;
+    req.adminSession = sessionContext.session;
+    if (sessionContext.user.forcePasswordChange && req.method === "GET" && req.path !== "/accounts") {
+      return res.redirect("/admin/accounts?reason=password");
+    }
+    return next();
+  }
+  if (isValidLegacyAdminSession(cookies[adminSessionCookie])) {
+    req.adminUser = { id: "legacy", username: config.ADMIN_USERNAME || "dvl", role: "OWNER", status: "ACTIVE", forcePasswordChange: false };
+    req.adminSession = { id: "legacy" };
+    return next();
+  }
 
   const auth = req.get("authorization") || "";
   const [scheme, encoded] = auth.split(" ");
@@ -382,6 +406,7 @@ function adminCsrfProtection(req, res, next) {
 }
 
 export function createApp() {
+  ensureBootstrapAdminAccount();
   const app = express();
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -443,7 +468,7 @@ export function createApp() {
       ok: true,
       app: "mff-lottery-app",
       dashboard: "brand-secure-admin-v2",
-      securityBuild: "admin-csrf-totp-v3"
+      securityBuild: "admin-accounts-v1"
     });
   });
 
@@ -458,7 +483,14 @@ export function createApp() {
     if (!password && config.NODE_ENV !== "production") return res.redirect(safeAdminRedirect(req.body.next));
     const username = String(req.body.username || "");
     const suppliedPassword = String(req.body.password || "");
-    const passwordIsValid = safeEqual(username, config.ADMIN_USERNAME) && safeEqual(suppliedPassword, password);
+    let authResult = authenticateAdminUser({ username, password: suppliedPassword });
+    let usedRecovery = false;
+    if (!authResult.ok && safeEqual(username, config.ADMIN_USERNAME) && safeEqual(suppliedPassword, password)) {
+      const recoveryUser = ensureRecoveryAdminAccount();
+      authResult = recoveryUser ? { ok: true, user: recoveryUser } : authResult;
+      usedRecovery = Boolean(recoveryUser);
+    }
+    const passwordIsValid = Boolean(authResult.ok && authResult.user);
 
     if (!passwordIsValid) {
       auditAdminEvent(req, {
@@ -488,13 +520,18 @@ export function createApp() {
 
     if (passwordIsValid) {
       auditAdminEvent(req, {
-        actor: username,
+        actor: authResult.user.username,
         action: "ADMIN_LOGIN_SUCCESS",
         message: "Admin login geslaagd.",
-        metadata: { mfaEnabled: isAdminMfaEnabled() }
+        metadata: { mfaEnabled: isAdminMfaEnabled(), role: authResult.user.role, recovery: usedRecovery }
       });
-      res.setHeader("Set-Cookie", `${adminSessionCookie}=${encodeURIComponent(createAdminSessionToken())}; ${adminCookieOptions()}`);
-      return res.redirect(safeAdminRedirect(req.body.next));
+      const sessionToken = createAdminSession({
+        userId: authResult.user.id,
+        ip: clientIp(req),
+        userAgent: req.get("user-agent") || ""
+      });
+      res.setHeader("Set-Cookie", `${adminSessionCookie}=${encodeURIComponent(sessionToken)}; ${adminCookieOptions()}`);
+      return res.redirect(authResult.user.forcePasswordChange ? "/admin/accounts?reason=password" : safeAdminRedirect(req.body.next));
     }
   });
 
@@ -503,6 +540,7 @@ export function createApp() {
       if (error) return res.status(400).json({ error: error.message || "Upload mislukt." });
       if (!req.file) return res.status(400).json({ error: "Geen afbeelding ontvangen." });
       auditAdminEvent(req, {
+        actor: adminActor(req),
         action: "ADMIN_IMAGE_UPLOAD",
         targetId: req.file.filename,
         message: "Admin afbeelding geupload.",
@@ -522,10 +560,11 @@ export function createApp() {
 
   app.post("/admin/logout", requireAdminAuth, adminCsrfProtection, (req, res) => {
     auditAdminEvent(req, {
-      actor: "admin",
+      actor: adminActor(req),
       action: "ADMIN_LOGOUT",
       message: "Admin logout."
     });
+    if (req.adminSession?.id && req.adminSession.id !== "legacy") revokeAdminSession(req.adminSession.id);
     res.setHeader("Set-Cookie", `${adminSessionCookie}=; ${adminCookieOptions(0)}`);
     res.redirect("/admin/login");
   });
