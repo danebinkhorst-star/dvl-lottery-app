@@ -11,7 +11,11 @@
     "db:push": "node scripts/init-db.js",
     "db:seed": "node scripts/seed.js",
     "db:ensure-live-draw": "node scripts/ensure-live-draw.js",
+    "db:backup": "node scripts/backup-db.js",
+    "db:restore": "node scripts/restore-db.js",
+    "data:prune": "node scripts/prune-data.js",
     "register:webhooks": "node scripts/register-webhooks.js",
+    "proof:commerce-loop": "node scripts/proof-commerce-loop.js",
     "reconcile:orders": "node scripts/reconcile-orders.js",
     "test": "node --test --test-concurrency=1"
   },

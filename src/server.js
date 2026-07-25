@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 import multer from "multer";
 import crypto from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { config } from "./config.js";
@@ -46,6 +46,29 @@ const uploadMimeTypes = new Map([
   ["image/webp", ".webp"],
   ["image/gif", ".gif"]
 ]);
+
+function sniffImageMime(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return "";
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  const header = buffer.subarray(0, 6).toString("ascii");
+  if (header === "GIF87a" || header === "GIF89a") return "image/gif";
+  if (buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  return "";
+}
+
+function validateStoredUpload(file) {
+  const detectedMime = sniffImageMime(readFileSync(file.path));
+  if (!detectedMime || detectedMime !== file.mimetype) {
+    try {
+      unlinkSync(file.path);
+    } catch (_error) {
+      // Best effort cleanup; the upload request is still rejected below.
+    }
+    throw new Error("Afbeeldingstype komt niet overeen met de inhoud.");
+  }
+  return detectedMime;
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -449,6 +472,7 @@ export function createApp() {
   app.disable("x-powered-by");
   app.use(helmet({
     contentSecurityPolicy: false,
+    xFrameOptions: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
     referrerPolicy: { policy: "no-referrer" }
   }));
@@ -626,6 +650,23 @@ export function createApp() {
     adminImageUpload.single("image")(req, res, (error) => {
       if (error) return res.status(400).json({ error: error.message || "Upload mislukt." });
       if (!req.file) return res.status(400).json({ error: "Geen afbeelding ontvangen." });
+      let detectedMime = "";
+      try {
+        detectedMime = validateStoredUpload(req.file);
+      } catch (uploadError) {
+        auditAdminEvent(req, {
+          actor: adminActor(req),
+          action: "ADMIN_IMAGE_UPLOAD_REJECTED",
+          targetId: req.file.filename,
+          message: uploadError.message,
+          metadata: {
+            field: req.body?.field || "",
+            mimetype: req.file.mimetype,
+            size: req.file.size
+          }
+        });
+        return res.status(400).json({ error: uploadError.message || "Upload afgewezen." });
+      }
       auditAdminEvent(req, {
         actor: adminActor(req),
         action: "ADMIN_IMAGE_UPLOAD",
@@ -633,7 +674,7 @@ export function createApp() {
         message: "Admin afbeelding geupload.",
         metadata: {
           field: req.body?.field || "",
-          mimetype: req.file.mimetype,
+          mimetype: detectedMime || req.file.mimetype,
           size: req.file.size
         }
       });
@@ -668,7 +709,7 @@ export function createApp() {
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (process.env.NODE_ENV !== "test" && isDirectRun) {
-  await getOrCreateLiveDraw();
+  if (config.AUTO_CREATE_LIVE_DRAW) await getOrCreateLiveDraw();
   startProductSyncScheduler();
   startOrderItemSyncScheduler();
   createApp().listen(config.PORT, () => {

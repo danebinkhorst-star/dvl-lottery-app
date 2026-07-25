@@ -19,6 +19,7 @@ const { createApp } = await import("../src/server.js");
 const { isValidWriteSecret, signCustomerToken, verifyCustomerToken } = await import("../src/auth.js");
 const { verifyShopifyWebhook } = await import("../src/utils.js");
 const { assignEntriesForOrder, createDraw, drawWinner } = await import("../src/services/lottery.js");
+const { createAdminUser } = await import("../src/services/admin-accounts.js");
 
 function resetDb() {
   db.exec(`
@@ -135,6 +136,77 @@ test("admin image upload requires CSRF and serves the stored asset", async () =>
   assert.match(response.body.url, /^\/uploads\/.+\.png$/);
   await agent.get(response.body.url).expect(200);
   assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'ADMIN_IMAGE_UPLOAD'").get().action, "ADMIN_IMAGE_UPLOAD");
+});
+
+test("admin image upload rejects spoofed image content", async () => {
+  resetDb();
+  const app = createApp();
+  const agent = request.agent(app);
+
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const page = await agent.get("/admin/widgets").expect(200);
+  const token = page.text.match(/name="_csrf" value="([^"]+)"/)?.[1];
+  assert.ok(token);
+
+  await agent
+    .post("/admin/uploads")
+    .set("X-CSRF-Token", token)
+    .attach("image", Buffer.from("not a real png"), { filename: "proof.png", contentType: "image/png" })
+    .field("field", "visualImageUrl")
+    .expect(400);
+
+  assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'ADMIN_IMAGE_UPLOAD_REJECTED'").get().action, "ADMIN_IMAGE_UPLOAD_REJECTED");
+});
+
+test("embed frame uses Shopify frame ancestor CSP without X-Frame-Options", async () => {
+  resetDb();
+  const app = createApp();
+  const response = await request(app).get("/embed/frame?widget=winners").expect(200);
+  assert.match(response.headers["content-security-policy"], /frame-ancestors .*myshopify\.com/);
+  assert.equal(response.headers["x-frame-options"], undefined);
+});
+
+test("draw CSV export requires entry access and writes audit log", async () => {
+  resetDb();
+  const draw = await createDraw({
+    title: "Export rechten",
+    prizeName: "Pakket",
+    status: "LIVE"
+  });
+  const app = createApp();
+
+  const restrictedUsername = `draw-viewer-${Date.now()}`;
+  createAdminUser({
+    username: restrictedUsername,
+    email: `${restrictedUsername}@example.test`,
+    password: "Viewer12345!",
+    role: "VIEWER",
+    permissions: ["view_dashboard", "view_draws"],
+    forcePasswordChange: false
+  });
+
+  const restricted = request.agent(app);
+  await restricted
+    .post("/admin/login")
+    .type("form")
+    .send({ username: restrictedUsername, password: "Viewer12345!" })
+    .expect(302);
+  await restricted.get(`/admin/draws/${draw.id}/export.csv`).expect(403);
+
+  const owner = request.agent(app);
+  await owner
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+  await owner.get(`/admin/draws/${draw.id}/export.csv`).expect(200);
+
+  assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'LOTEN_CSV_GEEXPORTEERD'").get().action, "LOTEN_CSV_GEEXPORTEERD");
 });
 
 test("admin winners page is available after login", async () => {

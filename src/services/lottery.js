@@ -22,6 +22,9 @@ function hashIp(ipAddress) {
 export async function getOrCreateLiveDraw() {
   const live = db.prepare("SELECT * FROM lottery_draws WHERE status = 'LIVE' ORDER BY starts_at DESC LIMIT 1").get();
   if (live) return live;
+  if (!config.AUTO_CREATE_LIVE_DRAW) {
+    throw new Error("Er is geen actieve winactie gevonden. Maak eerst bewust een winactie live in de admin.");
+  }
 
   const draw = {
     id: id(),

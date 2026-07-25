@@ -33,7 +33,8 @@ const configSchema = z.object({
   LOT_ORDER_MINIMUM_CENTS: z.coerce.number().int().positive().default(7000),
   LOT_PER_CENTS: z.coerce.number().int().positive().default(7000),
   FREE_ENTRY_ENABLED: envBoolean.default(true),
-  SHOPIFY_SYNC_CUSTOMER_METAFIELDS: envBoolean.default(true)
+  SHOPIFY_SYNC_CUSTOMER_METAFIELDS: envBoolean.default(true),
+  AUTO_CREATE_LIVE_DRAW: envBoolean.default(process.env.NODE_ENV !== "production")
 });
 
 export const config = configSchema.parse(process.env);

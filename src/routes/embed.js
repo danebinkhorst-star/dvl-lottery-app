@@ -2047,7 +2047,16 @@ embedRouter.get("/frame", (req, res) => {
   }
 
   res.setHeader("content-type", "text/html; charset=utf-8");
-  res.setHeader("x-frame-options", "ALLOWALL");
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "img-src 'self' data: https:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "frame-ancestors https://*.myshopify.com https://admin.shopify.com https://*.shopify.com"
+  ].join("; "));
   res.send(`<!doctype html>
 <html lang="nl">
   <head>

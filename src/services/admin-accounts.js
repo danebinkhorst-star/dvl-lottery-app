@@ -207,6 +207,7 @@ function resetPublic(row, token = "") {
     id: row.id,
     userId: row.user_id,
     username: row.username || "",
+    email: row.email || "",
     requestedBy: row.requested_by_username || row.requested_by || "",
     expiresAt: row.expires_at,
     usedAt: row.used_at || "",
@@ -713,13 +714,13 @@ export function createAdminPasswordReset(userId, requestedBy = "", expiresInHour
     INSERT INTO admin_password_resets (id, user_id, token_hash, requested_by, expires_at, used_at, revoked_at, created_at)
     VALUES (@id, @user_id, @token_hash, @requested_by, @expires_at, @used_at, @revoked_at, @created_at)
   `).run(row);
-  return resetPublic({ ...row, username: user.username }, token);
+  return resetPublic({ ...row, username: user.username, email: user.email || "" }, token);
 }
 
 export function listAdminPasswordResets() {
   ensureAdminAccessSystem();
   return db.prepare(`
-    SELECT r.*, u.username, requester.username AS requested_by_username
+    SELECT r.*, u.username, u.email, requester.username AS requested_by_username
     FROM admin_password_resets r
     JOIN admin_users u ON u.id = r.user_id
     LEFT JOIN admin_users requester ON requester.id = r.requested_by
@@ -732,7 +733,7 @@ export function listAdminPasswordResets() {
 export function getAdminPasswordResetByToken(token) {
   ensureAdminAccessSystem();
   return resetPublic(db.prepare(`
-    SELECT r.*, u.username, requester.username AS requested_by_username
+    SELECT r.*, u.username, u.email, requester.username AS requested_by_username
     FROM admin_password_resets r
     JOIN admin_users u ON u.id = r.user_id
     LEFT JOIN admin_users requester ON requester.id = r.requested_by

@@ -1832,8 +1832,8 @@ function routePermission(req) {
   if (path.startsWith("/deelnemers")) return "view_participants";
   if (path.startsWith("/compliance")) return "view_compliance";
   if (path.startsWith("/regels")) return "manage_rules";
-  if (path.startsWith("/sync") || path.startsWith("/reconcile") || path.startsWith("/sync-dashboards") || path.startsWith("/sync-order-items")) return "manage_sync";
   if (path.startsWith("/sync-products")) return "manage_products";
+  if (path.startsWith("/sync") || path.startsWith("/reconcile") || path.startsWith("/sync-dashboards") || path.startsWith("/sync-order-items")) return "manage_sync";
   if (path.startsWith("/widgets")) return "manage_widgets";
   if (path.startsWith("/uploads")) return "manage_uploads";
   if (path.startsWith("/embed") || path.startsWith("/api")) return "view_dashboard";
@@ -2236,12 +2236,20 @@ adminRouter.post("/account/2fa/disable", urlencoded, (req, res) => {
   }
 });
 
-function accessLinkPage(title, copy, link) {
+function accessLinkPage(title, copy, link, { email = "", subject = "Meat For Free account toegang" } = {}) {
+  const mailBody = `Hi,\n\nGebruik deze eenmalige Meat For Free beheerlink:\n${link}\n\nOpen de link alleen zelf en stuur hem niet door.`;
+  const mailto = email
+    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`
+    : "";
   return page(`${title} | Meat For Free`, "accounts", `
     ${topbar("Security link", title, copy, `<a class="button button--gold" href="/admin/accounts">${icon("UserCog")}Terug naar accounts</a>`)}
     <section class="panel panel-pad">
       <div class="panel-title"><div><h2>Eenmalige link</h2><p class="helper">De link wordt om veiligheidsredenen alleen nu getoond. Maak opnieuw aan als hij kwijt is.</p></div></div>
       <code class="code-line">${escapeHtml(link)}</code>
+      <div class="actions" style="margin-top:16px">
+        ${mailto ? `<a class="button button--gold" href="${escapeHtml(mailto)}">${icon("Mail")}Mail klaarzetten</a>` : ""}
+        <a class="button button--ghost" href="/admin/accounts">${icon("ShieldCheck")}Status bekijken</a>
+      </div>
     </section>
   `);
 }
@@ -2266,7 +2274,10 @@ adminRouter.post("/accounts/invites", urlencoded, (req, res) => {
       metadata: { role: invite.role, permissions: invite.permissions }
     });
     const link = `${req.protocol}://${req.get("host")}${invite.setupPath}`;
-    res.send(accessLinkPage("Uitnodiging aangemaakt.", "Stuur deze setup-link alleen naar de juiste persoon.", link));
+    res.send(accessLinkPage("Uitnodiging aangemaakt.", "Stuur deze setup-link alleen naar de juiste persoon.", link, {
+      email: invite.email,
+      subject: "Je Meat For Free admin uitnodiging"
+    }));
   } catch (error) {
     res.status(400).send(page("Invite fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Uitnodiging kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
   }
@@ -2377,7 +2388,10 @@ adminRouter.post("/accounts/:userId/reset-link", urlencoded, (req, res) => {
       message: "Admin wachtwoord resetlink aangemaakt."
     });
     const link = `${req.protocol}://${req.get("host")}${reset.resetPath}`;
-    res.send(accessLinkPage("Resetlink aangemaakt.", "Stuur deze link alleen naar de eigenaar van het account.", link));
+    res.send(accessLinkPage("Resetlink aangemaakt.", "Stuur deze link alleen naar de eigenaar van het account.", link, {
+      email: reset.email || "",
+      subject: "Je Meat For Free admin resetlink"
+    }));
   } catch (error) {
     res.status(400).send(page("Reset fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Resetlink kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
   }
@@ -2606,8 +2620,11 @@ adminRouter.get("/winacties/:id", (req, res) => {
     ["ARCHIVED", "Archiveren", "Haal oude acties uit operationele focus.", "Archive"]
   ].filter(([status]) => status !== draw.status);
 
+  const exportAction = hasAdminPermission(req.adminUser, "view_entries")
+    ? `<a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`
+    : "";
   res.send(page(`${draw.title} | Meat For Free`, "winacties", `
-    ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a><a class="button button--ghost" href="/admin/draws/${escapeHtml(draw.id)}/export.csv">Export CSV</a>`)}
+    ${topbar("Winactie bewerken", draw.title, "Pas inhoud, prijs, timing en status aan.", `<a class="button button--ghost" href="/admin/winacties">Terug</a>${exportAction}`)}
     ${kpiGrid([
       { label: "Status", value: statusBadge(draw.status), help: "Huidige publicatiestatus.", icon: "Flag" },
       { label: "Actieve loten", value: counts.find((row) => row.status === "ACTIVE")?.count || 0, help: "Geldige loten voor trekking.", icon: "Tickets" },
@@ -3605,6 +3622,9 @@ adminRouter.get("/embed", (_req, res) => {
 });
 
 adminRouter.get("/draws/:id/export.csv", (req, res) => {
+  if (!hasAdminPermission(req.adminUser, "view_entries")) {
+    return res.status(403).send("Je hebt geen rechten om deelnemerdata te exporteren.");
+  }
   const draw = db.prepare("SELECT * FROM lottery_draws WHERE id = ?").get(req.params.id);
   if (!draw) return res.status(404).send("Winactie niet gevonden");
   const rows = db.prepare(`
@@ -3615,6 +3635,14 @@ adminRouter.get("/draws/:id/export.csv", (req, res) => {
     WHERE e.draw_id = ?
     ORDER BY e.created_at ASC
   `).all(draw.id);
+  writeAuditLog({
+    actor: actor(req),
+    action: "LOTEN_CSV_GEEXPORTEERD",
+    targetType: "lottery_draw",
+    targetId: draw.id,
+    message: `${rows.length} loten geexporteerd voor ${draw.title}.`,
+    metadata: { rowCount: rows.length, includesPii: true }
+  });
   const header = ["lotnummer", "status", "bron", "email", "voornaam", "achternaam", "order", "orderwaarde", "reden", "aangemaakt"];
   const body = rows.map((row) => [
     row.entry_number,
