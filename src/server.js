@@ -490,7 +490,7 @@ export function createApp() {
       ok: true,
       app: "mff-lottery-app",
       dashboard: "brand-secure-admin-v2",
-      securityBuild: "team-access-v1"
+      securityBuild: "team-access-v2"
     });
   });
 
@@ -507,7 +507,7 @@ export function createApp() {
     const suppliedPassword = String(req.body.password || "");
     let authResult = authenticateAdminUser({ username, password: suppliedPassword });
     let usedRecovery = false;
-    if (!authResult.ok && safeEqual(username, config.ADMIN_USERNAME) && safeEqual(suppliedPassword, password)) {
+    if (config.ADMIN_ENV_RECOVERY_ENABLED && !authResult.ok && safeEqual(username, config.ADMIN_USERNAME) && safeEqual(suppliedPassword, password)) {
       const recoveryUser = ensureRecoveryAdminAccount();
       authResult = recoveryUser ? { ok: true, user: recoveryUser } : authResult;
       usedRecovery = Boolean(recoveryUser);
@@ -519,7 +519,7 @@ export function createApp() {
         actor: username || "unknown",
         action: "ADMIN_LOGIN_FAILED",
         message: "Admin login geweigerd: onjuiste gebruiker of wachtwoord.",
-        metadata: { mfaEnabled: isAdminMfaEnabled() }
+        metadata: { mfaEnabled: isAdminMfaEnabled(), envRecoveryEnabled: config.ADMIN_ENV_RECOVERY_ENABLED }
       });
       return res.status(401).send(adminLoginPage({
         error: "Login klopt niet. Controleer gebruiker en wachtwoord.",

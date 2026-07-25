@@ -18,6 +18,7 @@ const configSchema = z.object({
   ADMIN_PASSWORD: z.string().optional().default(""),
   ADMIN_SESSION_SECRET: z.string().optional().default(""),
   ADMIN_TOTP_SECRET: z.string().optional().default(""),
+  ADMIN_ENV_RECOVERY_ENABLED: envBoolean.default(false),
   INTERNAL_API_SECRET: z.string().optional().default(""),
   CUSTOMER_TOKEN_SECRET: z.string().optional().default(""),
   FREE_ENTRY_HASH_SECRET: z.string().optional().default(""),

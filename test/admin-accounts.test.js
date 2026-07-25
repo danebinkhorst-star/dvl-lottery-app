@@ -80,6 +80,25 @@ test("team access system supports invites, granular permissions, reset links and
   assert.match(accountsHtml, /Team access control/);
   assert.match(accountsHtml, /Team uitnodigen/);
 
+  await owner
+    .post("/admin/account/password")
+    .type("form")
+    .send({
+      _csrf: token,
+      currentPassword: process.env.ADMIN_PASSWORD,
+      newPassword: "Owner12345!",
+      confirmPassword: "Owner12345!"
+    })
+    .expect(302);
+
+  await request(app)
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(401);
+  await login(owner, "dvl", "Owner12345!");
+  token = (await csrf(owner))[0];
+
   const inviteResponse = await owner
     .post("/admin/accounts/invites")
     .type("form")
@@ -149,9 +168,9 @@ test("team access system supports invites, granular permissions, reset links and
   await challengedOwner
     .post("/admin/login")
     .type("form")
-    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .send({ username: "dvl", password: "Owner12345!" })
     .expect(401);
-  await login(challengedOwner, "dvl", process.env.ADMIN_PASSWORD, totpCode(secret));
+  await login(challengedOwner, "dvl", "Owner12345!", totpCode(secret));
 
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM audit_logs WHERE action = 'ADMIN_INVITE_CREATED'").get().count, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM audit_logs WHERE action = 'ADMIN_PASSWORD_RESET_LINK_CREATED'").get().count, 1);
