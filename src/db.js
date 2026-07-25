@@ -125,9 +125,11 @@ export function initDb() {
 
     CREATE TABLE IF NOT EXISTS admin_users (
       id TEXT PRIMARY KEY,
+      team_id TEXT,
       username TEXT NOT NULL UNIQUE,
       email TEXT UNIQUE,
       name TEXT,
+      title TEXT,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'ADMIN',
       status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -136,8 +138,60 @@ export function initDb() {
       locked_until TEXT,
       last_login_at TEXT,
       password_updated_at TEXT NOT NULL,
+      totp_secret TEXT,
+      totp_enabled INTEGER NOT NULL DEFAULT 0,
+      totp_confirmed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (team_id) REFERENCES admin_teams(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      shop_domain TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_user_permissions (
+      user_id TEXT NOT NULL,
+      permission TEXT NOT NULL,
+      granted_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, permission),
+      FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_invites (
+      id TEXT PRIMARY KEY,
+      team_id TEXT,
+      email TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'ADMIN',
+      permissions_json TEXT NOT NULL DEFAULT '[]',
+      token_hash TEXT NOT NULL UNIQUE,
+      invited_by TEXT,
+      expires_at TEXT NOT NULL,
+      accepted_at TEXT,
+      revoked_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (team_id) REFERENCES admin_teams(id),
+      FOREIGN KEY (invited_by) REFERENCES admin_users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_password_resets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      requested_by TEXT,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      revoked_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (requested_by) REFERENCES admin_users(id)
     );
 
     CREATE TABLE IF NOT EXISTS admin_sessions (
@@ -219,6 +273,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_free_claims_ip ON free_entry_claims(ip_hash, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_admin_users_status ON admin_users(status, role);
+    CREATE INDEX IF NOT EXISTS idx_admin_invites_email ON admin_invites(email, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_password_resets_user ON admin_password_resets(user_id, expires_at);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id, expires_at);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_active ON admin_sessions(revoked_at, expires_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
@@ -239,7 +295,13 @@ export function initDb() {
   ensureColumn("lottery_draws", "winner_consent_status", "TEXT NOT NULL DEFAULT 'UNKNOWN'");
   ensureColumn("lottery_draws", "winner_consent_reference", "TEXT");
   ensureColumn("lottery_draws", "winner_internal_note", "TEXT");
+  ensureColumn("admin_users", "team_id", "TEXT");
+  ensureColumn("admin_users", "title", "TEXT");
+  ensureColumn("admin_users", "totp_secret", "TEXT");
+  ensureColumn("admin_users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("admin_users", "totp_confirmed_at", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_draws_winner_public ON lottery_draws(winner_public_status, draw_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_admin_users_team ON admin_users(team_id, status)");
 }
 
 function ensureColumn(table, column, definition) {

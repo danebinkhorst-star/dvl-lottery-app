@@ -18,12 +18,19 @@ import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
 import { safeEqual } from "./auth.js";
 import {
+  acceptAdminInvite,
   authenticateAdminUser,
+  consumeAdminPasswordReset,
   createAdminSession,
+  ensureAdminAccessSystem,
   ensureBootstrapAdminAccount,
   ensureRecoveryAdminAccount,
+  getAdminInviteByToken,
+  getAdminPasswordResetByToken,
+  getAdminUserTotpSecret,
   revokeAdminSession,
-  validateAdminSessionToken
+  validateAdminSessionToken,
+  verifyTotpToken
 } from "./services/admin-accounts.js";
 
 const adminLoginParser = express.urlencoded({ extended: false, limit: "8kb" });
@@ -186,51 +193,12 @@ function normalizeTotpSecret(secret) {
   return String(secret || "").replace(/[\s-]/g, "").toUpperCase();
 }
 
-function base32ToBuffer(value) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const char of normalizeTotpSecret(value).replace(/=+$/g, "")) {
-    const index = alphabet.indexOf(char);
-    if (index === -1) return null;
-    bits += index.toString(2).padStart(5, "0");
-  }
-
-  const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(Number.parseInt(bits.slice(i, i + 8), 2));
-  }
-  return Buffer.from(bytes);
-}
-
-function totpCode(secret, counter) {
-  const key = base32ToBuffer(secret);
-  if (!key || !key.length) return "";
-  const buffer = Buffer.alloc(8);
-  buffer.writeBigUInt64BE(BigInt(counter));
-  const hmac = crypto.createHmac("sha1", key).update(buffer).digest();
-  const offset = hmac[hmac.length - 1] & 0xf;
-  const binary = ((hmac[offset] & 0x7f) << 24)
-    | ((hmac[offset + 1] & 0xff) << 16)
-    | ((hmac[offset + 2] & 0xff) << 8)
-    | (hmac[offset + 3] & 0xff);
-  return String(binary % 1_000_000).padStart(6, "0");
-}
-
 function isAdminMfaEnabled() {
   return normalizeTotpSecret(config.ADMIN_TOTP_SECRET).length > 0;
 }
 
-function isValidTotpToken(token, now = Date.now()) {
-  const secret = normalizeTotpSecret(config.ADMIN_TOTP_SECRET);
-  const supplied = String(token || "").replace(/\D/g, "");
-  if (!secret) return true;
-  if (!/^\d{6}$/.test(supplied)) return false;
-
-  const counter = Math.floor(now / 30_000);
-  for (let drift = -1; drift <= 1; drift += 1) {
-    if (safeEqual(supplied, totpCode(secret, counter + drift))) return true;
-  }
-  return false;
+function isValidTotpToken(token, secret = config.ADMIN_TOTP_SECRET) {
+  return verifyTotpToken(secret, token);
 }
 
 function createAdminCsrfToken(sessionToken) {
@@ -332,11 +300,64 @@ function adminLoginPage({ error = "", next = "/admin" } = {}) {
             ${
               isAdminMfaEnabled()
                 ? '<label>2FA-code<input name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>'
-                : '<p class="security-note">2FA is klaar voor gebruik. Voeg ADMIN_TOTP_SECRET toe op Render om codes af te dwingen.</p>'
+                : '<label>2FA-code <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(indien ingesteld)</span><input name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>'
             }
             <button type="submit">Open dashboard</button>
           </form>
           <div class="foot">Meat For Free beheeromgeving</div>
+        </section>
+      </main>
+    </body>
+	  </html>`;
+}
+
+function adminSetupPage({ token, invite, error = "", mode = "invite" } = {}) {
+  const title = mode === "reset" ? "Wachtwoord instellen" : "Account activeren";
+  const copy = mode === "reset"
+    ? `Reset voor ${invite?.username || "admin account"}. Kies een nieuw wachtwoord.`
+    : `Uitnodiging voor ${invite?.email || "admin account"}. Maak je persoonlijke login aan.`;
+  const action = mode === "reset" ? `/admin/reset/${escapeHtml(token)}` : `/admin/setup/${escapeHtml(token)}`;
+  return `<!doctype html>
+  <html lang="nl">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${title} | Meat For Free</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800;900&display=swap" rel="stylesheet">
+      <style>
+        :root { --bg:${brandPalette.cream}; --panel:${brandPalette.paper}; --ink:${brandPalette.ink}; --muted:${brandPalette.muted}; --line:#d9d4c7; --forest:${brandPalette.forest}; --moss:${brandPalette.moss}; --danger:#9b2226; }
+        * { box-sizing:border-box; }
+        html, body { min-height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:Manrope, ui-sans-serif, system-ui, sans-serif; }
+        body { display:grid; place-items:center; padding:24px; }
+        .shell { width:min(100%,460px); }
+        .logo { width:96px; height:108px; display:block; margin:0 auto 18px; }
+        .panel { border:1px solid var(--line); border-radius:22px; background:rgba(255,252,247,.92); overflow:hidden; }
+        .head { padding:26px 24px 10px; text-align:center; }
+        .eyebrow { margin:0 0 8px; color:var(--moss); font-size:11px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+        h1 { margin:0; font-size:32px; line-height:1; font-weight:950; }
+        p { margin:10px 0 0; color:var(--muted); font-size:14px; font-weight:750; line-height:1.45; }
+        form { display:grid; gap:14px; padding:20px 20px 22px; }
+        label { display:block; color:#4b5563; font-size:11px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+        input { width:100%; min-height:50px; margin-top:7px; padding:12px 14px; border:1px solid var(--line); border-radius:14px; background:#fff; color:var(--ink); font:inherit; font-size:15px; font-weight:750; }
+        input:focus { outline:4px solid rgba(95,141,62,.14); border-color:var(--moss); }
+        button { min-height:52px; border:1px solid var(--forest); border-radius:16px; background:var(--forest); color:#fff9ee; font:inherit; font-size:15px; font-weight:900; cursor:pointer; }
+        .error { margin:0; padding:11px 12px; border:1px solid #e7c1bf; border-radius:14px; background:#faeceb; color:var(--danger); font-size:13px; font-weight:850; }
+      </style>
+    </head>
+    <body>
+      <main class="shell">
+        ${brandMarkSvg("logo")}
+        <section class="panel">
+          <div class="head"><p class="eyebrow">Admin security</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(copy)}</p></div>
+          <form method="post" action="${action}">
+            ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+            ${mode === "invite" ? `<label>Gebruikersnaam<input name="username" autocomplete="username" required></label><label>Naam<input name="name" autocomplete="name" value="${escapeHtml(invite?.name || "")}"></label><label>Functie<input name="title" autocomplete="organization-title"></label>` : ""}
+            <label>Nieuw wachtwoord<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+            <label>Herhaal wachtwoord<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+            <button type="submit">${mode === "reset" ? "Wachtwoord opslaan" : "Account activeren"}</button>
+          </form>
         </section>
       </main>
     </body>
@@ -406,6 +427,7 @@ function adminCsrfProtection(req, res, next) {
 }
 
 export function createApp() {
+  ensureAdminAccessSystem();
   ensureBootstrapAdminAccount();
   const app = express();
   const apiLimiter = rateLimit({
@@ -468,7 +490,7 @@ export function createApp() {
       ok: true,
       app: "mff-lottery-app",
       dashboard: "brand-secure-admin-v2",
-      securityBuild: "admin-accounts-v1"
+      securityBuild: "team-access-v1"
     });
   });
 
@@ -505,12 +527,14 @@ export function createApp() {
       }));
     }
 
-    if (!isValidTotpToken(req.body.totp)) {
+    const userTotpSecret = authResult.user?.id ? getAdminUserTotpSecret(authResult.user.id) : "";
+    const requiredTotpSecret = userTotpSecret || config.ADMIN_TOTP_SECRET;
+    if (!isValidTotpToken(req.body.totp, requiredTotpSecret)) {
       auditAdminEvent(req, {
         actor: username,
         action: "ADMIN_LOGIN_MFA_FAILED",
         message: "Admin login geweigerd: onjuiste 2FA-code.",
-        metadata: { mfaEnabled: true }
+        metadata: { mfaEnabled: true, perUser: Boolean(userTotpSecret) }
       });
       return res.status(401).send(adminLoginPage({
         error: "2FA-code klopt niet. Probeer opnieuw.",
@@ -523,7 +547,7 @@ export function createApp() {
         actor: authResult.user.username,
         action: "ADMIN_LOGIN_SUCCESS",
         message: "Admin login geslaagd.",
-        metadata: { mfaEnabled: isAdminMfaEnabled(), role: authResult.user.role, recovery: usedRecovery }
+        metadata: { mfaEnabled: Boolean(requiredTotpSecret), perUserMfa: Boolean(userTotpSecret), role: authResult.user.role, recovery: usedRecovery }
       });
       const sessionToken = createAdminSession({
         userId: authResult.user.id,
@@ -532,6 +556,69 @@ export function createApp() {
       });
       res.setHeader("Set-Cookie", `${adminSessionCookie}=${encodeURIComponent(sessionToken)}; ${adminCookieOptions()}`);
       return res.redirect(authResult.user.forcePasswordChange ? "/admin/accounts?reason=password" : safeAdminRedirect(req.body.next));
+    }
+  });
+
+  app.get("/admin/setup/:token", authLimiter, (req, res) => {
+    const token = String(req.params.token || "");
+    const invite = getAdminInviteByToken(token);
+    if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date().toISOString()) {
+      return res.status(410).send(adminSetupPage({ token, invite: { email: "verlopen uitnodiging" }, error: "Deze uitnodiging is verlopen of ingetrokken." }));
+    }
+    return res.send(adminSetupPage({ token, invite }));
+  });
+
+  app.post("/admin/setup/:token", authLimiter, adminLoginParser, (req, res) => {
+    const token = String(req.params.token || "");
+    const password = String(req.body.password || "");
+    if (password !== String(req.body.confirmPassword || "")) {
+      return res.status(400).send(adminSetupPage({ token, invite: getAdminInviteByToken(token), error: "Wachtwoorden zijn niet gelijk." }));
+    }
+    try {
+      const user = acceptAdminInvite(token, {
+        username: req.body.username,
+        name: req.body.name,
+        title: req.body.title,
+        password
+      });
+      auditAdminEvent(req, {
+        actor: user.username,
+        action: "ADMIN_INVITE_ACCEPTED",
+        targetId: user.id,
+        message: "Admin uitnodiging geaccepteerd."
+      });
+      return res.redirect("/admin/login");
+    } catch (error) {
+      return res.status(400).send(adminSetupPage({ token, invite: getAdminInviteByToken(token), error: error.message }));
+    }
+  });
+
+  app.get("/admin/reset/:token", authLimiter, (req, res) => {
+    const token = String(req.params.token || "");
+    const reset = getAdminPasswordResetByToken(token);
+    if (!reset || reset.revokedAt || reset.usedAt || reset.expiresAt <= new Date().toISOString()) {
+      return res.status(410).send(adminSetupPage({ token, invite: { username: "verlopen reset" }, mode: "reset", error: "Deze resetlink is verlopen of ingetrokken." }));
+    }
+    return res.send(adminSetupPage({ token, invite: reset, mode: "reset" }));
+  });
+
+  app.post("/admin/reset/:token", authLimiter, adminLoginParser, (req, res) => {
+    const token = String(req.params.token || "");
+    const password = String(req.body.password || "");
+    if (password !== String(req.body.confirmPassword || "")) {
+      return res.status(400).send(adminSetupPage({ token, invite: getAdminPasswordResetByToken(token), mode: "reset", error: "Wachtwoorden zijn niet gelijk." }));
+    }
+    try {
+      const user = consumeAdminPasswordReset(token, password);
+      auditAdminEvent(req, {
+        actor: user.username,
+        action: "ADMIN_PASSWORD_RESET_CONSUMED",
+        targetId: user.id,
+        message: "Admin wachtwoordreset gebruikt."
+      });
+      return res.redirect("/admin/login");
+    } catch (error) {
+      return res.status(400).send(adminSetupPage({ token, invite: getAdminPasswordResetByToken(token), mode: "reset", error: error.message }));
     }
   });
 

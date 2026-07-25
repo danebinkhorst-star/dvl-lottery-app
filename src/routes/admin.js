@@ -9,14 +9,25 @@ import { recentSecurityEvents, securityEventSummary } from "../services/security
 import { analyticsActionItems, analyticsSummary } from "../services/analytics.js";
 import { writeAuditLog } from "../services/audit.js";
 import {
+  adminPermissionDefinitions,
   changeOwnAdminPassword,
+  confirmAdminTotpSetup,
+  createAdminInvite,
+  createAdminPasswordReset,
   createAdminUser,
+  disableAdminTotp,
+  getAdminTotpSetup,
   getAdminUser,
+  hasAdminPermission,
+  listAdminInvites,
+  listAdminPasswordResets,
   listAdminSessions,
   listAdminUsers,
+  revokeAdminInvite,
   revokeAdminSession,
   revokeAdminUserSessions,
   setAdminUserPassword,
+  startAdminTotpSetup,
   updateAdminUser
 } from "../services/admin-accounts.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
@@ -40,8 +51,8 @@ function actor(req) {
   return req.adminUser?.username || "admin";
 }
 
-function requireOwner(req) {
-  if (req.adminUser?.role !== "OWNER") throw new Error("Alleen een eigenaar mag admin accounts beheren.");
+function requirePermission(req, permission) {
+  if (!hasAdminPermission(req.adminUser, permission)) throw new Error("Je hebt geen rechten voor deze beheeractie.");
 }
 
 function escapeHtml(value) {
@@ -324,6 +335,11 @@ function page(title, active, body) {
         .structure-row--compact { grid-template-columns:88px minmax(140px,.8fr) minmax(170px,1fr) minmax(150px,.85fr); }
         .structure-toggle { display:flex; align-items:center; gap:8px; min-height:40px; color:var(--ink); font-size:12px; font-weight:900; letter-spacing:0; text-transform:none; }
         .structure-toggle input { width:18px; min-height:18px; margin:0; accent-color:var(--moss); }
+        .permission-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; margin-top:8px; }
+        .permission-check { min-height:58px; display:grid; grid-template-columns:18px minmax(0,1fr); gap:9px; align-items:start; padding:10px; border:1px solid var(--line-soft); border-radius:8px; background:#fff; color:var(--ink); font-size:12px; font-weight:850; letter-spacing:0; text-transform:none; }
+        .permission-check input { width:16px; min-height:16px; margin:2px 0 0; accent-color:var(--moss); }
+        .permission-check small { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:650; line-height:1.3; }
+        .permission-summary { display:flex; flex-wrap:wrap; gap:5px; align-items:center; max-width:430px; }
         .structure-meta { display:grid; gap:4px; padding:10px 0; }
         .structure-meta strong { font-size:13px; font-weight:950; }
         .code-line { width:100%; display:block; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.4; overflow:auto; }
@@ -501,6 +517,29 @@ function roleLabel(role) {
   return labels[role] || role || "-";
 }
 
+function permissionValues(value) {
+  return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+function permissionLabel(code) {
+  return adminPermissionDefinitions.find(([permission]) => permission === code)?.[1] || code;
+}
+
+function permissionCheckboxes(name, selected = [], disabled = false) {
+  const selectedSet = new Set(selected);
+  return `<div class="permission-grid">
+    ${adminPermissionDefinitions.map(([code, label, help]) => `<label class="permission-check">
+      <input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(code)}"${selectedSet.has(code) ? " checked" : ""}${disabled ? " disabled" : ""}>
+      <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(help)}</small></span>
+    </label>`).join("")}
+  </div>`;
+}
+
+function permissionSummary(permissions = []) {
+  if (!permissions.length) return `<span class="muted">Geen losse rechten.</span>`;
+  return `<div class="permission-summary">${permissions.slice(0, 5).map((permission) => `<span class="status">${escapeHtml(permissionLabel(permission))}</span>`).join("")}${permissions.length > 5 ? `<span class="muted">+${permissions.length - 5} meer</span>` : ""}</div>`;
+}
+
 function formatShortDate(value) {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -510,6 +549,7 @@ function formatShortDate(value) {
 
 function currentUserPanel(user, reason = "") {
   const mustChange = reason === "password" || user?.forcePasswordChange;
+  const setup = user?.id ? getAdminTotpSetup(user.id) : null;
   return `<section class="panel panel-pad">
     <div class="panel-title"><div><h2>Mijn account</h2><p class="helper">Ingelogd als ${escapeHtml(user?.username || "admin")} · ${escapeHtml(roleLabel(user?.role))}</p></div>${mustChange ? '<span class="status status--actie">Wachtwoord verplicht</span>' : '<span class="status status--active">Actief</span>'}</div>
     <form method="post" action="/admin/account/password" class="form-grid">
@@ -518,23 +558,28 @@ function currentUserPanel(user, reason = "") {
       <label>Herhaal nieuw wachtwoord<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" required></label>
       <div class="actions"><button class="button--gold" type="submit">${icon("KeyRound")}Wachtwoord wijzigen</button></div>
     </form>
+    <div class="section-head" style="margin-top:20px"><h3>2FA</h3><span class="status status--${user?.totpEnabled ? "active" : setup ? "controle" : "private"}">${user?.totpEnabled ? "Actief" : setup ? "Setup open" : "Niet actief"}</span></div>
+    ${setup ? `<div class="ops-item"><span class="ops-icon">${icon("QrCode")}</span><span><strong>Authenticator secret</strong><br><code class="code-line">${escapeHtml(setup.secret)}</code><span class="muted">Voeg dit toe in je authenticator en bevestig met een 6-cijferige code.</span></span><span></span></div>
+      <form method="post" action="/admin/account/2fa/confirm" class="form-grid" style="margin-top:12px"><label>2FA-code<input name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><div class="actions"><button type="submit">${icon("ShieldCheck")}2FA bevestigen</button></div></form>` : ""}
+    <div class="actions" style="justify-content:flex-start;margin-top:12px">
+      ${user?.totpEnabled ? `<form method="post" action="/admin/account/2fa/disable" class="inline-form"><button class="button--ghost" type="submit">${icon("ShieldOff")}2FA uitzetten</button></form>` : `<form method="post" action="/admin/account/2fa/start" class="inline-form"><button class="button--ghost" type="submit">${icon("ShieldPlus")}2FA starten</button></form>`}
+    </div>
   </section>`;
 }
 
 function createAccountPanel(canManage) {
   if (!canManage) {
-    return `<section class="panel panel-pad"><div class="panel-title"><div><h2>Nieuw account</h2><p class="helper">Alleen eigenaren kunnen admin accounts aanmaken.</p></div></div></section>`;
+    return `<section class="panel panel-pad"><div class="panel-title"><div><h2>Team uitnodigen</h2><p class="helper">Alleen teambeheerders kunnen admin uitnodigingen maken.</p></div></div></section>`;
   }
   return `<section class="panel panel-pad">
-    <div class="panel-title"><div><h2>Nieuw account</h2><p class="helper">Maak persoonlijke accounts aan. Deel geen login meer met meerdere mensen.</p></div></div>
-    <form method="post" action="/admin/accounts" class="form-grid">
-      <label>Gebruikersnaam<input name="username" autocomplete="off" required></label>
+    <div class="panel-title"><div><h2>Team uitnodigen</h2><p class="helper">Maak een setup-link. De gebruiker kiest zelf een wachtwoord.</p></div></div>
+    <form method="post" action="/admin/accounts/invites" class="form-grid">
+      <label>E-mail<input name="email" type="email" autocomplete="off" required></label>
       <label>Naam<input name="name" autocomplete="off"></label>
-      <label>E-mail<input name="email" type="email" autocomplete="off"></label>
       <label>Rol<select name="role">${option("ADMIN", "", "Admin")}${option("OWNER", "", "Eigenaar")}${option("VIEWER", "", "Viewer")}</select></label>
-      <label>Tijdelijk wachtwoord<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
-      <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1" checked> Wachtwoord wijzigen bij eerste login</label>
-      <div class="actions wide"><button class="button--gold" type="submit">${icon("UserPlus")}Account aanmaken</button></div>
+      <label>Geldig voor<select name="expiresInHours">${option("72", "", "72 uur")}${option("24", "", "24 uur")}${option("168", "", "7 dagen")}</select></label>
+      <div class="wide">${permissionCheckboxes("permissions", [])}</div>
+      <div class="actions wide"><button class="button--gold" type="submit">${icon("UserPlus")}Uitnodiging maken</button></div>
     </form>
   </section>`;
 }
@@ -553,23 +598,84 @@ function accountRows(users, currentUser, canManage) {
         <form method="post" action="/admin/accounts/${escapeHtml(user.id)}/update" class="stack">
           <div class="form-grid">
             <label>Naam<input name="name" value="${escapeHtml(user.name)}"${canManage ? "" : " disabled"}></label>
+            <label>Functie<input name="title" value="${escapeHtml(user.title || "")}"${canManage ? "" : " disabled"}></label>
             <label>E-mail<input name="email" type="email" value="${escapeHtml(user.email)}"${canManage ? "" : " disabled"}></label>
             <label>Rol<select name="role"${canManage ? "" : " disabled"}>${option("OWNER", user.role, "Eigenaar")}${option("ADMIN", user.role, "Admin")}${option("VIEWER", user.role, "Viewer")}</select></label>
             <label>Status<select name="status"${canManage || isSelf ? "" : " disabled"}>${option("ACTIVE", user.status, "Actief")}${option("SUSPENDED", user.status, "Geblokkeerd")}</select></label>
             <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1"${user.forcePasswordChange ? " checked" : ""}${canManage ? "" : " disabled"}> Wachtwoord reset verplichten</label>
+            <div class="wide">${permissionCheckboxes("permissions", user.permissions, !canManage)}</div>
           </div>
           <div class="actions">${canManage ? `<button type="submit">${icon("Save")}Opslaan</button>` : ""}</div>
         </form>
       </td>
       <td>
-        ${canManage ? `<form method="post" action="/admin/accounts/${escapeHtml(user.id)}/password" class="stack">
-          <label>Nieuw wachtwoord<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
-          <label class="structure-toggle"><input type="checkbox" name="forcePasswordChange" value="1"${isSelf ? "" : " checked"}> Verplicht wijzigen</label>
-          <button class="button--ghost" type="submit">${icon("KeyRound")}Reset</button>
+        ${canManage ? `<form method="post" action="/admin/accounts/${escapeHtml(user.id)}/reset-link" class="stack">
+          <button class="button--ghost" type="submit">${icon("Link")}Resetlink maken</button>
         </form>` : ""}
       </td>
     </tr>`;
   }).join("");
+}
+
+function inviteRows(invites) {
+  if (!invites.length) return `<tr><td colspan="6"><div class="empty">Geen uitnodigingen.</div></td></tr>`;
+  return invites.map((invite) => {
+    const state = invite.acceptedAt ? ["active", "Geaccepteerd"] : invite.revokedAt ? ["void", "Ingetrokken"] : invite.expiresAt <= new Date().toISOString() ? ["void", "Verlopen"] : ["controle", "Open"];
+    return `<tr>
+      <td><strong>${escapeHtml(invite.email)}</strong><span class="muted">${escapeHtml(invite.name || invite.teamName)}</span></td>
+      <td><span class="status status--${state[0]}">${state[1]}</span></td>
+      <td>${escapeHtml(roleLabel(invite.role))}</td>
+      <td>${permissionSummary(invite.permissions)}</td>
+      <td>${escapeHtml(formatShortDate(invite.expiresAt))}</td>
+      <td>${!invite.acceptedAt && !invite.revokedAt ? `<form method="post" action="/admin/accounts/invites/${escapeHtml(invite.id)}/revoke" class="inline-form"><button class="button--ghost" type="submit">${icon("Ban")}Intrekken</button></form><span class="muted">Link niet opnieuw toonbaar. Maak opnieuw indien kwijt.</span>` : ""}</td>
+    </tr>`;
+  }).join("");
+}
+
+function resetRows(resets) {
+  if (!resets.length) return `<tr><td colspan="5"><div class="empty">Geen actieve resetlinks.</div></td></tr>`;
+  return resets.map((reset) => {
+    const state = reset.usedAt ? ["active", "Gebruikt"] : reset.revokedAt ? ["void", "Ingetrokken"] : ["controle", "Open"];
+    return `<tr>
+      <td><strong>${escapeHtml(reset.username)}</strong><span class="muted">Aangevraagd door ${escapeHtml(reset.requestedBy || "-")}</span></td>
+      <td><span class="status status--${state[0]}">${state[1]}</span></td>
+      <td>${escapeHtml(formatShortDate(reset.expiresAt))}</td>
+      <td>${escapeHtml(formatShortDate(reset.createdAt))}</td>
+      <td><span class="muted">Link is alleen zichtbaar bij aanmaken.</span></td>
+    </tr>`;
+  }).join("");
+}
+
+function filteredAuditRows({ action = "", actorName = "", limit = 40 } = {}) {
+  const filters = [];
+  const params = {};
+  if (action) {
+    filters.push("action LIKE @action");
+    params.action = `%${action}%`;
+  }
+  if (actorName) {
+    filters.push("actor LIKE @actor");
+    params.actor = `%${actorName}%`;
+  }
+  params.limit = limit;
+  return db.prepare(`
+    SELECT *
+    FROM audit_logs
+    ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
+    ORDER BY created_at DESC
+    LIMIT @limit
+  `).all(params);
+}
+
+function auditSecurityRows(logs) {
+  if (!logs.length) return `<tr><td colspan="5"><div class="empty">Geen auditregels gevonden.</div></td></tr>`;
+  return logs.map((log) => `<tr>
+    <td>${escapeHtml(formatShortDate(log.created_at))}</td>
+    <td><strong>${escapeHtml(log.action)}</strong><span class="muted">${escapeHtml(log.actor)}</span></td>
+    <td>${escapeHtml(log.target_type || "-")}<br><span class="muted">${escapeHtml(log.target_id || "-")}</span></td>
+    <td>${escapeHtml(log.message || "-")}</td>
+    <td><span class="muted">${escapeHtml(String(log.metadata || "").slice(0, 90))}</span></td>
+  </tr>`).join("");
 }
 
 function sessionRows(sessions, currentSessionId, canManage) {
@@ -1710,6 +1816,38 @@ function siteStructurePage() {
   `;
 }
 
+function routePermission(req) {
+  const path = req.path;
+  const method = req.method;
+  if (path === "/menu" || path === "/account/password" || path.startsWith("/account/2fa")) return "";
+  if (path === "/") return "view_dashboard";
+  if (path.startsWith("/accounts")) return method === "GET" && path === "/accounts" ? "" : "manage_accounts";
+  if (path.startsWith("/site-structuur")) return "manage_site";
+  if (path.startsWith("/analyse") || path.startsWith("/groei")) return "view_analytics";
+  if (path.startsWith("/winnaars")) return method === "GET" ? "view_winners" : "manage_winners";
+  if (path.startsWith("/winacties") || path.startsWith("/new-draw") || path.startsWith("/draws")) return method === "GET" ? "view_draws" : "manage_draws";
+  if (path.startsWith("/loten")) return method === "GET" ? "view_entries" : "manage_entries";
+  if (path.startsWith("/orders")) return "view_orders";
+  if (path.startsWith("/producten")) return "view_products";
+  if (path.startsWith("/deelnemers")) return "view_participants";
+  if (path.startsWith("/compliance")) return "view_compliance";
+  if (path.startsWith("/regels")) return "manage_rules";
+  if (path.startsWith("/sync") || path.startsWith("/reconcile") || path.startsWith("/sync-dashboards") || path.startsWith("/sync-order-items")) return "manage_sync";
+  if (path.startsWith("/sync-products")) return "manage_products";
+  if (path.startsWith("/widgets")) return "manage_widgets";
+  if (path.startsWith("/uploads")) return "manage_uploads";
+  if (path.startsWith("/embed") || path.startsWith("/api")) return "view_dashboard";
+  return "view_dashboard";
+}
+
+adminRouter.use((req, res, next) => {
+  const permission = routePermission(req);
+  if (!permission || hasAdminPermission(req.adminUser, permission)) return next();
+  return res.status(403).send(page("Geen toegang | Meat For Free", "accounts", `
+    ${topbar("Toegang", "Geen rechten voor deze pagina.", `Je mist de permissie: ${permissionLabel(permission)}. Vraag een eigenaar om je rol of permissies aan te passen.`, `<a class="button button--gold" href="/admin/accounts">${icon("UserCog")}Mijn account</a>`)}
+  `));
+});
+
 adminRouter.get("/site-structuur", (_req, res) => {
   res.send(page("Site structuur | Meat For Free", "site", siteStructurePage()));
 });
@@ -1960,18 +2098,24 @@ adminRouter.get("/menu", (_req, res) => {
 });
 
 adminRouter.get("/accounts", (req, res) => {
-  const users = listAdminUsers();
-  const sessions = listAdminSessions();
   const currentUser = req.adminUser || null;
-  const canManage = currentUser?.role === "OWNER";
+  const canManage = hasAdminPermission(currentUser, "manage_accounts");
+  const canViewAudit = hasAdminPermission(currentUser, "view_audit");
+  const users = canManage ? listAdminUsers() : [currentUser].filter(Boolean);
+  const sessions = canManage ? listAdminSessions() : listAdminSessions().filter((session) => session.userId === currentUser?.id);
+  const invites = canManage ? listAdminInvites() : [];
+  const resets = canManage ? listAdminPasswordResets() : [];
   const reason = textParam(req.query.reason);
+  const auditAction = textParam(req.query.action);
+  const auditActor = textParam(req.query.actor);
+  const logs = canViewAudit ? filteredAuditRows({ action: auditAction, actorName: auditActor }) : [];
   res.send(page("Accounts | Meat For Free", "accounts", `
-    ${topbar("Security", "Admin accounts.", "Persoonlijke logins, rollen, wachtwoordbeheer en sessies. Geen gedeeld adminwachtwoord meer nodig.", `<form method="post" action="/admin/logout" class="inline-form"><button class="button--ghost" type="submit">${icon("LogOut")}Uitloggen</button></form>`)}
+    ${topbar("Security", "Team access control.", "Accounts, rollen, permissies, uitnodigingen, resetlinks, sessies en audit in één schaalbaar model.", `<form method="post" action="/admin/logout" class="inline-form"><button class="button--ghost" type="submit">${icon("LogOut")}Uitloggen</button></form>`)}
     ${reason === "password" ? `<section class="panel panel-pad" style="margin-bottom:16px"><div class="ops-item"><span class="ops-icon">${icon("KeyRound")}</span><span><strong>Wachtwoord wijzigen vereist</strong><br><span class="muted">Wijzig je tijdelijke of recovery wachtwoord voordat je verder werkt.</span></span><span class="status status--actie">Actie</span></div></section>` : ""}
     <section class="grid grid-3">
-      <div class="card card--tint-0"><div class="card-head"><strong>Admin gebruikers</strong><span class="card-icon">${icon("Users")}</span></div><div class="stat">${users.length}</div><p>Persoonlijke accounts met rollen.</p></div>
+      <div class="card card--tint-0"><div class="card-head"><strong>Teamleden</strong><span class="card-icon">${icon("Users")}</span></div><div class="stat">${users.length}</div><p>Persoonlijke accounts met permissies.</p></div>
       <div class="card card--tint-1"><div class="card-head"><strong>Actieve sessies</strong><span class="card-icon">${icon("MonitorCheck")}</span></div><div class="stat">${sessions.filter((session) => !session.revokedAt).length}</div><p>Browser sessies die nog geldig zijn.</p></div>
-      <div class="card card--tint-2"><div class="card-head"><strong>Jouw rol</strong><span class="card-icon">${icon("ShieldCheck")}</span></div><div class="stat stat--text">${escapeHtml(roleLabel(currentUser?.role))}</div><p>${canManage ? "Volledig accountbeheer." : "Eigen wachtwoord en sessie-inzicht."}</p></div>
+      <div class="card card--tint-2"><div class="card-head"><strong>Open invites</strong><span class="card-icon">${icon("MailPlus")}</span></div><div class="stat">${invites.filter((invite) => !invite.acceptedAt && !invite.revokedAt && invite.expiresAt > new Date().toISOString()).length}</div><p>Setup-links die nog bruikbaar zijn.</p></div>
     </section>
     <section class="grid grid-2">
       ${currentUserPanel(currentUser, reason)}
@@ -1984,6 +2128,20 @@ adminRouter.get("/accounts", (req, res) => {
         <tbody>${accountRows(users, currentUser, canManage)}</tbody>
       </table>
     </div>
+    ${canManage ? `<div class="section-head"><h2>Uitnodigingen</h2><span class="muted">Setup-links zijn bewust maar één keer zichtbaar bij aanmaken.</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Uitnodiging</th><th>Status</th><th>Rol</th><th>Permissies</th><th>Verloopt</th><th>Actie</th></tr></thead>
+        <tbody>${inviteRows(invites)}</tbody>
+      </table>
+    </div>
+    <div class="section-head"><h2>Resetlinks</h2><span class="muted">Korte geldigheid, sessies worden ingetrokken na gebruik.</span></div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Account</th><th>Status</th><th>Verloopt</th><th>Aangemaakt</th><th>Info</th></tr></thead>
+        <tbody>${resetRows(resets)}</tbody>
+      </table>
+    </div>` : ""}
     <div class="section-head"><h2>Sessies</h2><span class="muted">Trek sessies in bij twijfel of rolwijzigingen.</span></div>
     <div class="panel">
       <table>
@@ -1991,6 +2149,20 @@ adminRouter.get("/accounts", (req, res) => {
         <tbody>${sessionRows(sessions, req.adminSession?.id || "", canManage)}</tbody>
       </table>
     </div>
+    ${canViewAudit ? `<div class="section-head"><h2>Security audit</h2><span class="muted">Zoekbaar bewijs van beheeracties.</span></div>
+    <section class="filters">
+      <form method="get" action="/admin/accounts" class="filter-grid">
+        <label>Actie<input name="action" value="${escapeHtml(auditAction)}" placeholder="ADMIN_..."></label>
+        <label>Actor<input name="actor" value="${escapeHtml(auditActor)}" placeholder="gebruikersnaam"></label>
+        <div class="actions"><button type="submit">${icon("Search")}Zoeken</button><a class="button button--ghost" href="/admin/accounts">Reset</a></div>
+      </form>
+    </section>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Tijd</th><th>Actie</th><th>Doel</th><th>Bericht</th><th>Metadata</th></tr></thead>
+        <tbody>${auditSecurityRows(logs)}</tbody>
+      </table>
+    </div>` : ""}
   `));
 });
 
@@ -2013,15 +2185,121 @@ adminRouter.post("/account/password", urlencoded, (req, res) => {
   }
 });
 
+adminRouter.post("/account/2fa/start", urlencoded, (req, res) => {
+  try {
+    if (!req.adminUser?.id || req.adminUser.id === "legacy") throw new Error("Log opnieuw in om 2FA te beheren.");
+    startAdminTotpSetup(req.adminUser.id);
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_2FA_SETUP_STARTED",
+      targetType: "admin_user",
+      targetId: req.adminUser.id,
+      message: "Admin startte 2FA setup."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("2FA fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "2FA setup kon niet starten.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/account/2fa/confirm", urlencoded, (req, res) => {
+  try {
+    if (!req.adminUser?.id || req.adminUser.id === "legacy") throw new Error("Log opnieuw in om 2FA te beheren.");
+    confirmAdminTotpSetup(req.adminUser.id, req.body.totp);
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_2FA_ENABLED",
+      targetType: "admin_user",
+      targetId: req.adminUser.id,
+      message: "Admin heeft 2FA ingeschakeld."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("2FA fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "2FA kon niet worden bevestigd.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/account/2fa/disable", urlencoded, (req, res) => {
+  try {
+    if (!req.adminUser?.id || req.adminUser.id === "legacy") throw new Error("Log opnieuw in om 2FA te beheren.");
+    disableAdminTotp(req.adminUser.id);
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_2FA_DISABLED",
+      targetType: "admin_user",
+      targetId: req.adminUser.id,
+      message: "Admin heeft 2FA uitgeschakeld."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("2FA fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "2FA kon niet worden uitgezet.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+function accessLinkPage(title, copy, link) {
+  return page(`${title} | Meat For Free`, "accounts", `
+    ${topbar("Security link", title, copy, `<a class="button button--gold" href="/admin/accounts">${icon("UserCog")}Terug naar accounts</a>`)}
+    <section class="panel panel-pad">
+      <div class="panel-title"><div><h2>Eenmalige link</h2><p class="helper">De link wordt om veiligheidsredenen alleen nu getoond. Maak opnieuw aan als hij kwijt is.</p></div></div>
+      <code class="code-line">${escapeHtml(link)}</code>
+    </section>
+  `);
+}
+
+adminRouter.post("/accounts/invites", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_accounts");
+    const invite = createAdminInvite({
+      email: req.body.email,
+      name: req.body.name,
+      role: req.body.role,
+      permissions: permissionValues(req.body.permissions),
+      invitedBy: req.adminUser?.id || "",
+      expiresInHours: Number(req.body.expiresInHours || 72)
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_INVITE_CREATED",
+      targetType: "admin_invite",
+      targetId: invite.id,
+      message: `Admin uitnodiging gemaakt voor ${invite.email}.`,
+      metadata: { role: invite.role, permissions: invite.permissions }
+    });
+    const link = `${req.protocol}://${req.get("host")}${invite.setupPath}`;
+    res.send(accessLinkPage("Uitnodiging aangemaakt.", "Stuur deze setup-link alleen naar de juiste persoon.", link));
+  } catch (error) {
+    res.status(400).send(page("Invite fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Uitnodiging kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/accounts/invites/:inviteId/revoke", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_accounts");
+    revokeAdminInvite(req.params.inviteId);
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_INVITE_REVOKED",
+      targetType: "admin_invite",
+      targetId: req.params.inviteId,
+      message: "Admin uitnodiging ingetrokken."
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Invite fout | Meat For Free", "accounts", topbar("Actie gestopt", "Uitnodiging kon niet worden ingetrokken.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
 adminRouter.post("/accounts", urlencoded, (req, res) => {
   try {
-    requireOwner(req);
+    requirePermission(req, "manage_accounts");
     const user = createAdminUser({
       username: req.body.username,
       email: req.body.email,
       name: req.body.name,
+      title: req.body.title,
       password: req.body.password,
       role: req.body.role,
+      permissions: permissionValues(req.body.permissions),
       forcePasswordChange: req.body.forcePasswordChange === "1"
     });
     writeAuditLog({
@@ -2040,12 +2318,14 @@ adminRouter.post("/accounts", urlencoded, (req, res) => {
 
 adminRouter.post("/accounts/:userId/update", urlencoded, (req, res) => {
   try {
-    requireOwner(req);
+    requirePermission(req, "manage_accounts");
     const user = updateAdminUser(req.params.userId, {
       email: req.body.email,
       name: req.body.name,
+      title: req.body.title,
       role: req.body.role,
       status: req.body.status,
+      permissions: permissionValues(req.body.permissions),
       forcePasswordChange: req.body.forcePasswordChange === "1"
     });
     writeAuditLog({
@@ -2064,7 +2344,7 @@ adminRouter.post("/accounts/:userId/update", urlencoded, (req, res) => {
 
 adminRouter.post("/accounts/:userId/password", urlencoded, (req, res) => {
   try {
-    requireOwner(req);
+    requirePermission(req, "manage_accounts");
     const user = getAdminUser(req.params.userId);
     if (!user) throw new Error("Admin gebruiker niet gevonden.");
     setAdminUserPassword(user.id, req.body.password, {
@@ -2085,9 +2365,27 @@ adminRouter.post("/accounts/:userId/password", urlencoded, (req, res) => {
   }
 });
 
+adminRouter.post("/accounts/:userId/reset-link", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_accounts");
+    const reset = createAdminPasswordReset(req.params.userId, req.adminUser?.id || "");
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_PASSWORD_RESET_LINK_CREATED",
+      targetType: "admin_user",
+      targetId: req.params.userId,
+      message: "Admin wachtwoord resetlink aangemaakt."
+    });
+    const link = `${req.protocol}://${req.get("host")}${reset.resetPath}`;
+    res.send(accessLinkPage("Resetlink aangemaakt.", "Stuur deze link alleen naar de eigenaar van het account.", link));
+  } catch (error) {
+    res.status(400).send(page("Reset fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Resetlink kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
+});
+
 adminRouter.post("/accounts/:userId/revoke-sessions", urlencoded, (req, res) => {
   try {
-    requireOwner(req);
+    requirePermission(req, "manage_accounts");
     revokeAdminUserSessions(req.params.userId, req.params.userId === req.adminUser?.id ? req.adminSession?.id || "" : "");
     writeAuditLog({
       actor: actor(req),
@@ -2104,7 +2402,7 @@ adminRouter.post("/accounts/:userId/revoke-sessions", urlencoded, (req, res) => 
 
 adminRouter.post("/accounts/sessions/:sessionId/revoke", urlencoded, (req, res) => {
   try {
-    requireOwner(req);
+    requirePermission(req, "manage_accounts");
     revokeAdminSession(req.params.sessionId);
     writeAuditLog({
       actor: actor(req),
