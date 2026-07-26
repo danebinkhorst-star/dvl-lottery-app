@@ -104,15 +104,72 @@ function widgetRuntime() {
       .mff-live-widget .mff-title{
         max-width:620px;
       }
-      .mff-live-widget .mff-panel--gold{
-        border:0;
-        border-top:2px solid var(--mff-line);
-        border-radius:0;
-        background:transparent;
-        box-shadow:none;
-        padding:clamp(18px,2.4vw,28px) 0 0;
+      .mff-live-copy{min-width:0}
+      .mff-prize-feature{
+        position:relative;
+        min-height:clamp(260px,34vw,430px);
+        display:grid;
+        align-items:end;
+        overflow:hidden;
+        border:2px solid var(--mff-line);
+        border-radius:22px 8px 22px 8px;
+        background:linear-gradient(145deg,var(--mff-gold),#f5c044);
+        box-shadow:7px 7px 0 #000;
+        isolation:isolate;
       }
-      .mff-live-widget .mff-panel--gold .mff-label{
+      .mff-prize-feature--image{background:var(--mff-line)}
+      .mff-prize-feature__image{
+        position:absolute;
+        inset:0;
+        z-index:0;
+      }
+      .mff-prize-feature__image img{
+        width:100%;
+        height:100%;
+        display:block;
+        object-fit:cover;
+        object-position:center;
+      }
+      .mff-prize-feature__fallback{
+        position:absolute;
+        inset:0;
+        z-index:0;
+        display:grid;
+        place-items:center;
+        padding:26px;
+        color:rgba(33,21,15,.1);
+        font-size:clamp(64px,10vw,128px);
+        font-weight:950;
+        line-height:.8;
+        text-align:center;
+        text-transform:uppercase;
+      }
+      .mff-prize-feature:after{
+        content:"";
+        position:absolute;
+        inset:auto 0 0;
+        z-index:1;
+        height:58%;
+        background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.62) 100%);
+        pointer-events:none;
+      }
+      .mff-prize-feature__copy{
+        position:relative;
+        z-index:2;
+        display:grid;
+        gap:10px;
+        padding:clamp(16px,2.6vw,28px);
+        color:#fffdf7;
+        text-shadow:0 2px 0 #000;
+      }
+      .mff-prize-feature:not(.mff-prize-feature--image) .mff-prize-feature__copy{
+        color:var(--mff-ink);
+        text-shadow:none;
+      }
+      .mff-prize-feature:not(.mff-prize-feature--image):after{
+        background:linear-gradient(180deg,transparent 0%,rgba(255,253,247,.58) 100%);
+      }
+      .mff-prize-feature .mff-label{
         display:inline-flex;
         width:max-content;
         max-width:100%;
@@ -126,11 +183,23 @@ function widgetRuntime() {
         color:var(--mff-ink);
         opacity:1;
       }
-      .mff-live-widget .mff-panel--gold .mff-number{
-        margin-top:12px;
+      .mff-prize-feature .mff-number{
+        margin:0;
+        color:inherit;
+        letter-spacing:0;
+        text-shadow:inherit;
+      }
+      .mff-prize-feature .mff-copy{
+        margin:0;
+        color:inherit;
+        opacity:.95;
       }
       .mff-live-widget .mff-countdown{
         max-width:480px;
+      }
+      .mff-prize-feature .mff-countdown{
+        max-width:100%;
+        margin-top:2px;
       }
       .mff-section{
         position:relative;
@@ -963,7 +1032,7 @@ function widgetRuntime() {
         .mff-live-widget{margin-bottom:16px;border-radius:0;box-shadow:none;padding:28px 14px 48px}
         .mff-live-widget:after{bottom:-16px;height:16px;background-size:24px 16px,24px 16px;background-position:0 0,12px 0}
         .mff-live-widget .mff-hero{grid-template-columns:1fr;gap:24px}
-        .mff-live-widget .mff-panel--gold{padding-top:18px}
+        .mff-prize-feature{min-height:clamp(250px,72vw,360px)}
         .mff-live-widget .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
         .mff-section{padding:22px 14px}
         .mff-hero{grid-template-columns:1fr;gap:14px}
@@ -1253,9 +1322,12 @@ function widgetRuntime() {
     const copy = widgetCopy(data, "live");
     const draw = data.liveDraw;
     const ruleLabel = data.rule?.label || "1 gratis lot vanaf €70";
+    const prizeImage = visualImageSrc(copy);
+    const prizeTitle = draw?.prizeName || copy.fallbackPrize || "Vleespakket";
+    const prizeMeta = `${draw?.prizeValue || copy.fallbackPrizeValue || "Actieve trekking"} · ${draw?.entryCount ?? 0} loten live`;
     el.innerHTML = `<section ${visualAttrs(copy, "mff-live-widget")}>
       <div class="mff-hero">
-        <div>
+        <div class="mff-live-copy">
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Live winactie")}</p>
           <h2 class="mff-title">${escapeHtml(copy.heading || "Bestel. Pak je lot.")}</h2>
           <p class="mff-copy">${escapeHtml(copyText(copy.body || "{rule}. Volg je loten en trekkingen transparant in Mijn MFF.", { rule: ruleLabel }))}</p>
@@ -1264,12 +1336,14 @@ function widgetRuntime() {
             <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Shop vlees")}</a>
           </div>
         </div>
-        ${visualImage(copy)}
-        <div class="mff-panel mff-panel--gold">
-          <span class="mff-label">${escapeHtml(copy.prizeLabel || "Hoofdprijs nu")}</span>
-          <strong class="mff-number">${escapeHtml(draw?.prizeName || copy.fallbackPrize || "Vleespakket")}</strong>
-          <p class="mff-copy">${escapeHtml(draw?.prizeValue || copy.fallbackPrizeValue || "Actieve trekking")} · ${escapeHtml(draw?.entryCount ?? 0)} loten live</p>
-          ${countdownMarkup(draw)}
+        <div class="mff-prize-feature${prizeImage ? " mff-prize-feature--image" : ""}">
+          ${prizeImage ? `<div class="mff-prize-feature__image"><img src="${escapeHtml(prizeImage)}" alt="${escapeHtml(copy.visualImageAlt || prizeTitle)}" loading="lazy"></div>` : `<div class="mff-prize-feature__fallback" aria-hidden="true">MFF<br>Prijs</div>`}
+          <div class="mff-prize-feature__copy">
+            <span class="mff-label">${escapeHtml(copy.prizeLabel || "Hoofdprijs nu")}</span>
+            <strong class="mff-number">${escapeHtml(prizeTitle)}</strong>
+            <p class="mff-copy">${escapeHtml(prizeMeta)}</p>
+            ${countdownMarkup(draw)}
+          </div>
         </div>
       </div>
       ${compactWinnersMarkup(data)}
