@@ -19,6 +19,8 @@ const { createApp } = await import("../src/server.js");
 function resetAdminDb() {
   db.exec(`
     DELETE FROM admin_sessions;
+    DELETE FROM admin_kpi_messages;
+    DELETE FROM admin_kpi_threads;
     DELETE FROM admin_user_permissions;
     DELETE FROM admin_password_resets;
     DELETE FROM admin_invites;
@@ -99,6 +101,66 @@ test("team access system supports invites, granular permissions, reset links and
   await login(owner, "dvl", "Owner12345!");
   token = (await csrf(owner))[0];
 
+  await owner
+    .post("/admin/account/profile")
+    .type("form")
+    .send({
+      _csrf: token,
+      email: "owner@example.test",
+      name: "Eigenaar MFF",
+      title: "Controlecentrum lead",
+      avatarUrl: "/uploads/owner.png",
+      phone: "+31600000000",
+      bio: "Bewaakt winacties, loten en launch readiness.",
+      focusArea: "Orderkwaliteit en conversie",
+      availabilityStatus: "FOCUS"
+    })
+    .expect(302);
+
+  [token, accountsHtml] = await csrf(owner);
+  assert.match(accountsHtml, /Controlecentrum lead/);
+  assert.match(accountsHtml, /Orderkwaliteit en conversie/);
+
+  [token] = await csrf(owner, "/admin/teamhub");
+  const threadResponse = await owner
+    .post("/admin/teamhub/threads")
+    .type("form")
+    .send({
+      _csrf: token,
+      title: "Orders zonder lot bespreken",
+      kpiKey: "orders",
+      priority: "HIGH",
+      body: "Controleer of kwalificerende orders goed worden meegenomen."
+    })
+    .expect(302);
+  const threadPath = threadResponse.headers.location;
+  assert.match(threadPath, /^\/admin\/teamhub\?thread=/);
+  const threadId = decodeURIComponent(threadPath.split("thread=")[1]);
+  const threadPage = await owner.get(threadPath).expect(200);
+  assert.match(threadPage.text, /Orders zonder lot bespreken/);
+  assert.match(threadPage.text, /Controleer of kwalificerende orders/);
+
+  [token] = await csrf(owner, threadPath);
+  await owner
+    .post(`/admin/teamhub/threads/${threadId}/messages`)
+    .type("form")
+    .send({ _csrf: token, body: "Ik pak dit mee in de order sync check." })
+    .expect(302);
+
+  [token] = await csrf(owner, threadPath);
+  await owner
+    .post(`/admin/teamhub/threads/${threadId}/status`)
+    .type("form")
+    .send({ _csrf: token, status: "WATCHING", priority: "NORMAL", assignedTo: "" })
+    .expect(302);
+
+  assert.equal(db.prepare("SELECT availability_status FROM admin_users WHERE username = 'dvl'").get().availability_status, "FOCUS");
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM admin_kpi_threads").get().count, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM admin_kpi_messages").get().count, 2);
+  assert.equal(db.prepare("SELECT status FROM admin_kpi_threads WHERE id = ?").get(threadId).status, "WATCHING");
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM audit_logs WHERE action = 'KPI_THREAD_CREATED'").get().count, 1);
+
+  token = (await csrf(owner))[0];
   const inviteResponse = await owner
     .post("/admin/accounts/invites")
     .type("form")

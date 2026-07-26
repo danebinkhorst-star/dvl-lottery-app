@@ -130,6 +130,11 @@ export function initDb() {
       email TEXT UNIQUE,
       name TEXT,
       title TEXT,
+      avatar_url TEXT,
+      phone TEXT,
+      bio TEXT,
+      focus_area TEXT,
+      availability_status TEXT NOT NULL DEFAULT 'ONLINE',
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'ADMIN',
       status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -207,6 +212,31 @@ export function initDb() {
       FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS admin_kpi_threads (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      kpi_key TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'NORMAL',
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      created_by TEXT,
+      assigned_to TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT,
+      FOREIGN KEY (created_by) REFERENCES admin_users(id),
+      FOREIGN KEY (assigned_to) REFERENCES admin_users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_kpi_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      user_id TEXT,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (thread_id) REFERENCES admin_kpi_threads(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES admin_users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -277,6 +307,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_admin_password_resets_user ON admin_password_resets(user_id, expires_at);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id, expires_at);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_active ON admin_sessions(revoked_at, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_kpi_threads_status ON admin_kpi_threads(status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_kpi_threads_kpi ON admin_kpi_threads(kpi_key, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_kpi_messages_thread ON admin_kpi_messages(thread_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);
@@ -297,6 +330,11 @@ export function initDb() {
   ensureColumn("lottery_draws", "winner_internal_note", "TEXT");
   ensureColumn("admin_users", "team_id", "TEXT");
   ensureColumn("admin_users", "title", "TEXT");
+  ensureColumn("admin_users", "avatar_url", "TEXT");
+  ensureColumn("admin_users", "phone", "TEXT");
+  ensureColumn("admin_users", "bio", "TEXT");
+  ensureColumn("admin_users", "focus_area", "TEXT");
+  ensureColumn("admin_users", "availability_status", "TEXT NOT NULL DEFAULT 'ONLINE'");
   ensureColumn("admin_users", "totp_secret", "TEXT");
   ensureColumn("admin_users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("admin_users", "totp_confirmed_at", "TEXT");

@@ -28,8 +28,19 @@ import {
   revokeAdminUserSessions,
   setAdminUserPassword,
   startAdminTotpSetup,
+  updateOwnAdminProfile,
   updateAdminUser
 } from "../services/admin-accounts.js";
+import {
+  createKpiMessage,
+  createKpiThread,
+  getKpiThread,
+  kpiDiscussionSummary,
+  kpiThreadDefinitions,
+  listKpiMessages,
+  listKpiThreads,
+  updateKpiThread
+} from "../services/admin-collaboration.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
 import { icon } from "../services/admin-icons.js";
 import { formatEuro, makeEntryNumber } from "../utils.js";
@@ -170,6 +181,7 @@ function page(title, active, body) {
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
     ["producten", "/admin/producten", "Beef", "Producten"],
     ["deelnemers", "/admin/deelnemers", "Users", "Deelnemers"],
+    ["teamhub", "/admin/teamhub", "MessagesSquare", "Teamhub"],
     ["accounts", "/admin/accounts", "UserCog", "Accounts"],
     ["compliance", "/admin/compliance", "ShieldCheck", "Compliance"],
     ["sync", "/admin/sync", "RefreshCw", "Synchronisatie"],
@@ -340,6 +352,40 @@ function page(title, active, body) {
         .permission-check input { width:16px; min-height:16px; margin:2px 0 0; accent-color:var(--moss); }
         .permission-check small { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:650; line-height:1.3; }
         .permission-summary { display:flex; flex-wrap:wrap; gap:5px; align-items:center; max-width:430px; }
+        .avatar { width:42px; height:42px; display:inline-grid; place-items:center; flex:0 0 auto; overflow:hidden; border:1px solid var(--line); border-radius:50%; background:#eef5df; color:var(--forest); font-size:13px; font-weight:950; text-transform:uppercase; }
+        .avatar img { width:100%; height:100%; display:block; object-fit:cover; }
+        .avatar--lg { width:76px; height:76px; font-size:22px; }
+        .avatar-row { display:flex; align-items:center; gap:12px; min-width:0; }
+        .profile-card { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:start; }
+        .profile-upload { display:grid; gap:8px; margin-top:8px; }
+        .profile-upload input[type="file"] { min-height:40px; margin:0; padding:8px; border-style:dashed; background:#fffdf8; font-size:11px; cursor:pointer; }
+        .team-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+        .team-card { display:grid; gap:12px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+        .team-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+        .team-person { display:flex; align-items:center; gap:12px; min-width:0; }
+        .team-person strong { display:block; font-size:14px; font-weight:950; overflow-wrap:anywhere; }
+        .team-person small { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:750; }
+        .presence { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; font-weight:850; }
+        .presence::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--success); }
+        .presence--focus::before { background:var(--warning); }
+        .presence--away::before { background:#8b8b84; }
+        .hub-layout { display:grid; grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr); gap:16px; align-items:start; }
+        .thread-list { display:grid; gap:10px; }
+        .thread-card { display:grid; gap:9px; padding:13px; border:1px solid var(--line); border-radius:10px; background:#fff; text-decoration:none; }
+        .thread-card:hover, .thread-card:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
+        .thread-card--active { border-color:#a9c872; background:#f8fbf0; }
+        .thread-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+        .thread-card strong { display:block; font-size:14px; font-weight:950; line-height:1.25; }
+        .thread-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+        .discussion-panel { min-height:520px; display:grid; grid-template-rows:auto minmax(0,1fr) auto; }
+        .message-list { display:grid; align-content:start; gap:12px; max-height:620px; overflow:auto; padding:16px; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); background:#fffdf8; }
+        .message { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:start; }
+        .message-bubble { padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+        .message-bubble header { position:static; min-height:auto; display:flex; padding:0; border:0; background:transparent; backdrop-filter:none; justify-content:space-between; gap:12px; }
+        .message-bubble p { margin-top:7px; color:var(--ink); font-size:13px; font-weight:700; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
+        .message-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:14px; align-items:end; }
+        .message-form textarea { min-height:70px; }
+        .thread-create { display:grid; gap:12px; }
         .structure-meta { display:grid; gap:4px; padding:10px 0; }
         .structure-meta strong { font-size:13px; font-weight:950; }
         .code-line { width:100%; display:block; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.4; overflow:auto; }
@@ -419,6 +465,12 @@ function page(title, active, body) {
           .panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
+          .profile-card { grid-template-columns:1fr; }
+          .team-card, .thread-card, .message-bubble { border-radius:16px; }
+          .hub-layout { grid-template-columns:1fr; }
+          .discussion-panel { min-height:auto; }
+          .message-list { max-height:none; }
+          .message-form { grid-template-columns:1fr; }
           .sync-health { grid-template-columns:1fr; }
           .structure-row, .structure-row--compact { grid-template-columns:1fr; border-radius:16px; }
           .structure-meta { padding:0; }
@@ -438,13 +490,19 @@ function page(title, active, body) {
           h1 { font-size:30px; line-height:1.06; }
           h2 { font-size:21px; }
           .eyebrow { font-size:10px; }
+          .hub-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+          .hub-kpi-grid .card { min-height:118px; padding:14px 12px; border-radius:14px; }
+          .hub-kpi-grid .card-head { gap:8px; align-items:start; }
+          .hub-kpi-grid .card-icon { width:32px; height:32px; border-radius:9px; }
+          .hub-kpi-grid .stat { font-size:28px; }
+          .hub-kpi-grid .card p:last-child { font-size:11px; line-height:1.3; }
           .button, button { min-height:38px; border-radius:12px; }
           input, textarea, select { min-height:44px; border-radius:12px; }
           .metric-row > div:first-child { font-size:11px; }
           .status { padding:5px 8px; font-size:10px; }
         }
         @media (max-width:390px) {
-          .grid { grid-template-columns:1fr; }
+          .grid:not(.hub-kpi-grid) { grid-template-columns:1fr; }
           header .brand-mark { width:44px; height:50px; }
           .top-tools .button { padding:0 9px; }
         }
@@ -458,11 +516,11 @@ function page(title, active, body) {
           </a>
           <nav class="menu">
             <p class="menu-title">Beheer</p>
-            ${menu.slice(0, 9).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(0, 10).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Controle</p>
-            ${menu.slice(9, 14).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(10, 15).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
             <p class="menu-title">Acties</p>
-            ${menu.slice(14).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
+            ${menu.slice(15).map(([key, href, icon, label]) => menuLink(active, key, href, icon, label)).join("")}
           </nav>
         </aside>
         <div class="content">
@@ -540,6 +598,63 @@ function permissionSummary(permissions = []) {
   return `<div class="permission-summary">${permissions.slice(0, 5).map((permission) => `<span class="status">${escapeHtml(permissionLabel(permission))}</span>`).join("")}${permissions.length > 5 ? `<span class="muted">+${permissions.length - 5} meer</span>` : ""}</div>`;
 }
 
+function initials(user) {
+  const source = textParam(user?.name) || textParam(user?.username) || "MFF";
+  return source.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "MF";
+}
+
+function avatar(user, size = "") {
+  const className = `avatar${size === "lg" ? " avatar--lg" : ""}`;
+  const url = textParam(user?.avatarUrl || user?.avatar_url);
+  if (url) return `<span class="${className}" aria-hidden="true"><img src="${escapeHtml(url)}" alt=""></span>`;
+  return `<span class="${className}" aria-hidden="true">${escapeHtml(initials(user))}</span>`;
+}
+
+function availabilityLabel(status) {
+  const labels = {
+    ONLINE: "Beschikbaar",
+    FOCUS: "Focus",
+    AWAY: "Afwezig"
+  };
+  return labels[status] || "Beschikbaar";
+}
+
+function availabilityClass(status) {
+  if (status === "FOCUS") return "presence--focus";
+  if (status === "AWAY") return "presence--away";
+  return "";
+}
+
+function kpiLabel(key) {
+  return kpiThreadDefinitions.find(([code]) => code === key)?.[1] || "Overzicht";
+}
+
+function kpiOptions(current = "") {
+  return kpiThreadDefinitions.map(([code, label]) => option(code, current, label)).join("");
+}
+
+function priorityLabel(priority) {
+  const labels = { LOW: "Laag", NORMAL: "Normaal", HIGH: "Hoog", URGENT: "Urgent" };
+  return labels[priority] || "Normaal";
+}
+
+function threadStatusLabel(status) {
+  const labels = { OPEN: "Open", WATCHING: "Monitor", RESOLVED: "Afgerond" };
+  return labels[status] || "Open";
+}
+
+function priorityStatusClass(priority) {
+  if (priority === "URGENT" || priority === "HIGH") return "actie";
+  if (priority === "LOW") return "laag";
+  return "controle";
+}
+
+function threadStatusClass(status) {
+  if (status === "RESOLVED") return "goed";
+  if (status === "WATCHING") return "monitor";
+  return "active";
+}
+
 function formatShortDate(value) {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -551,7 +666,61 @@ function currentUserPanel(user, reason = "") {
   const mustChange = reason === "password" || user?.forcePasswordChange;
   const setup = user?.id ? getAdminTotpSetup(user.id) : null;
   return `<section class="panel panel-pad">
-    <div class="panel-title"><div><h2>Mijn account</h2><p class="helper">Ingelogd als ${escapeHtml(user?.username || "admin")} · ${escapeHtml(roleLabel(user?.role))}</p></div>${mustChange ? '<span class="status status--actie">Wachtwoord verplicht</span>' : '<span class="status status--active">Actief</span>'}</div>
+    <div class="panel-title"><div><h2>Mijn profiel</h2><p class="helper">Zichtbaar in Teamhub, KPI-discussies en audit-context.</p></div>${mustChange ? '<span class="status status--actie">Wachtwoord verplicht</span>' : '<span class="status status--active">Actief</span>'}</div>
+    <form method="post" action="/admin/account/profile" class="profile-card" data-profile-form>
+      ${avatar(user, "lg")}
+      <div class="stack">
+        <div class="form-grid">
+          <label>Naam<input name="name" value="${escapeHtml(user?.name || "")}" autocomplete="name"></label>
+          <label>Functie<input name="title" value="${escapeHtml(user?.title || "")}" autocomplete="organization-title"></label>
+          <label>E-mail<input name="email" type="email" value="${escapeHtml(user?.email || "")}" autocomplete="email"></label>
+          <label>Telefoon<input name="phone" value="${escapeHtml(user?.phone || "")}" autocomplete="tel"></label>
+          <label>Beschikbaarheid<select name="availabilityStatus">${option("ONLINE", user?.availabilityStatus, "Beschikbaar")}${option("FOCUS", user?.availabilityStatus, "Focus")}${option("AWAY", user?.availabilityStatus, "Afwezig")}</select></label>
+          <label>Focusgebied<input name="focusArea" value="${escapeHtml(user?.focusArea || "")}" placeholder="Bijv. orderkwaliteit, winnaars, conversie"></label>
+          <label class="wide">Profielfoto URL<input name="avatarUrl" value="${escapeHtml(user?.avatarUrl || "")}" inputmode="url" placeholder="/uploads/... of https://...">
+            <div class="profile-upload">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-profile-upload="avatarUrl" aria-label="Upload profielfoto">
+              <span class="widget-upload-status" data-profile-upload-status>Max 4MB</span>
+            </div>
+          </label>
+          <label class="wide">Korte bio<textarea name="bio" maxlength="360" placeholder="Waarvoor kan het team jou taggen?">${escapeHtml(user?.bio || "")}</textarea></label>
+        </div>
+        <div class="actions" style="justify-content:flex-start"><button class="button--gold" type="submit">${icon("Save")}Profiel opslaan</button><a class="button button--ghost" href="/admin/teamhub">${icon("MessagesSquare")}Teamhub</a></div>
+      </div>
+    </form>
+    <script>
+      (() => {
+        const form = document.querySelector("[data-profile-form]");
+        const input = form?.querySelector("[data-profile-upload]");
+        if (!form || !input) return;
+        input.addEventListener("change", async () => {
+          const file = input.files && input.files[0];
+          const target = form.querySelector('[name="' + input.dataset.profileUpload + '"]');
+          const status = form.querySelector("[data-profile-upload-status]");
+          const csrf = form.querySelector('[name="_csrf"]')?.value || "";
+          if (!file || !target || !status || !csrf) return;
+          const body = new FormData();
+          body.append("image", file);
+          body.append("field", "adminAvatar");
+          status.textContent = "Uploaden...";
+          status.classList.remove("widget-upload-status--ok", "widget-upload-status--error");
+          try {
+            const response = await fetch("/admin/uploads", { method: "POST", headers: { "X-CSRF-Token": csrf }, body });
+            const payload = await response.json();
+            if (!response.ok || !payload.url) throw new Error(payload.error || "Upload mislukt.");
+            target.value = payload.url;
+            status.textContent = "Geupload";
+            status.classList.add("widget-upload-status--ok");
+          } catch (error) {
+            status.textContent = error.message || "Upload mislukt";
+            status.classList.add("widget-upload-status--error");
+          } finally {
+            input.value = "";
+          }
+        });
+      })();
+    </script>
+    <div class="section-head" style="margin-top:22px"><h3>Security</h3><span class="muted">Ingelogd als ${escapeHtml(user?.username || "admin")} · ${escapeHtml(roleLabel(user?.role))}</span></div>
     <form method="post" action="/admin/account/password" class="form-grid">
       <label>Huidig wachtwoord<input name="currentPassword" type="password" autocomplete="current-password" required></label>
       <label>Nieuw wachtwoord<input name="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
@@ -589,7 +758,7 @@ function accountRows(users, currentUser, canManage) {
   return users.map((user) => {
     const isSelf = user.id === currentUser?.id;
     return `<tr>
-      <td><strong>${escapeHtml(user.username)}</strong><span class="muted">${escapeHtml(user.name || user.email || "Geen profielinfo")}</span></td>
+      <td><div class="avatar-row">${avatar(user)}<span><strong>${escapeHtml(user.name || user.username)}</strong><span class="muted">${escapeHtml(user.title || user.email || "Geen profielinfo")}</span></span></div></td>
       <td>${statusBadge(user.status === "ACTIVE" ? "active" : "void")}</td>
       <td><span class="status">${escapeHtml(roleLabel(user.role))}</span></td>
       <td>${escapeHtml(formatShortDate(user.lastLoginAt))}</td>
@@ -691,6 +860,80 @@ function sessionRows(sessions, currentSessionId, canManage) {
       <td>${canManage && !session.revokedAt && !isCurrent ? `<form method="post" action="/admin/accounts/sessions/${escapeHtml(session.id)}/revoke" class="inline-form"><button class="button--ghost" type="submit">${icon("Ban")}Intrekken</button></form>` : ""}</td>
     </tr>`;
   }).join("");
+}
+
+function teamCards(users) {
+  if (!users.length) return `<div class="empty">Nog geen teamleden.</div>`;
+  return `<div class="team-grid">${users.map((user) => `<article class="team-card">
+    <div class="team-card-head">
+      <div class="team-person">${avatar(user)}<span><strong>${escapeHtml(user.name || user.username)}</strong><small>${escapeHtml(user.title || roleLabel(user.role))}</small></span></div>
+      <span class="presence ${availabilityClass(user.availabilityStatus)}">${escapeHtml(availabilityLabel(user.availabilityStatus))}</span>
+    </div>
+    <p class="muted">${escapeHtml(user.focusArea || "Geen focusgebied ingesteld.")}</p>
+    ${user.bio ? `<p>${escapeHtml(user.bio)}</p>` : ""}
+  </article>`).join("")}</div>`;
+}
+
+function threadCards(threads, activeThreadId = "") {
+  if (!threads.length) return `<div class="empty">Nog geen KPI-discussies. Start er een wanneer een metric aandacht nodig heeft.</div>`;
+  return `<div class="thread-list">${threads.map((thread) => `<a class="thread-card${thread.id === activeThreadId ? " thread-card--active" : ""}" href="/admin/teamhub?thread=${encodeURIComponent(thread.id)}">
+    <div class="thread-card-head">
+      <strong>${escapeHtml(thread.title)}</strong>
+      <span class="status status--${threadStatusClass(thread.status)}">${escapeHtml(threadStatusLabel(thread.status))}</span>
+    </div>
+    <div class="thread-meta">
+      <span class="status">${escapeHtml(kpiLabel(thread.kpi_key))}</span>
+      <span class="status status--${priorityStatusClass(thread.priority)}">${escapeHtml(priorityLabel(thread.priority))}</span>
+      <span class="muted">${Number(thread.message_count || 0)} bericht(en)</span>
+    </div>
+    <div class="avatar-row">${avatar({ name: thread.creator_name, username: thread.creator_username, avatar_url: thread.creator_avatar_url })}<span class="muted">Laatste update ${escapeHtml(formatShortDate(thread.last_message_at || thread.updated_at))}</span></div>
+  </a>`).join("")}</div>`;
+}
+
+function messageRows(messages) {
+  if (!messages.length) return `<div class="empty">Nog geen berichten.</div>`;
+  return messages.map((message) => `<article class="message">
+    ${avatar({ name: message.name, username: message.username, avatar_url: message.avatar_url })}
+    <div class="message-bubble">
+      <header><strong>${escapeHtml(message.name || message.username || "Admin")}</strong><span class="muted">${escapeHtml(formatShortDate(message.created_at))}</span></header>
+      <p>${escapeHtml(message.body)}</p>
+    </div>
+  </article>`).join("");
+}
+
+function threadPanel(thread, messages, users, canManage) {
+  if (!thread) {
+    return `<section class="panel panel-pad discussion-panel">
+      <div class="panel-title"><div><h2>Kies een KPI-discussie</h2><p class="helper">Gebruik dit voor beslissingen rond loten, orders, conversie, winners en compliance.</p></div></div>
+      <div class="empty">Selecteer links een gesprek of start een nieuwe discussie.</div>
+    </section>`;
+  }
+  return `<section class="panel discussion-panel">
+    <div class="panel-pad">
+      <div class="panel-title">
+        <div>
+          <p class="eyebrow">${escapeHtml(kpiLabel(thread.kpi_key))}</p>
+          <h2>${escapeHtml(thread.title)}</h2>
+          <p class="helper">Gestart door ${escapeHtml(thread.creator_name || thread.creator_username || "admin")} · bijgewerkt ${escapeHtml(formatShortDate(thread.updated_at))}</p>
+        </div>
+        <div class="actions">
+          <span class="status status--${priorityStatusClass(thread.priority)}">${escapeHtml(priorityLabel(thread.priority))}</span>
+          <span class="status status--${threadStatusClass(thread.status)}">${escapeHtml(threadStatusLabel(thread.status))}</span>
+        </div>
+      </div>
+      ${canManage ? `<form method="post" action="/admin/teamhub/threads/${escapeHtml(thread.id)}/status" class="filter-grid">
+        <label>Status<select name="status">${option("OPEN", thread.status, "Open")}${option("WATCHING", thread.status, "Monitor")}${option("RESOLVED", thread.status, "Afgerond")}</select></label>
+        <label>Prioriteit<select name="priority">${option("LOW", thread.priority, "Laag")}${option("NORMAL", thread.priority, "Normaal")}${option("HIGH", thread.priority, "Hoog")}${option("URGENT", thread.priority, "Urgent")}</select></label>
+        <label>Eigenaar<select name="assignedTo"><option value="">Geen eigenaar</option>${users.map((user) => option(user.id, thread.assigned_to, user.name || user.username)).join("")}</select></label>
+        <div class="actions"><button type="submit">${icon("Save")}Bijwerken</button></div>
+      </form>` : ""}
+    </div>
+    <div class="message-list">${messageRows(messages)}</div>
+    ${canManage ? `<form method="post" action="/admin/teamhub/threads/${escapeHtml(thread.id)}/messages" class="message-form">
+      <label>Nieuw bericht<textarea name="body" placeholder="Wat is de conclusie, blokkade of actie?"></textarea></label>
+      <button class="button--gold" type="submit">${icon("Send")}Plaatsen</button>
+    </form>` : `<div class="panel-pad"><p class="muted">Je hebt alleen leesrechten voor KPI-discussies.</p></div>`}
+  </section>`;
 }
 
 async function createManualEntry({ drawId, email, firstName, lastName, reason }) {
@@ -1027,9 +1270,9 @@ function drawChecklist(draw, counts = []) {
   return { checks, ready, activeEntries };
 }
 
-function kpiGrid(items) {
+function kpiGrid(items, className = "") {
   const tints = ["card--tint-0", "card--tint-1", "card--tint-2", "card--tint-3"];
-  return `<section class="grid" aria-label="Kerncijfers">${items.map((item, index) => {
+  return `<section class="grid${className ? ` ${escapeHtml(className)}` : ""}" aria-label="Kerncijfers">${items.map((item, index) => {
     const value = String(item.value ?? "-");
     const isTextValue = /[A-Za-zÀ-ÿ]/.test(value);
     return `<div class="card ${tints[index % tints.length]}">
@@ -1819,7 +2062,7 @@ function siteStructurePage() {
 function routePermission(req) {
   const path = req.path;
   const method = req.method;
-  if (path === "/menu" || path === "/account/password" || path.startsWith("/account/2fa")) return "";
+  if (path === "/menu" || path === "/account/profile" || path === "/account/password" || path.startsWith("/account/2fa")) return "";
   if (path === "/") return "view_dashboard";
   if (path.startsWith("/accounts")) return method === "GET" && path === "/accounts" ? "" : "manage_accounts";
   if (path.startsWith("/site-structuur")) return "manage_site";
@@ -1830,6 +2073,7 @@ function routePermission(req) {
   if (path.startsWith("/orders")) return "view_orders";
   if (path.startsWith("/producten")) return "view_products";
   if (path.startsWith("/deelnemers")) return "view_participants";
+  if (path.startsWith("/teamhub")) return method === "GET" ? "view_teamhub" : "manage_teamhub";
   if (path.startsWith("/compliance")) return "view_compliance";
   if (path.startsWith("/regels")) return "manage_rules";
   if (path.startsWith("/sync-products")) return "manage_products";
@@ -2066,6 +2310,7 @@ adminRouter.get("/menu", (_req, res) => {
     ]],
     ["Controle", [
       ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
+      ["Teamhub", "/admin/teamhub", "MessagesSquare", "Profielen en KPI-discussies."],
       ["Accounts", "/admin/accounts", "UserCog", "Admin gebruikers, rollen en sessies."],
       ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
       ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
@@ -2095,6 +2340,119 @@ adminRouter.get("/menu", (_req, res) => {
       <form method="post" action="/admin/logout" class="inline-form"><button type="submit">${icon("LogOut")}Uitloggen</button></form>
     </section>
   `));
+});
+
+adminRouter.get("/teamhub", (req, res) => {
+  const canManage = hasAdminPermission(req.adminUser, "manage_teamhub");
+  const users = listAdminUsers();
+  const threads = listKpiThreads({ limit: 60 });
+  const selectedThreadId = textParam(req.query.thread) || threads[0]?.id || "";
+  const selectedThread = selectedThreadId ? getKpiThread(selectedThreadId) : null;
+  const messages = selectedThread ? listKpiMessages(selectedThread.id) : [];
+  const metrics = getMetrics();
+  const discussions = kpiDiscussionSummary();
+  const productStatus = productSyncStatus();
+  res.send(page("Teamhub | Meat For Free", "teamhub", `
+    ${topbar("Controlecentrum", "Teamhub en KPI-overleg.", "Profielen, verantwoordelijkheden en KPI-beslissingen op één plek. Alleen actiegerichte discussies, geen losse chatruis.", `<a class="button button--ghost" href="/admin/accounts">${icon("UserCog")}Account instellingen</a>`)}
+    ${kpiGrid([
+      { label: "Open KPI-discussies", value: discussions.openCount, help: `${discussions.hotCount} hoge prioriteit.`, icon: "MessagesSquare" },
+      { label: "Live loten", value: metrics.activeLiveEntries, help: "Actieve loten in live winacties.", icon: "Tickets" },
+      { label: "Missende loten", value: metrics.eligibleWithoutEntry, help: "Geschikte orders zonder lot.", icon: "TriangleAlert" },
+      { label: "Product sync", value: productStatus.available, help: productStatus.lastSyncedAt ? `Laatste sync ${formatShortDate(productStatus.lastSyncedAt)}.` : "Nog geen sync.", icon: "Beef" }
+    ], "hub-kpi-grid")}
+    <div class="section-head"><h2>Teamprofielen</h2><span class="muted">Wie pakt welke signalen op?</span></div>
+    ${teamCards(users)}
+    <div class="section-head"><h2>KPI-discussies</h2><span class="muted">Beslissingen per metric, auditbaar en terugleesbaar.</span></div>
+    <section class="hub-layout">
+      <div class="stack">
+        ${canManage ? `<section class="panel panel-pad">
+          <div class="panel-title"><div><h2>Nieuwe discussie</h2><p class="helper">Start alleen een thread als er een beslissing, blokkade of duidelijke actie nodig is.</p></div></div>
+          <form method="post" action="/admin/teamhub/threads" class="thread-create">
+            <label>Titel<input name="title" placeholder="Bijv. Orders zonder lot onderzoeken" required></label>
+            <div class="form-grid">
+              <label>KPI<select name="kpiKey">${kpiOptions()}</select></label>
+              <label>Prioriteit<select name="priority">${option("NORMAL", "", "Normaal")}${option("HIGH", "", "Hoog")}${option("URGENT", "", "Urgent")}${option("LOW", "", "Laag")}</select></label>
+            </div>
+            <label>Eerste bericht<textarea name="body" placeholder="Wat zien we, waarom maakt het uit, en wat moet beslist worden?" required></textarea></label>
+            <div class="actions" style="justify-content:flex-start"><button class="button--gold" type="submit">${icon("MessageSquarePlus")}Discussie starten</button></div>
+          </form>
+        </section>` : ""}
+        <section class="panel panel-pad">
+          <div class="panel-title"><div><h2>Actieve threads</h2><p class="helper">${threads.length} discussie(s), nieuwste activiteit bovenaan.</p></div></div>
+          ${threadCards(threads, selectedThread?.id || "")}
+        </section>
+      </div>
+      ${threadPanel(selectedThread, messages, users, canManage)}
+    </section>
+  `));
+});
+
+adminRouter.post("/teamhub/threads", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_teamhub");
+    const thread = createKpiThread({
+      title: req.body.title,
+      kpiKey: req.body.kpiKey,
+      priority: req.body.priority,
+      body: req.body.body,
+      createdBy: req.adminUser?.id || ""
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "KPI_THREAD_CREATED",
+      targetType: "admin_kpi_thread",
+      targetId: thread.id,
+      message: `KPI-discussie aangemaakt: ${thread.title}.`,
+      metadata: { kpiKey: thread.kpi_key, priority: thread.priority }
+    });
+    res.redirect(`/admin/teamhub?thread=${encodeURIComponent(thread.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Teamhub fout | Meat For Free", "teamhub", topbar("Niet opgeslagen", "KPI-discussie kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/teamhub">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/teamhub/threads/:threadId/messages", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_teamhub");
+    createKpiMessage({
+      threadId: req.params.threadId,
+      userId: req.adminUser?.id || "",
+      body: req.body.body
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "KPI_THREAD_MESSAGE_CREATED",
+      targetType: "admin_kpi_thread",
+      targetId: req.params.threadId,
+      message: "Bericht toegevoegd aan KPI-discussie."
+    });
+    res.redirect(`/admin/teamhub?thread=${encodeURIComponent(req.params.threadId)}`);
+  } catch (error) {
+    res.status(400).send(page("Teamhub fout | Meat For Free", "teamhub", topbar("Niet opgeslagen", "Bericht kon niet worden geplaatst.", error.message, `<a class="button button--gold" href="/admin/teamhub">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/teamhub/threads/:threadId/status", urlencoded, (req, res) => {
+  try {
+    requirePermission(req, "manage_teamhub");
+    const thread = updateKpiThread({
+      threadId: req.params.threadId,
+      status: req.body.status,
+      priority: req.body.priority,
+      assignedTo: req.body.assignedTo
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "KPI_THREAD_UPDATED",
+      targetType: "admin_kpi_thread",
+      targetId: thread.id,
+      message: `KPI-discussie bijgewerkt: ${thread.title}.`,
+      metadata: { status: thread.status, priority: thread.priority, assignedTo: thread.assigned_to || "" }
+    });
+    res.redirect(`/admin/teamhub?thread=${encodeURIComponent(thread.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Teamhub fout | Meat For Free", "teamhub", topbar("Niet opgeslagen", "Status kon niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/teamhub">Terug</a>`)));
+  }
 });
 
 adminRouter.get("/accounts", (req, res) => {
@@ -2164,6 +2522,33 @@ adminRouter.get("/accounts", (req, res) => {
       </table>
     </div>` : ""}
   `));
+});
+
+adminRouter.post("/account/profile", urlencoded, (req, res) => {
+  try {
+    if (!req.adminUser?.id || req.adminUser.id === "legacy") throw new Error("Log opnieuw in om je profiel te beheren.");
+    const user = updateOwnAdminProfile(req.adminUser.id, {
+      email: req.body.email,
+      name: req.body.name,
+      title: req.body.title,
+      avatarUrl: req.body.avatarUrl,
+      phone: req.body.phone,
+      bio: req.body.bio,
+      focusArea: req.body.focusArea,
+      availabilityStatus: req.body.availabilityStatus
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "ADMIN_PROFILE_UPDATED",
+      targetType: "admin_user",
+      targetId: user.id,
+      message: "Admin profiel bijgewerkt.",
+      metadata: { availabilityStatus: user.availabilityStatus, focusArea: user.focusArea }
+    });
+    res.redirect("/admin/accounts");
+  } catch (error) {
+    res.status(400).send(page("Profiel fout | Meat For Free", "accounts", topbar("Niet opgeslagen", "Profiel kon niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/accounts">Terug</a>`)));
+  }
 });
 
 adminRouter.post("/account/password", urlencoded, (req, res) => {

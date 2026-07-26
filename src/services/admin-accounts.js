@@ -30,6 +30,8 @@ export const adminPermissionDefinitions = [
   ["manage_widgets", "Widgets beheren", "Embed copy, beelden en instellingen wijzigen."],
   ["manage_sync", "Synchronisatie beheren", "Shopify/customer syncs starten."],
   ["manage_uploads", "Uploads beheren", "Afbeeldingen uploaden."],
+  ["view_teamhub", "Teamhub bekijken", "Profielen en KPI-discussies lezen."],
+  ["manage_teamhub", "KPI-discussies beheren", "KPI-discussies starten, beantwoorden en status aanpassen."],
   ["view_audit", "Audit bekijken", "Beheerlog en security historie lezen."],
   ["manage_accounts", "Accounts beheren", "Teamleden, rechten, resets en sessies beheren."]
 ];
@@ -40,11 +42,12 @@ const rolePermissionTemplates = {
   ADMIN: [
     "view_dashboard", "view_analytics", "view_draws", "manage_draws", "view_winners", "manage_winners",
     "view_entries", "manage_entries", "view_orders", "view_products", "manage_products", "view_participants",
-    "view_compliance", "manage_rules", "manage_site", "manage_widgets", "manage_sync", "manage_uploads", "view_audit"
+    "view_compliance", "manage_rules", "manage_site", "manage_widgets", "manage_sync", "manage_uploads",
+    "view_teamhub", "manage_teamhub", "view_audit"
   ],
   VIEWER: [
     "view_dashboard", "view_analytics", "view_draws", "view_winners", "view_entries", "view_orders",
-    "view_products", "view_participants", "view_compliance", "view_audit"
+    "view_products", "view_participants", "view_compliance", "view_teamhub", "view_audit"
   ]
 };
 
@@ -62,6 +65,19 @@ function cleanText(value, max = 160) {
 
 function cleanEmail(value) {
   return cleanText(value, 220).toLowerCase();
+}
+
+function cleanUrl(value) {
+  const raw = cleanText(value, 520);
+  if (!raw) return "";
+  if (raw.startsWith("/uploads/")) return raw;
+  if (/^https:\/\/[^\s<>"']+$/i.test(raw)) return raw;
+  return "";
+}
+
+function cleanAvailability(value) {
+  const status = cleanText(value, 30).toUpperCase();
+  return ["ONLINE", "FOCUS", "AWAY"].includes(status) ? status : "ONLINE";
 }
 
 function passwordHash(password) {
@@ -150,6 +166,11 @@ function publicUser(row) {
     email: row.email || "",
     name: row.name || "",
     title: row.title || "",
+    avatarUrl: row.avatar_url || "",
+    phone: row.phone || "",
+    bio: row.bio || "",
+    focusArea: row.focus_area || "",
+    availabilityStatus: row.availability_status || "ONLINE",
     role: row.role,
     status: row.status,
     permissions: permissionsForUser(row.id, row.role),
@@ -350,6 +371,11 @@ export function createAdminUser({ username, email = "", name = "", title = "", p
     email: nextEmail || null,
     name: cleanText(name, 120),
     title: cleanText(title, 120),
+    avatar_url: null,
+    phone: null,
+    bio: null,
+    focus_area: null,
+    availability_status: "ONLINE",
     password_hash: passwordHash(password),
     role: nextRole,
     status: "ACTIVE",
@@ -366,12 +392,12 @@ export function createAdminUser({ username, email = "", name = "", title = "", p
   };
   db.prepare(`
     INSERT INTO admin_users (
-      id, team_id, username, email, name, title, password_hash, role, status, force_password_change,
+      id, team_id, username, email, name, title, avatar_url, phone, bio, focus_area, availability_status, password_hash, role, status, force_password_change,
       failed_login_count, locked_until, last_login_at, password_updated_at, totp_secret, totp_enabled,
       totp_confirmed_at, created_at, updated_at
     )
     VALUES (
-      @id, @team_id, @username, @email, @name, @title, @password_hash, @role, @status, @force_password_change,
+      @id, @team_id, @username, @email, @name, @title, @avatar_url, @phone, @bio, @focus_area, @availability_status, @password_hash, @role, @status, @force_password_change,
       @failed_login_count, @locked_until, @last_login_at, @password_updated_at, @totp_secret, @totp_enabled,
       @totp_confirmed_at, @created_at, @updated_at
     )
@@ -489,6 +515,7 @@ export function validateAdminSessionToken(token) {
   if (!sessionId || !secret) return null;
   const row = db.prepare(`
     SELECT s.*, u.username, u.email, u.name, u.title, u.team_id, u.role, u.status, u.force_password_change, u.failed_login_count,
+      u.avatar_url, u.phone, u.bio, u.focus_area, u.availability_status,
       u.locked_until, u.last_login_at, u.password_updated_at, u.totp_enabled, u.totp_confirmed_at,
       u.created_at AS user_created_at, u.updated_at AS user_updated_at, t.name AS team_name
     FROM admin_sessions s
@@ -517,6 +544,11 @@ export function validateAdminSessionToken(token) {
       email: row.email,
       name: row.name,
       title: row.title,
+      avatar_url: row.avatar_url,
+      phone: row.phone,
+      bio: row.bio,
+      focus_area: row.focus_area,
+      availability_status: row.availability_status,
       role: row.role,
       status: row.status,
       force_password_change: row.force_password_change,
@@ -591,6 +623,33 @@ export function updateAdminUser(userId, { email, name, title = "", role, status,
   `).run(nextEmail || null, cleanText(name, 120), cleanText(title, 120), nextRole, nextStatus, forcePasswordChange ? 1 : 0, nowIso(), userId);
   grantUserPermissions(userId, permissions, nextRole);
   if (nextStatus !== "ACTIVE") revokeAdminUserSessions(userId);
+  return getAdminUser(userId);
+}
+
+export function updateOwnAdminProfile(userId, { email, name, title = "", avatarUrl = "", phone = "", bio = "", focusArea = "", availabilityStatus = "ONLINE" }) {
+  ensureAdminAccessSystem();
+  const user = getAdminUser(userId);
+  if (!user) throw new Error("Admin gebruiker niet gevonden.");
+  const nextEmail = cleanEmail(email);
+  if (nextEmail && !nextEmail.includes("@")) throw new Error("Vul een geldig e-mailadres in.");
+  const existing = nextEmail ? db.prepare("SELECT id FROM admin_users WHERE lower(email) = ? AND id != ?").get(nextEmail, userId) : null;
+  if (existing) throw new Error("Er bestaat al een account met dit e-mailadres.");
+  db.prepare(`
+    UPDATE admin_users
+    SET email = ?, name = ?, title = ?, avatar_url = ?, phone = ?, bio = ?, focus_area = ?, availability_status = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    nextEmail || null,
+    cleanText(name, 120),
+    cleanText(title, 120),
+    cleanUrl(avatarUrl) || null,
+    cleanText(phone, 80) || null,
+    cleanText(bio, 360) || null,
+    cleanText(focusArea, 120) || null,
+    cleanAvailability(availabilityStatus),
+    nowIso(),
+    userId
+  );
   return getAdminUser(userId);
 }
 
