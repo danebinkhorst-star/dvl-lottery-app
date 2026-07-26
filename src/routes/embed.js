@@ -147,20 +147,23 @@ function widgetRuntime() {
       .mff-prize-feature:after{
         content:"";
         position:absolute;
-        inset:auto 0 0;
+        inset:0;
         z-index:1;
-        height:58%;
-        background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.62) 100%);
+        background:
+          linear-gradient(90deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.48) 48%,rgba(0,0,0,.18) 100%),
+          linear-gradient(180deg,rgba(0,0,0,.12) 0%,rgba(0,0,0,.68) 100%);
         pointer-events:none;
       }
       .mff-prize-feature__copy{
         position:relative;
         z-index:2;
         display:grid;
-        gap:10px;
+        align-content:end;
+        gap:8px;
+        width:min(100%,520px);
         padding:clamp(16px,2.6vw,28px);
         color:#fffdf7;
-        text-shadow:0 2px 0 #000;
+        text-shadow:0 2px 0 #000,0 8px 18px rgba(0,0,0,.45);
       }
       .mff-prize-feature:not(.mff-prize-feature--image) .mff-prize-feature__copy{
         color:var(--mff-ink);
@@ -181,17 +184,26 @@ function widgetRuntime() {
         box-shadow:3px 3px 0 var(--mff-shadow);
         padding:0 9px;
         color:var(--mff-ink);
+        font-size:10px;
+        letter-spacing:0;
         opacity:1;
       }
       .mff-prize-feature .mff-number{
         margin:0;
         color:inherit;
+        max-width:11ch;
+        font-size:clamp(34px,5vw,62px);
+        line-height:.86;
         letter-spacing:0;
         text-shadow:inherit;
       }
       .mff-prize-feature .mff-copy{
+        max-width:28ch;
         margin:0;
         color:inherit;
+        font-size:clamp(12px,1.25vw,15px);
+        font-weight:950;
+        line-height:1.18;
         opacity:.95;
       }
       .mff-live-widget .mff-countdown{
@@ -200,6 +212,25 @@ function widgetRuntime() {
       .mff-prize-feature .mff-countdown{
         max-width:100%;
         margin-top:2px;
+      }
+      .mff-prize-feature .mff-time{
+        min-height:58px;
+        background:rgba(255,253,247,.94);
+        color:var(--mff-ink);
+        text-shadow:none;
+        box-shadow:0 2px 0 #000;
+      }
+      .mff-prize-feature .mff-time strong{
+        color:var(--mff-ink);
+        font-size:clamp(22px,2.8vw,30px);
+        letter-spacing:0;
+        text-shadow:none;
+      }
+      .mff-prize-feature .mff-time span{
+        color:var(--mff-ink);
+        letter-spacing:0;
+        opacity:.78;
+        text-shadow:none;
       }
       .mff-section{
         position:relative;
@@ -1033,6 +1064,16 @@ function widgetRuntime() {
         .mff-live-widget:after{bottom:-16px;height:16px;background-size:24px 16px,24px 16px;background-position:0 0,12px 0}
         .mff-live-widget .mff-hero{grid-template-columns:1fr;gap:24px}
         .mff-prize-feature{min-height:clamp(250px,72vw,360px)}
+        .mff-prize-feature:after{
+          background:
+            linear-gradient(90deg,rgba(0,0,0,.76) 0%,rgba(0,0,0,.5) 56%,rgba(0,0,0,.2) 100%),
+            linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.7) 100%);
+        }
+        .mff-prize-feature__copy{gap:7px;padding:14px}
+        .mff-prize-feature .mff-number{max-width:9.5ch;font-size:clamp(29px,9vw,36px);line-height:.88}
+        .mff-prize-feature .mff-copy{font-size:12px}
+        .mff-prize-feature .mff-time{min-height:52px}
+        .mff-prize-feature .mff-time strong{font-size:22px}
         .mff-live-widget .mff-countdown{grid-template-columns:repeat(2,minmax(0,1fr))}
         .mff-section{padding:22px 14px}
         .mff-hero{grid-template-columns:1fr;gap:14px}
