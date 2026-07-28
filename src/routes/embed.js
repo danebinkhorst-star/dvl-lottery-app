@@ -350,7 +350,7 @@ function widgetRuntime() {
       .mff-winners-carousel--compact .mff-winner-photo{width:64px}
       .mff-winner-copy{min-width:0}
       .mff-winner-initial{display:grid;place-items:center;color:var(--mff-ink);font-size:clamp(26px,3vw,42px);font-weight:950;text-transform:uppercase}
-      .mff-winner strong{display:block;color:var(--mff-ink);font-size:clamp(18px,2vw,30px);font-weight:950;line-height:.95;text-transform:uppercase}
+      .mff-winner strong{display:block;color:var(--mff-gold);font-size:clamp(18px,2vw,30px);font-weight:950;line-height:.95;text-transform:uppercase}
       .mff-winners-carousel--compact .mff-winner strong{font-size:16px}
       .mff-winner b{display:block;color:var(--mff-red);font-size:12px;font-weight:950;line-height:1.1;text-transform:uppercase}
       .mff-winner span{display:block;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.35}
