@@ -80,7 +80,7 @@ function widgetRuntime() {
         border-radius:0;
         background:linear-gradient(180deg,var(--mff-cream) 0%,var(--mff-paper) 100%);
         box-shadow:none;
-        padding:clamp(30px,5vw,68px) clamp(16px,4vw,54px) clamp(42px,6vw,78px);
+        padding:clamp(28px,4.6vw,60px) clamp(16px,4vw,54px) clamp(34px,5.2vw,66px);
       }
       .mff-live-widget:after{
         content:"";
@@ -102,9 +102,18 @@ function widgetRuntime() {
         align-items:center;
       }
       .mff-live-widget .mff-title{
-        max-width:620px;
+        max-width:600px;
+        color:var(--mff-ink);
+        -webkit-text-fill-color:var(--mff-ink);
+        text-shadow:none;
       }
       .mff-live-copy{min-width:0}
+      .mff-live-copy .mff-copy{
+        max-width:34rem;
+        color:#4f3a2d;
+        font-weight:850;
+        line-height:1.38;
+      }
       .mff-prize-feature{
         position:relative;
         min-height:clamp(260px,34vw,430px);
@@ -159,11 +168,11 @@ function widgetRuntime() {
         z-index:2;
         display:grid;
         align-content:end;
-        gap:8px;
+        gap:7px;
         width:min(100%,520px);
         padding:clamp(16px,2.6vw,28px);
         color:#fffdf7;
-        text-shadow:0 2px 0 #000,0 8px 18px rgba(0,0,0,.45);
+        text-shadow:0 1px 0 #000,0 8px 20px rgba(0,0,0,.72);
       }
       .mff-prize-feature:not(.mff-prize-feature--image) .mff-prize-feature__copy{
         color:var(--mff-ink);
@@ -185,26 +194,30 @@ function widgetRuntime() {
         padding:0 9px;
         color:var(--mff-ink);
         font-size:10px;
-        letter-spacing:0;
+        letter-spacing:.02em;
         opacity:1;
+        text-shadow:none;
       }
       .mff-prize-feature .mff-number{
         margin:0;
         color:inherit;
-        max-width:11ch;
-        font-size:clamp(34px,5vw,62px);
-        line-height:.86;
+        max-width:13ch;
+        font-size:clamp(32px,4.8vw,56px);
+        line-height:.9;
         letter-spacing:0;
         text-shadow:inherit;
+        overflow-wrap:normal;
+        word-break:normal;
+        text-wrap:balance;
       }
       .mff-prize-feature .mff-copy{
-        max-width:28ch;
+        max-width:30ch;
         margin:0;
-        color:inherit;
-        font-size:clamp(12px,1.25vw,15px);
-        font-weight:950;
-        line-height:1.18;
-        opacity:.95;
+        color:rgba(255,253,247,.92);
+        font-size:clamp(12px,1.15vw,14px);
+        font-weight:850;
+        line-height:1.25;
+        opacity:1;
       }
       .mff-live-widget .mff-countdown{
         max-width:480px;
@@ -214,11 +227,12 @@ function widgetRuntime() {
         margin-top:2px;
       }
       .mff-prize-feature .mff-time{
-        min-height:58px;
-        background:rgba(255,253,247,.94);
+        min-height:56px;
+        border-radius:12px 4px 12px 4px;
+        background:rgba(255,253,247,.96);
         color:var(--mff-ink);
         text-shadow:none;
-        box-shadow:0 2px 0 #000;
+        box-shadow:0 2px 0 #000,0 10px 18px rgba(0,0,0,.16);
       }
       .mff-prize-feature .mff-time strong{
         color:var(--mff-ink);
@@ -227,9 +241,9 @@ function widgetRuntime() {
         text-shadow:none;
       }
       .mff-prize-feature .mff-time span{
-        color:var(--mff-ink);
+        color:#4f3a2d;
         letter-spacing:0;
-        opacity:.78;
+        opacity:1;
         text-shadow:none;
       }
       .mff-section{
@@ -357,8 +371,22 @@ function widgetRuntime() {
       .mff-winners-carousel--compact .mff-winner span{font-size:12px}
       .mff-winners-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;color:var(--mff-ink);font-size:12px;font-weight:950;text-transform:uppercase}
       .mff-winners-title span{color:var(--mff-muted);font-size:11px;text-align:right}
-      .mff-winner-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
-      .mff-winner-empty b{color:var(--mff-red)}
+      .mff-winner-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--mff-ink);font-weight:950}
+      .mff-winner-empty span{max-width:18ch;line-height:1.05}
+      .mff-winner-empty b{
+        display:inline-flex;
+        align-items:center;
+        min-height:28px;
+        border:2px solid var(--mff-line);
+        border-radius:12px 4px 12px 4px;
+        background:var(--mff-gold);
+        box-shadow:2px 2px 0 #000;
+        padding:0 9px;
+        color:var(--mff-ink);
+        font-size:10px;
+        text-transform:uppercase;
+        white-space:nowrap;
+      }
       @keyframes mffWinnerMarquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
       .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
@@ -1060,17 +1088,17 @@ function widgetRuntime() {
       .mff-product-message{min-height:16px;color:var(--mff-red);font-size:11px;font-weight:900}
       @media(max-width:760px){
         .mff-shell{padding:16px 14px;border-radius:22px 7px 22px 7px;box-shadow:5px 5px 0 var(--mff-shadow)}
-        .mff-live-widget{margin-bottom:16px;border-radius:0;box-shadow:none;padding:28px 14px 48px}
+        .mff-live-widget{margin-bottom:16px;border-radius:0;box-shadow:none;padding:28px 14px 34px}
         .mff-live-widget:after{bottom:-16px;height:16px;background-size:24px 16px,24px 16px;background-position:0 0,12px 0}
         .mff-live-widget .mff-hero{grid-template-columns:1fr;gap:24px}
-        .mff-prize-feature{min-height:clamp(250px,72vw,360px)}
+        .mff-prize-feature{min-height:clamp(238px,68vw,330px)}
         .mff-prize-feature:after{
           background:
             linear-gradient(90deg,rgba(0,0,0,.76) 0%,rgba(0,0,0,.5) 56%,rgba(0,0,0,.2) 100%),
             linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.7) 100%);
         }
         .mff-prize-feature__copy{gap:7px;padding:14px}
-        .mff-prize-feature .mff-number{max-width:9.5ch;font-size:clamp(29px,9vw,36px);line-height:.88}
+        .mff-prize-feature .mff-number{max-width:12ch;font-size:clamp(28px,8.4vw,34px);line-height:.9}
         .mff-prize-feature .mff-copy{font-size:12px}
         .mff-prize-feature .mff-time{min-height:52px}
         .mff-prize-feature .mff-time strong{font-size:22px}
@@ -1387,7 +1415,6 @@ function widgetRuntime() {
           </div>
         </div>
       </div>
-      ${compactWinnersMarkup(data)}
     </section>`;
     initCountdowns(el);
     setupWinnerPhotos(el);
