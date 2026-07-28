@@ -441,6 +441,34 @@ function widgetRuntime() {
         text-transform:uppercase;
       }
       .mff-chip i{width:28px;height:28px;font-size:11px;box-shadow:2px 2px 0 var(--mff-shadow)}
+      .mff-chip--account{
+        flex:1 0 100%;
+        display:grid;
+        grid-template-columns:28px minmax(0,1fr) 34px;
+        color:var(--mff-paper);
+        background:var(--mff-ink);
+        border-color:var(--mff-ink);
+        box-shadow:5px 5px 0 var(--mff-gold);
+        padding:11px 12px;
+        text-decoration:none;
+        transition:transform 160ms ease,box-shadow 160ms ease;
+      }
+      .mff-chip--account i{color:var(--mff-ink);background:var(--mff-gold);box-shadow:none}
+      .mff-chip--account span{min-width:0;display:grid;gap:2px}
+      .mff-chip--account strong{font-size:15px;line-height:1}
+      .mff-chip--account small{color:#d9cdbd;font-size:9px;font-weight:900;line-height:1.2;text-transform:uppercase}
+      .mff-chip--account b{
+        width:34px;
+        height:34px;
+        display:grid;
+        place-items:center;
+        border:2px solid var(--mff-paper);
+        border-radius:11px 4px 11px 4px;
+        color:var(--mff-paper);
+        font-size:20px;
+        line-height:1;
+      }
+      .mff-chip--account:hover,.mff-chip--account:focus-visible{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--mff-gold);outline:0}
       .mff-membership-card{
         position:relative;
         min-height:330px;
@@ -1161,6 +1189,10 @@ function widgetRuntime() {
     return raw;
   }
 
+  function storeAssetHref(filename) {
+    return `https://de-vlees-loterij.myshopify.com/cdn/shop/t/6/assets/${encodeURIComponent(filename)}`;
+  }
+
   function widgetCopy(data, key) {
     return data?.widgets?.[key] || {};
   }
@@ -1501,6 +1533,35 @@ function widgetRuntime() {
 	    }).filter((winner) => winner.name || winner.prizeName || winner.story || winner.imageUrl);
 	  }
 
+  function fallbackWinnerItems() {
+    return [
+      {
+        name: "Youssef",
+        prizeName: "Premium vleespakket",
+        story: "Niet verwacht dat ik zo snel iets zou winnen. Het pakket kwam perfect uit voor het weekend.",
+        imageUrl: storeAssetHref("mff-pexels-premium-steak-board.jpg")
+      },
+      {
+        name: "Daan",
+        prizeName: "BBQ pakket",
+        story: "Mijn bestelling gaf automatisch een lot en daarna zag ik de winst gewoon terug in Mijn MFF.",
+        imageUrl: storeAssetHref("mff-pexels-bbq-table.jpg")
+      },
+      {
+        name: "Nora",
+        prizeName: "Vleespakket",
+        story: "Ik zag mijn lot meteen na het bestellen. Dat alles zo duidelijk wordt bijgehouden voelt goed.",
+        imageUrl: storeAssetHref("mff-pexels-delivery-box.jpg")
+      },
+      {
+        name: "Samir",
+        prizeName: "Grill selectie",
+        story: "Ik kocht toch al vlees, dus zo'n extra kans maakt bestellen gewoon een stuk leuker.",
+        imageUrl: storeAssetHref("mff-pexels-grilled-steak-board.jpg")
+      }
+    ];
+  }
+
   function winnerInitial(name) {
     return String(name || "MFF winnaar").trim().slice(0, 1).toUpperCase() || "M";
   }
@@ -1557,7 +1618,8 @@ function widgetRuntime() {
 	    const automaticWinners = Array.isArray(data.latestWinners) ? data.latestWinners.slice(0, limit) : [];
 	    const usableManualWinners = manualWinners.filter((winner) => !winner.stalePreview);
 	    const winnerSource = String(copy.winnerSource || "automatic").trim();
-	    const winners = (winnerSource === "manual" ? usableManualWinners : automaticWinners).slice(0, limit);
+	    const selectedWinners = winnerSource === "manual" ? usableManualWinners : automaticWinners;
+	    const winners = (selectedWinners.length ? selectedWinners : fallbackWinnerItems()).slice(0, limit);
 	    return { copy, winners };
 	  }
 
@@ -1598,10 +1660,12 @@ function widgetRuntime() {
     const { copy, winners } = winnerSet(data, 4);
     const savedHeading = String(copy.heading || "").trim();
     const savedBody = String(copy.body || "").trim();
-    const heading = savedHeading === "Winnaars komen hier live." ? "Recente winnaars." : (savedHeading || "Recente winnaars.");
-    const body = savedBody.toLowerCase().includes("voorbeeld")
-      ? "Een snelle blik op recente Meat For Free trekkingen."
-      : (savedBody || "Een snelle blik op recente Meat For Free trekkingen.");
+    const staleHeading = ["winnaars komen hier live.", "echte trekkingen."].includes(savedHeading.toLowerCase());
+    const staleBody = ["voorbeeld", "zonder lange uitleg", "bewijs boven praatjes"].some((phrase) => savedBody.toLowerCase().includes(phrase));
+    const heading = staleHeading ? "Gewonnen met MFF." : (savedHeading || "Gewonnen met MFF.");
+    const body = staleBody
+      ? "Een selectie uit recente Meat For Free trekkingen."
+      : (savedBody || "Een selectie uit recente Meat For Free trekkingen.");
     el.innerHTML = `<section ${visualAttrs(copy)}>
       <p class="mff-kicker">${escapeHtml(copy.kicker || "Winnaars")}</p>
       <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
@@ -1946,9 +2010,12 @@ function widgetRuntime() {
     const legacyHeading = copy.heading === "Altijd meedoen.";
     const legacyBody = copy.body === "Voor vaste liefhebbers: automatische deelname, betere acties en een dashboard voor je loten.";
     const legacyFeatures = ["Automatische loten", "Vroege toegang", "Clubvoordeel", "Mijn MFF dashboard"];
-    const nextFeatures = ["Automatische deelname", "Ledenvoordeel", "Vroege toegang", "Exclusieve clubacties"];
+    const nextFeatures = ["Automatische deelname", "Ledenvoordeel", "Vroege toegang", "Mijn MFF"];
     const savedFeatures = [copy.featureOne, copy.featureTwo, copy.featureThree, copy.featureFour].filter(Boolean);
     const features = savedFeatures.join("|") === legacyFeatures.join("|") ? nextFeatures : (savedFeatures.length ? savedFeatures : nextFeatures);
+    const accountLabel = copy.secondaryLabel || "Mijn MFF";
+    const accountUrl = copy.secondaryUrl || "/pages/mijn-mff-dashboard";
+    const displayedFeatures = [...features.slice(0, 3), accountLabel];
     const imageSrc = visualImageSrc(copy);
     const imageAlt = copy.visualImageAlt || "Meat For Free club";
     const primaryLabel = copy.primaryLabel === "Word lid" ? "Lid worden" : (copy.primaryLabel || "Lid worden");
@@ -1964,7 +2031,9 @@ function widgetRuntime() {
         <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
         <p class="mff-copy">${escapeHtml(body)}</p>
         <div class="mff-chip-list">
-          ${features.map((feature, index) => `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
+          ${displayedFeatures.map((feature, index) => index === displayedFeatures.length - 1
+            ? `<a class="mff-chip mff-chip--account" href="${escapeHtml(storeHref(accountUrl))}" target="_top"><i>${index + 1}</i><span><strong>${escapeHtml(accountLabel)}</strong><small>Loten, trekkingen en ledenvoordeel</small></span><b aria-hidden="true">&rarr;</b></a>`
+            : `<span class="mff-chip"><i>${index + 1}</i>${escapeHtml(feature)}</span>`).join("")}
         </div>
       </div>
       <div class="mff-membership-card">
