@@ -2344,7 +2344,7 @@ embedRouter.get("/frame", (req, res) => {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Meat For Free Lottery ${widget}</title>
     <style>
-      html,body{min-height:100%;margin:0;overflow:hidden;background:transparent}
+      html,body{min-height:0;margin:0;overflow:hidden;background:transparent}
       body{width:auto;max-width:100vw;box-sizing:border-box;padding:6px 12px 18px 6px}
       @media(max-width:720px){body{padding:4px 10px 14px 4px}}
     </style>
