@@ -105,6 +105,80 @@ function widgetRuntime() {
         max-width:620px;
       }
       .mff-live-copy{min-width:0}
+      .mff-live-conversion{
+        display:grid;
+        gap:13px;
+        width:min(100%,520px);
+        margin-top:clamp(22px,3vw,32px);
+      }
+      .mff-live-cta{
+        min-height:78px;
+        display:grid;
+        grid-template-columns:minmax(0,1fr) 64px;
+        align-items:stretch;
+        overflow:hidden;
+        border:3px solid #000;
+        border-radius:7px;
+        background:var(--mff-gold);
+        box-shadow:7px 7px 0 #000;
+        color:var(--mff-ink);
+        text-decoration:none;
+        text-transform:uppercase;
+        transition:transform 140ms ease,box-shadow 140ms ease;
+      }
+      .mff-live-cta > span{
+        display:grid;
+        align-content:center;
+        gap:4px;
+        min-width:0;
+        padding:13px 16px 12px;
+      }
+      .mff-live-cta small{
+        color:color-mix(in srgb,var(--mff-ink) 72%,var(--mff-gold));
+        font-size:10px;
+        font-weight:950;
+        line-height:1.1;
+      }
+      .mff-live-cta strong{
+        font-size:clamp(18px,2.2vw,26px);
+        font-weight:950;
+        line-height:1;
+        letter-spacing:0;
+      }
+      .mff-live-cta > b{
+        display:grid;
+        place-items:center;
+        border-left:3px solid #000;
+        background:var(--mff-ink);
+        color:var(--mff-gold);
+        font-size:30px;
+        line-height:1;
+      }
+      .mff-live-cta:hover,.mff-live-cta:focus-visible{
+        transform:translate(3px,3px);
+        box-shadow:4px 4px 0 #000;
+        outline:0;
+      }
+      .mff-live-prize-link{
+        width:fit-content;
+        display:inline-flex;
+        align-items:center;
+        gap:9px;
+        color:var(--mff-ink);
+        font-size:12px;
+        font-weight:950;
+        line-height:1.2;
+        text-decoration-thickness:2px;
+        text-underline-offset:5px;
+        text-transform:uppercase;
+      }
+      .mff-live-prize-link span{
+        color:var(--mff-red);
+        font-size:18px;
+        line-height:1;
+        transition:transform 140ms ease;
+      }
+      .mff-live-prize-link:hover span,.mff-live-prize-link:focus-visible span{transform:translateX(3px)}
       .mff-prize-feature{
         position:relative;
         min-height:clamp(260px,34vw,430px);
@@ -1091,6 +1165,11 @@ function widgetRuntime() {
         .mff-live-widget{margin-bottom:16px;border-radius:0;box-shadow:none;padding:28px 14px 48px}
         .mff-live-widget:after{bottom:-16px;height:16px;background-size:24px 16px,24px 16px;background-position:0 0,12px 0}
         .mff-live-widget .mff-hero{grid-template-columns:1fr;gap:24px}
+        .mff-live-conversion{margin-top:22px}
+        .mff-live-cta{min-height:72px;grid-template-columns:minmax(0,1fr) 58px;box-shadow:6px 6px 0 #000}
+        .mff-live-cta > span{padding:12px 13px 11px}
+        .mff-live-cta strong{font-size:20px}
+        .mff-live-cta > b{font-size:26px}
         .mff-prize-feature{min-height:clamp(250px,72vw,360px)}
         .mff-prize-feature:after{
           background:
@@ -1398,15 +1477,34 @@ function widgetRuntime() {
     const prizeImage = visualImageSrc(copy);
     const prizeTitle = draw?.prizeName || copy.fallbackPrize || "Vleespakket";
     const prizeMeta = `${draw?.prizeValue || copy.fallbackPrizeValue || "Actieve trekking"} · ${draw?.entryCount ?? 0} loten live`;
+    const savedHeading = String(copy.heading || "").trim();
+    const savedPrimaryLabel = String(copy.primaryLabel || "").trim();
+    const savedSecondaryLabel = String(copy.secondaryLabel || "").trim();
+    const genericHeadings = ["pak je lot.", "bestel. pak je lot."];
+    const heading = genericHeadings.includes(savedHeading.toLowerCase())
+      ? "Je bestelling. Je lot. Jouw kans."
+      : (savedHeading || "Je bestelling. Je lot. Jouw kans.");
+    const shopLabel = ["", "shop vlees"].includes(savedSecondaryLabel.toLowerCase())
+      ? "Shop voor je lot"
+      : savedSecondaryLabel;
+    const prizeLinkLabel = ["", "bekijk winacties"].includes(savedPrimaryLabel.toLowerCase())
+      ? "Bekijk de hoofdprijs"
+      : savedPrimaryLabel;
     el.innerHTML = `<section ${visualAttrs(copy, "mff-live-widget")}>
       <div class="mff-hero">
         <div class="mff-live-copy">
-          <p class="mff-kicker">${escapeHtml(copy.kicker || "Live winactie")}</p>
-          <h2 class="mff-title">${escapeHtml(copy.heading || "Bestel. Pak je lot.")}</h2>
+          <p class="mff-kicker">${escapeHtml(copy.kicker || "Actieve maandtrekking")}</p>
+          <h2 class="mff-title">${escapeHtml(heading)}</h2>
           <p class="mff-copy">${escapeHtml(copyText(copy.body || "{rule}. Volg je loten en trekkingen transparant in Mijn MFF.", { rule: ruleLabel }))}</p>
-          <div class="mff-actions">
-            <a class="mff-button" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(copy.primaryLabel || "Bekijk winacties")}</a>
-            <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref(copy.secondaryUrl || "/collections/all"))}" target="_top">${escapeHtml(copy.secondaryLabel || "Shop vlees")}</a>
+          <div class="mff-live-conversion">
+            <a class="mff-live-cta" href="${escapeHtml(storeHref(copy.secondaryUrl || "/collections/all"))}" target="_top">
+              <span>
+                <small>${escapeHtml(ruleLabel)}</small>
+                <strong>${escapeHtml(shopLabel)}</strong>
+              </span>
+              <b aria-hidden="true">→</b>
+            </a>
+            <a class="mff-live-prize-link" href="${escapeHtml(storeHref(copy.primaryUrl || "/pages/actieve-loterijen"))}" target="_top">${escapeHtml(prizeLinkLabel)} <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <div class="mff-prize-feature${prizeImage ? " mff-prize-feature--image" : ""}">
@@ -1419,10 +1517,8 @@ function widgetRuntime() {
           </div>
         </div>
       </div>
-      ${compactWinnersMarkup(data)}
     </section>`;
     initCountdowns(el);
-    setupWinnerPhotos(el);
   }
 
   function cartWidget(el, data) {
