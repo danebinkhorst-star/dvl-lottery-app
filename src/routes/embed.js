@@ -2356,7 +2356,7 @@ embedRouter.get("/frame", (req, res) => {
       (() => {
         const sectionId = ${JSON.stringify(sectionId)};
         const sendHeight = () => {
-          const height = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, document.documentElement.offsetHeight, document.body.offsetHeight);
+          const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
           window.parent.postMessage({ type: "dvl:lottery-frame-height", sectionId, height }, "*");
         };
         window.addEventListener("load", sendHeight);
