@@ -78,7 +78,7 @@ function widgetRuntime() {
         margin-bottom:18px;
         border:0;
         border-radius:0;
-        background:linear-gradient(180deg,var(--mff-cream) 0%,var(--mff-paper) 100%);
+        background:var(--mff-paper);
         box-shadow:none;
         padding:clamp(30px,5vw,68px) clamp(16px,4vw,54px) clamp(42px,6vw,78px);
       }
