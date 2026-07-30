@@ -171,6 +171,14 @@ test("embed frame uses Shopify frame ancestor CSP without X-Frame-Options", asyn
   assert.equal(response.headers["x-frame-options"], undefined);
 });
 
+test("live embed avoids repeated threshold copy and hard text shadows", async () => {
+  resetDb();
+  const app = createApp();
+  const response = await request(app).get("/embed/dvl-lottery.js").expect(200);
+  assert.match(response.text, /<small>Kies je vlees<\/small>/);
+  assert.doesNotMatch(response.text, /text-shadow:0 2px 0 #000/);
+});
+
 test("draw CSV export requires entry access and writes audit log", async () => {
   resetDb();
   const draw = await createDraw({

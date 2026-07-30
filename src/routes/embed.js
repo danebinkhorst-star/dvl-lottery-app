@@ -237,7 +237,7 @@ function widgetRuntime() {
         width:min(100%,520px);
         padding:clamp(16px,2.6vw,28px);
         color:#fffdf7;
-        text-shadow:0 2px 0 #000,0 8px 18px rgba(0,0,0,.45);
+        text-shadow:none;
       }
       .mff-prize-feature:not(.mff-prize-feature--image) .mff-prize-feature__copy{
         color:var(--mff-ink);
@@ -1495,11 +1495,11 @@ function widgetRuntime() {
         <div class="mff-live-copy">
           <p class="mff-kicker">${escapeHtml(copy.kicker || "Actieve maandtrekking")}</p>
           <h2 class="mff-title">${escapeHtml(heading)}</h2>
-          <p class="mff-copy">${escapeHtml(copyText(copy.body || "{rule}. Volg je loten en trekkingen transparant in Mijn MFF.", { rule: ruleLabel }))}</p>
+          <p class="mff-copy">${escapeHtml(copyText(copy.body || "Na een geldige bestelling koppelen we je lot automatisch. Volg je deelname en trekking in Mijn MFF.", { rule: ruleLabel }))}</p>
           <div class="mff-live-conversion">
             <a class="mff-live-cta" href="${escapeHtml(storeHref(copy.secondaryUrl || "/collections/all"))}" target="_top">
               <span>
-                <small>${escapeHtml(ruleLabel)}</small>
+                <small>Kies je vlees</small>
                 <strong>${escapeHtml(shopLabel)}</strong>
               </span>
               <b aria-hidden="true">→</b>
