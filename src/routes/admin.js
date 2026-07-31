@@ -39,6 +39,8 @@ import {
   kpiThreadDefinitions,
   listKpiMessages,
   listKpiThreads,
+  markKpiThreadRead,
+  unreadKpiMessageCount,
   updateKpiThread
 } from "../services/admin-collaboration.js";
 import { brandMarkSvg, brandPalette } from "../services/admin-brand.js";
@@ -242,6 +244,8 @@ function page(title, active, body) {
         .menu-left { display:flex; align-items:center; gap:10px; min-width:0; }
         .menu-icon { width:28px; height:28px; display:grid; place-items:center; flex:0 0 auto; border-radius:8px; background:rgba(255,255,255,.06); color:var(--leaf); }
         .menu-icon svg { width:16px; height:16px; }
+        .notification-badge { min-width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; padding:0 6px; border-radius:999px; background:#efad18; color:#17120d; font-size:10px; line-height:1; font-weight:950; font-variant-numeric:tabular-nums; }
+        .notification-badge[hidden] { display:none; }
         .content { min-width:0; }
         header { position:sticky; top:0; z-index:5; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:rgba(255,252,247,.94); backdrop-filter:blur(14px); }
         .top-tools { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
@@ -335,6 +339,7 @@ function page(title, active, body) {
         .more-link { min-height:86px; display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-decoration:none; }
         .more-link:hover, .more-link:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
         .more-link strong { display:block; font-size:14px; font-weight:900; }
+        .more-link > .notification-badge { margin-left:auto; }
         .product-cell { display:grid; grid-template-columns:58px minmax(0,1fr); gap:12px; align-items:center; }
         .product-thumb { width:58px; aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f5ef; }
         .product-thumb img { width:100%; height:100%; display:block; object-fit:cover; }
@@ -369,23 +374,63 @@ function page(title, active, body) {
         .presence::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--success); }
         .presence--focus::before { background:var(--warning); }
         .presence--away::before { background:#8b8b84; }
-        .hub-layout { display:grid; grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr); gap:16px; align-items:start; }
-        .thread-list { display:grid; gap:10px; }
-        .thread-card { display:grid; gap:9px; padding:13px; border:1px solid var(--line); border-radius:10px; background:#fff; text-decoration:none; }
-        .thread-card:hover, .thread-card:focus-visible { outline:none; border-color:#cbdba2; background:#fbfdf7; }
-        .thread-card--active { border-color:#a9c872; background:#f8fbf0; }
-        .thread-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-        .thread-card strong { display:block; font-size:14px; font-weight:950; line-height:1.25; }
-        .thread-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-        .discussion-panel { min-height:520px; display:grid; grid-template-rows:auto minmax(0,1fr) auto; }
-        .message-list { display:grid; align-content:start; gap:12px; max-height:620px; overflow:auto; padding:16px; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); background:#fffdf8; }
-        .message { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:start; }
-        .message-bubble { padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
-        .message-bubble header { position:static; min-height:auto; display:flex; padding:0; border:0; background:transparent; backdrop-filter:none; justify-content:space-between; gap:12px; }
-        .message-bubble p { margin-top:7px; color:var(--ink); font-size:13px; font-weight:700; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
-        .message-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:14px; align-items:end; }
-        .message-form textarea { min-height:70px; }
-        .thread-create { display:grid; gap:12px; }
+        .hub-layout { display:grid; grid-template-columns:minmax(300px,360px) minmax(0,1fr); min-height:650px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; }
+        .chat-sidebar { min-width:0; border-right:1px solid var(--line); background:#fff; }
+        .chat-sidebar-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border-bottom:1px solid var(--line-soft); background:#f8f7f2; }
+        .chat-sidebar-head h2 { font-size:20px; }
+        .chat-search { position:relative; padding:10px 12px; border-bottom:1px solid var(--line-soft); }
+        .chat-search svg { position:absolute; left:24px; top:50%; width:16px; height:16px; color:var(--muted); transform:translateY(-50%); pointer-events:none; }
+        .chat-search input { min-height:38px; margin:0; padding-left:38px; border-radius:8px; background:#f6f5f0; }
+        .chat-new-thread { border-bottom:1px solid var(--line-soft); }
+        .chat-new-thread summary { display:flex; align-items:center; gap:8px; padding:11px 14px; color:var(--forest); font-size:12px; font-weight:900; cursor:pointer; list-style:none; }
+        .chat-new-thread summary::-webkit-details-marker { display:none; }
+        .chat-new-thread summary svg { width:16px; height:16px; }
+        .chat-new-thread[open] summary { background:#f5f8ee; }
+        .thread-create { display:grid; gap:10px; padding:0 14px 14px; }
+        .thread-create textarea { min-height:88px; }
+        .thread-list { max-height:630px; overflow:auto; }
+        .thread-card { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:start; padding:12px 14px; border-bottom:1px solid var(--line-soft); background:#fff; text-decoration:none; }
+        .thread-card:hover, .thread-card:focus-visible { outline:none; background:#f7f8f3; }
+        .thread-card--active { background:#eef5df; }
+        .thread-card .avatar { width:44px; height:44px; }
+        .thread-card-body { min-width:0; overflow:hidden; }
+        .thread-card-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+        .thread-card strong { min-width:0; display:block; overflow:hidden; color:var(--ink); font-size:13px; font-weight:900; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+        .thread-preview { margin-top:4px; overflow:hidden; color:var(--muted); font-size:11px; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; }
+        .thread-card-meta { display:grid; justify-items:end; gap:7px; }
+        .thread-time { color:var(--muted); font-size:10px; font-weight:750; white-space:nowrap; }
+        .thread-kpi { margin-top:5px; color:var(--moss); font-size:10px; font-weight:900; }
+        .discussion-panel { width:100%; min-width:0; min-height:650px; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; overflow:hidden; border:0; border-radius:0; background:#f7f4ec; }
+        .discussion-panel > * { min-width:0; }
+        .conversation-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 16px; border-bottom:1px solid var(--line); background:#f8f7f2; }
+        .conversation-back { display:none; width:34px; height:34px; align-items:center; justify-content:center; flex:0 0 auto; border:1px solid var(--line); border-radius:50%; background:#fff; color:var(--ink); text-decoration:none; }
+        .conversation-back svg { width:17px; height:17px; }
+        .conversation-person { min-width:0; flex:1 1 auto; display:flex; align-items:center; gap:11px; overflow:hidden; }
+        .conversation-person > div { min-width:0; }
+        .conversation-person h2 { overflow:hidden; font-size:17px; text-overflow:ellipsis; white-space:nowrap; }
+        .conversation-person p { margin-top:3px; color:var(--muted); font-size:11px; }
+        .conversation-status { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+        .conversation-settings { border-bottom:1px solid var(--line-soft); background:#fff; }
+        .conversation-settings summary { display:flex; align-items:center; gap:7px; padding:9px 16px; color:var(--muted); font-size:11px; font-weight:850; cursor:pointer; list-style:none; }
+        .conversation-settings summary::-webkit-details-marker { display:none; }
+        .conversation-settings summary svg { width:15px; height:15px; }
+        .conversation-settings form { padding:0 16px 14px; }
+        .message-list { display:flex; flex-direction:column; gap:9px; min-height:0; max-height:620px; overflow:auto; padding:18px; background:#f4f0e6; }
+        .message { display:flex; width:100%; min-width:0; align-items:flex-end; gap:8px; }
+        .message > .avatar { width:30px; height:30px; font-size:10px; }
+        .message--own { justify-content:flex-end; }
+        .message-bubble { width:fit-content; min-width:0; max-width:min(76%,680px); overflow:hidden; padding:9px 11px; border:1px solid var(--line); border-radius:10px 10px 10px 3px; background:#fff; }
+        .message--own .message-bubble { border-color:#cbdba2; border-radius:10px 10px 3px 10px; background:#eef5df; }
+        .message-bubble header { position:static; min-height:auto; display:flex; padding:0; border:0; background:transparent; backdrop-filter:none; justify-content:space-between; gap:14px; }
+        .message-bubble header strong { font-size:11px; font-weight:900; }
+        .message-bubble header span { font-size:10px; white-space:nowrap; }
+        .message-bubble p { margin-top:4px; color:var(--ink); font-size:13px; font-weight:650; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
+        .message-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; padding:12px; border-top:1px solid var(--line); align-items:end; background:#f8f7f2; }
+        .message-form label { min-width:0; }
+        .message-form textarea { min-height:44px; max-height:130px; margin:0; resize:vertical; }
+        .message-form button { width:44px; height:44px; padding:0; border-radius:50%; }
+        .message-form button svg { width:18px; height:18px; }
+        .message-form-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
         .structure-meta { display:grid; gap:4px; padding:10px 0; }
         .structure-meta strong { font-size:13px; font-weight:950; }
         .code-line { width:100%; display:block; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.4; overflow:auto; }
@@ -442,8 +487,9 @@ function page(title, active, body) {
           .top-tools .button { min-height:36px; padding:0 11px; border-radius:999px; white-space:nowrap; box-shadow:0 1px 0 rgba(255,255,255,.75) inset; }
           .top-tools .button--ghost:first-child { display:none; }
           .mobile-tabbar { position:fixed; left:10px; right:10px; bottom:10px; bottom:max(10px, env(safe-area-inset-bottom)); z-index:20; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; min-height:64px; padding:7px; border:1px solid rgba(217,212,199,.88); border-radius:24px; background:rgba(255,252,247,.86); box-shadow:0 18px 46px rgba(20,18,13,.18); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
-          .mobile-tab-link { min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border-radius:18px; color:#686159; text-decoration:none; font-size:10px; line-height:1; font-weight:850; }
+          .mobile-tab-link { position:relative; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border-radius:18px; color:#686159; text-decoration:none; font-size:10px; line-height:1; font-weight:850; }
           .mobile-tab-link svg { width:20px; height:20px; }
+          .mobile-tab-link .notification-badge { position:absolute; top:3px; right:calc(50% - 23px); min-width:18px; height:18px; padding:0 5px; border:2px solid rgba(255,252,247,.96); font-size:9px; }
           .mobile-tab-label { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
           .mobile-tab-link--active { background:#172112; color:#fff9ee; }
           .mobile-tab-link--active svg { color:var(--leaf); }
@@ -466,11 +512,20 @@ function page(title, active, body) {
           .more-list { grid-template-columns:1fr; gap:10px; }
           .more-link { min-height:74px; border-radius:18px; }
           .profile-card { grid-template-columns:1fr; }
-          .team-card, .thread-card, .message-bubble { border-radius:16px; }
-          .hub-layout { grid-template-columns:1fr; }
+          .team-card, .message-bubble { border-radius:16px; }
+          .hub-layout { grid-template-columns:1fr; min-height:0; border-radius:18px; }
+          .hub-layout--thread .chat-sidebar { display:none; }
+          .hub-layout--list .discussion-panel { display:none; }
+          .teamhub-overview, .teamhub-chat-heading { display:none; }
+          .chat-sidebar { border-right:0; }
+          .thread-list { max-height:none; }
+          .conversation-back { display:inline-flex; }
+          .conversation-status { display:none; }
           .discussion-panel { min-height:auto; }
-          .message-list { max-height:none; }
-          .message-form { grid-template-columns:1fr; }
+          .message-list { width:100%; min-width:0; min-height:420px; max-height:65vh; padding:13px 10px; }
+          .message-bubble { max-width:calc(100% - 42px); }
+          .message--own .message-bubble { max-width:84%; }
+          .message-form { grid-template-columns:minmax(0,1fr) auto; }
           .sync-health { grid-template-columns:1fr; }
           .structure-row, .structure-row--compact { grid-template-columns:1fr; border-radius:16px; }
           .structure-meta { padding:0; }
@@ -540,6 +595,33 @@ function page(title, active, body) {
           ${mobileTabs.map(([key, href, iconName, label]) => mobileTabLink(active, key, href, iconName, label)).join("")}
         </nav>
       </div>
+      <script>
+        (() => {
+          const secondaryKeys = new Set(["winacties", "winnaars", "loten", "orders", "producten", "deelnemers", "teamhub", "accounts", "compliance", "sync", "regels", "widgets"]);
+          const renderBadges = (counts = {}) => {
+            const totalSecondary = Object.entries(counts).reduce((total, [key, value]) => total + (secondaryKeys.has(key) ? Number(value || 0) : 0), 0);
+            const values = { ...counts, meer: totalSecondary };
+            document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
+              const count = Math.max(0, Number(values[badge.dataset.notificationBadge] || 0));
+              badge.hidden = count === 0;
+              badge.textContent = count > 99 ? "99+" : String(count);
+              badge.setAttribute("aria-label", count === 1 ? "1 nieuwe melding" : count + " nieuwe meldingen");
+            });
+          };
+          const refreshBadges = async () => {
+            try {
+              const response = await fetch("/admin/notifications", { headers: { Accept: "application/json" }, cache: "no-store" });
+              if (!response.ok) return;
+              const payload = await response.json();
+              renderBadges(payload.counts || {});
+            } catch (_error) {}
+          };
+          refreshBadges();
+          const timer = window.setInterval(refreshBadges, 30000);
+          document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshBadges(); });
+          window.addEventListener("pagehide", () => window.clearInterval(timer), { once: true });
+        })();
+      </script>
     </body>
   </html>`;
 }
@@ -547,6 +629,7 @@ function page(title, active, body) {
 function menuLink(active, key, href, iconName, label) {
   return `<a class="menu-link${active === key ? " menu-link--active" : ""}" href="${href}">
     <span class="menu-left"><span class="menu-icon">${icon(iconName)}</span>${escapeHtml(label)}</span>
+    <span class="notification-badge" data-notification-badge="${escapeHtml(key)}" hidden></span>
   </a>`;
 }
 
@@ -554,8 +637,41 @@ function mobileTabLink(active, key, href, iconName, label) {
   const primaryKeys = new Set(["overzicht", "analyse", "groei", "site"]);
   const isActive = active === key || (key === "meer" && !primaryKeys.has(active));
   return `<a class="mobile-tab-link${isActive ? " mobile-tab-link--active" : ""}" href="${href}">
-    ${icon(iconName)}<span class="mobile-tab-label">${escapeHtml(label)}</span>
+    ${icon(iconName)}<span class="mobile-tab-label">${escapeHtml(label)}</span><span class="notification-badge" data-notification-badge="${escapeHtml(key)}" hidden></span>
   </a>`;
+}
+
+function adminNotificationCounts(userId = "") {
+  const metrics = getMetrics();
+  const productStatus = productSyncStatus();
+  const securitySummary = securityEventSummary();
+  const winnerActions = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM lottery_draws
+    WHERE status = 'DRAWN'
+      AND winner_entry_id IS NOT NULL
+      AND (
+        winner_contact_status = 'NOT_CONTACTED'
+        OR winner_consent_status IN ('UNKNOWN', 'REQUESTED')
+      )
+  `).get();
+  const pendingInvites = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM admin_invites
+    WHERE accepted_at IS NULL
+      AND revoked_at IS NULL
+      AND datetime(expires_at) > datetime('now')
+  `).get();
+  const securitySignals = securitySummary.lastDay.reduce((total, row) => total + Number(row.count || 0), 0);
+  return {
+    teamhub: unreadKpiMessageCount(userId),
+    winacties: Number(metrics.liveDrawsWithoutEntries || 0),
+    winnaars: Number(winnerActions?.count || 0),
+    orders: Number(metrics.eligibleWithoutEntry || 0),
+    accounts: Number(pendingInvites?.count || 0),
+    compliance: securitySignals,
+    sync: productStatus.stale ? 1 : 0
+  };
 }
 
 function titleBlock(eyebrow, title, copy = "") {
@@ -876,62 +992,74 @@ function teamCards(users) {
 
 function threadCards(threads, activeThreadId = "") {
   if (!threads.length) return `<div class="empty">Nog geen KPI-discussies. Start er een wanneer een metric aandacht nodig heeft.</div>`;
-  return `<div class="thread-list">${threads.map((thread) => `<a class="thread-card${thread.id === activeThreadId ? " thread-card--active" : ""}" href="/admin/teamhub?thread=${encodeURIComponent(thread.id)}">
-    <div class="thread-card-head">
-      <strong>${escapeHtml(thread.title)}</strong>
-      <span class="status status--${threadStatusClass(thread.status)}">${escapeHtml(threadStatusLabel(thread.status))}</span>
-    </div>
-    <div class="thread-meta">
-      <span class="status">${escapeHtml(kpiLabel(thread.kpi_key))}</span>
-      <span class="status status--${priorityStatusClass(thread.priority)}">${escapeHtml(priorityLabel(thread.priority))}</span>
-      <span class="muted">${Number(thread.message_count || 0)} bericht(en)</span>
-    </div>
-    <div class="avatar-row">${avatar({ name: thread.creator_name, username: thread.creator_username, avatar_url: thread.creator_avatar_url })}<span class="muted">Laatste update ${escapeHtml(formatShortDate(thread.last_message_at || thread.updated_at))}</span></div>
-  </a>`).join("")}</div>`;
+  return `<div class="thread-list" id="teamhub-thread-list">${threads.map((thread) => {
+    const unreadCount = Math.max(0, Number(thread.unread_count || 0));
+    const searchable = [thread.title, thread.last_message_body, kpiLabel(thread.kpi_key)].filter(Boolean).join(" ").toLowerCase();
+    return `<a class="thread-card${thread.id === activeThreadId ? " thread-card--active" : ""}" href="/admin/teamhub?thread=${encodeURIComponent(thread.id)}" data-thread-search="${escapeHtml(searchable)}">
+      ${avatar({ name: thread.creator_name, username: thread.creator_username, avatar_url: thread.creator_avatar_url })}
+      <span class="thread-card-body">
+        <span class="thread-card-head"><strong>${escapeHtml(thread.title)}</strong></span>
+        <span class="thread-preview">${escapeHtml(thread.last_message_body || "Nog geen bericht")}</span>
+        <span class="thread-kpi">${escapeHtml(kpiLabel(thread.kpi_key))} · ${escapeHtml(threadStatusLabel(thread.status))}</span>
+      </span>
+      <span class="thread-card-meta">
+        <span class="thread-time">${escapeHtml(formatShortDate(thread.last_message_at || thread.updated_at))}</span>
+        <span class="notification-badge"${unreadCount ? "" : " hidden"}>${unreadCount > 99 ? "99+" : unreadCount}</span>
+      </span>
+    </a>`;
+  }).join("")}</div>`;
 }
 
-function messageRows(messages) {
+function messageRows(messages, currentUserId = "") {
   if (!messages.length) return `<div class="empty">Nog geen berichten.</div>`;
-  return messages.map((message) => `<article class="message">
-    ${avatar({ name: message.name, username: message.username, avatar_url: message.avatar_url })}
+  return messages.map((message) => {
+    const isOwn = Boolean(currentUserId && message.user_id === currentUserId);
+    return `<article class="message${isOwn ? " message--own" : ""}">
+    ${isOwn ? "" : avatar({ name: message.name, username: message.username, avatar_url: message.avatar_url })}
     <div class="message-bubble">
       <header><strong>${escapeHtml(message.name || message.username || "Admin")}</strong><span class="muted">${escapeHtml(formatShortDate(message.created_at))}</span></header>
       <p>${escapeHtml(message.body)}</p>
     </div>
-  </article>`).join("");
+  </article>`;
+  }).join("");
 }
 
-function threadPanel(thread, messages, users, canManage) {
+function threadPanel(thread, messages, users, canManage, currentUserId = "") {
   if (!thread) {
-    return `<section class="panel panel-pad discussion-panel">
-      <div class="panel-title"><div><h2>Kies een KPI-discussie</h2><p class="helper">Gebruik dit voor beslissingen rond loten, orders, conversie, winners en compliance.</p></div></div>
-      <div class="empty">Selecteer links een gesprek of start een nieuwe discussie.</div>
+    return `<section class="discussion-panel">
+      <div class="conversation-head"><div class="conversation-person"><span class="ops-icon">${icon("MessagesSquare")}</span><div><h2>Kies een gesprek</h2><p>Selecteer links een thread of start een nieuw overleg.</p></div></div></div>
+      <div class="message-list"><div class="empty">Hier verschijnen berichten, besluiten en acties.</div></div>
     </section>`;
   }
-  return `<section class="panel discussion-panel">
-    <div class="panel-pad">
-      <div class="panel-title">
-        <div>
-          <p class="eyebrow">${escapeHtml(kpiLabel(thread.kpi_key))}</p>
-          <h2>${escapeHtml(thread.title)}</h2>
-          <p class="helper">Gestart door ${escapeHtml(thread.creator_name || thread.creator_username || "admin")} · bijgewerkt ${escapeHtml(formatShortDate(thread.updated_at))}</p>
-        </div>
-        <div class="actions">
+  const owner = thread.assignee_name || thread.assignee_username || thread.creator_name || thread.creator_username || "MFF team";
+  const ownerAvatar = thread.assignee_name || thread.assignee_username
+    ? { name: thread.assignee_name, username: thread.assignee_username }
+    : { name: thread.creator_name, username: thread.creator_username, avatar_url: thread.creator_avatar_url };
+  return `<section class="discussion-panel">
+    <div class="conversation-head">
+      <div class="conversation-person">
+        <a class="conversation-back" href="/admin/teamhub?view=list" aria-label="Terug naar gesprekken">${icon("ArrowLeft")}</a>
+        ${avatar(ownerAvatar)}
+        <div><h2>${escapeHtml(thread.title)}</h2><p>${escapeHtml(kpiLabel(thread.kpi_key))} · ${escapeHtml(owner)}</p></div>
+      </div>
+      <div class="conversation-status">
           <span class="status status--${priorityStatusClass(thread.priority)}">${escapeHtml(priorityLabel(thread.priority))}</span>
           <span class="status status--${threadStatusClass(thread.status)}">${escapeHtml(threadStatusLabel(thread.status))}</span>
-        </div>
       </div>
-      ${canManage ? `<form method="post" action="/admin/teamhub/threads/${escapeHtml(thread.id)}/status" class="filter-grid">
+    </div>
+    ${canManage ? `<details class="conversation-settings">
+      <summary>${icon("SlidersHorizontal")}Gespreksinstellingen</summary>
+      <form method="post" action="/admin/teamhub/threads/${escapeHtml(thread.id)}/status" class="filter-grid">
         <label>Status<select name="status">${option("OPEN", thread.status, "Open")}${option("WATCHING", thread.status, "Monitor")}${option("RESOLVED", thread.status, "Afgerond")}</select></label>
         <label>Prioriteit<select name="priority">${option("LOW", thread.priority, "Laag")}${option("NORMAL", thread.priority, "Normaal")}${option("HIGH", thread.priority, "Hoog")}${option("URGENT", thread.priority, "Urgent")}</select></label>
         <label>Eigenaar<select name="assignedTo"><option value="">Geen eigenaar</option>${users.map((user) => option(user.id, thread.assigned_to, user.name || user.username)).join("")}</select></label>
         <div class="actions"><button type="submit">${icon("Save")}Bijwerken</button></div>
-      </form>` : ""}
-    </div>
-    <div class="message-list">${messageRows(messages)}</div>
+      </form>
+    </details>` : ""}
+    <div class="message-list">${messageRows(messages, currentUserId)}</div>
     ${canManage ? `<form method="post" action="/admin/teamhub/threads/${escapeHtml(thread.id)}/messages" class="message-form">
-      <label>Nieuw bericht<textarea name="body" placeholder="Wat is de conclusie, blokkade of actie?"></textarea></label>
-      <button class="button--gold" type="submit">${icon("Send")}Plaatsen</button>
+      <label><span class="message-form-label">Nieuw bericht</span><textarea name="body" aria-label="Nieuw bericht" placeholder="Typ een bericht..." required></textarea></label>
+      <button class="button--gold" type="submit" aria-label="Bericht plaatsen" title="Bericht plaatsen">${icon("Send")}</button>
     </form>` : `<div class="panel-pad"><p class="muted">Je hebt alleen leesrechten voor KPI-discussies.</p></div>`}
   </section>`;
 }
@@ -2298,29 +2426,36 @@ adminRouter.get("/groei/events.csv", (_req, res) => {
   return res.send([header.map(csv).join(","), ...body].join("\n"));
 });
 
+adminRouter.get("/notifications", (req, res) => {
+  res.json({
+    counts: adminNotificationCounts(req.adminUser?.id || ""),
+    updatedAt: nowIso()
+  });
+});
+
 adminRouter.get("/menu", (_req, res) => {
   const groups = [
     ["Beheer", [
-      ["Groei", "/admin/groei", "LineChart", "Conversie, widgetperformance en live readiness."],
-      ["Winnaars", "/admin/winnaars", "Trophy", "Getrokken winnaars en social-proof publicatie."],
-      ["Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
-      ["Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
-      ["Producten", "/admin/producten", "Beef", "Shopify producten, prijzen en kaart-tags."],
-      ["Deelnemers", "/admin/deelnemers", "Users", "Klanten, winnaars en deelnamewaarde."]
+      ["groei", "Groei", "/admin/groei", "LineChart", "Conversie, widgetperformance en live readiness."],
+      ["winnaars", "Winnaars", "/admin/winnaars", "Trophy", "Getrokken winnaars en social-proof publicatie."],
+      ["loten", "Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
+      ["orders", "Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
+      ["producten", "Producten", "/admin/producten", "Beef", "Shopify producten, prijzen en kaart-tags."],
+      ["deelnemers", "Deelnemers", "/admin/deelnemers", "Users", "Klanten, winnaars en deelnamewaarde."]
     ]],
     ["Controle", [
-      ["Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
-      ["Teamhub", "/admin/teamhub", "MessagesSquare", "Profielen en KPI-discussies."],
-      ["Accounts", "/admin/accounts", "UserCog", "Admin gebruikers, rollen en sessies."],
-      ["Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
-      ["Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
-      ["Site structuur", "/admin/site-structuur", "LayoutTemplate", "Homepage, header, PDP en infopagina's."],
-      ["Widgets", "/admin/widgets", "PanelTop", "Teksten en knoppen per widget."]
+      ["compliance", "Compliance", "/admin/compliance", "ShieldCheck", "Gratis deelname, IP-hashes en audit."],
+      ["teamhub", "Teamhub", "/admin/teamhub?view=list", "MessagesSquare", "Berichten, besluiten en KPI-overleg."],
+      ["accounts", "Accounts", "/admin/accounts", "UserCog", "Admin gebruikers, rollen en sessies."],
+      ["sync", "Synchronisatie", "/admin/sync", "RefreshCw", "Orders en klantdashboards bijwerken."],
+      ["regels", "Regels", "/admin/regels", "SlidersHorizontal", "Lottoekenning en gratis deelname."],
+      ["site", "Site structuur", "/admin/site-structuur", "LayoutTemplate", "Homepage, header, PDP en infopagina's."],
+      ["widgets", "Widgets", "/admin/widgets", "PanelTop", "Teksten en knoppen per widget."]
     ]],
     ["Acties", [
-      ["Nieuwe winactie", "/admin/new-draw", "Plus", "Maak een actie aan of zet hem live."],
-      ["Embed voorbeeld", "/admin/embed", "ExternalLink", "Controleer de Shopify embed."],
-      ["Live API", "/api/draws/live", "FileJson", "Bekijk de live winactie JSON."]
+      ["nieuw", "Nieuwe winactie", "/admin/new-draw", "Plus", "Maak een actie aan of zet hem live."],
+      ["embed", "Embed voorbeeld", "/admin/embed", "ExternalLink", "Controleer de Shopify embed."],
+      ["api", "Live API", "/api/draws/live", "FileJson", "Bekijk de live winactie JSON."]
     ]]
   ];
 
@@ -2329,9 +2464,10 @@ adminRouter.get("/menu", (_req, res) => {
     ${groups.map(([title, rows]) => `
       <div class="section-head"><h2>${escapeHtml(title)}</h2></div>
       <section class="more-list">
-        ${rows.map(([label, href, iconName, copy]) => `<a class="more-link" href="${href}">
+        ${rows.map(([key, label, href, iconName, copy]) => `<a class="more-link" href="${href}">
           <span class="ops-icon">${icon(iconName)}</span>
           <span><strong>${escapeHtml(label)}</strong><span class="muted">${escapeHtml(copy)}</span></span>
+          <span class="notification-badge" data-notification-badge="${escapeHtml(key)}" hidden></span>
         </a>`).join("")}
       </section>
     `).join("")}
@@ -2344,29 +2480,38 @@ adminRouter.get("/menu", (_req, res) => {
 
 adminRouter.get("/teamhub", (req, res) => {
   const canManage = hasAdminPermission(req.adminUser, "manage_teamhub");
+  const currentUserId = req.adminUser?.id || "";
   const users = listAdminUsers();
-  const threads = listKpiThreads({ limit: 60 });
-  const selectedThreadId = textParam(req.query.thread) || threads[0]?.id || "";
+  const teamUsers = users.filter((user) => !String(user.username || "").startsWith("draw-viewer-"));
+  const listOnly = textParam(req.query.view) === "list";
+  let threads = listKpiThreads({ limit: 60, userId: currentUserId });
+  const selectedThreadId = listOnly ? "" : (textParam(req.query.thread) || threads[0]?.id || "");
   const selectedThread = selectedThreadId ? getKpiThread(selectedThreadId) : null;
+  if (selectedThread) {
+    markKpiThreadRead({ threadId: selectedThread.id, userId: currentUserId });
+    threads = listKpiThreads({ limit: 60, userId: currentUserId });
+  }
   const messages = selectedThread ? listKpiMessages(selectedThread.id) : [];
   const metrics = getMetrics();
   const discussions = kpiDiscussionSummary();
   const productStatus = productSyncStatus();
   res.send(page("Teamhub | Meat For Free", "teamhub", `
-    ${topbar("Controlecentrum", "Teamhub en KPI-overleg.", "Profielen, verantwoordelijkheden en KPI-beslissingen op één plek. Alleen actiegerichte discussies, geen losse chatruis.", `<a class="button button--ghost" href="/admin/accounts">${icon("UserCog")}Account instellingen</a>`)}
-    ${kpiGrid([
-      { label: "Open KPI-discussies", value: discussions.openCount, help: `${discussions.hotCount} hoge prioriteit.`, icon: "MessagesSquare" },
-      { label: "Live loten", value: metrics.activeLiveEntries, help: "Actieve loten in live winacties.", icon: "Tickets" },
-      { label: "Missende loten", value: metrics.eligibleWithoutEntry, help: "Geschikte orders zonder lot.", icon: "TriangleAlert" },
-      { label: "Product sync", value: productStatus.available, help: productStatus.lastSyncedAt ? `Laatste sync ${formatShortDate(productStatus.lastSyncedAt)}.` : "Nog geen sync.", icon: "Beef" }
-    ], "hub-kpi-grid")}
-    <div class="section-head"><h2>Teamprofielen</h2><span class="muted">Wie pakt welke signalen op?</span></div>
-    ${teamCards(users)}
-    <div class="section-head"><h2>KPI-discussies</h2><span class="muted">Beslissingen per metric, auditbaar en terugleesbaar.</span></div>
-    <section class="hub-layout">
-      <div class="stack">
-        ${canManage ? `<section class="panel panel-pad">
-          <div class="panel-title"><div><h2>Nieuwe discussie</h2><p class="helper">Start alleen een thread als er een beslissing, blokkade of duidelijke actie nodig is.</p></div></div>
+    <div class="teamhub-overview">
+      ${topbar("Controlecentrum", "Teamhub en KPI-overleg.", "Profielen, verantwoordelijkheden en KPI-beslissingen op één plek. Alleen actiegerichte discussies, geen losse chatruis.", `<a class="button button--ghost" href="/admin/accounts">${icon("UserCog")}Account instellingen</a>`)}
+      ${kpiGrid([
+        { label: "Open KPI-discussies", value: discussions.openCount, help: `${discussions.hotCount} hoge prioriteit.`, icon: "MessagesSquare" },
+        { label: "Live loten", value: metrics.activeLiveEntries, help: "Actieve loten in live winacties.", icon: "Tickets" },
+        { label: "Missende loten", value: metrics.eligibleWithoutEntry, help: "Geschikte orders zonder lot.", icon: "TriangleAlert" },
+        { label: "Product sync", value: productStatus.available, help: productStatus.lastSyncedAt ? `Laatste sync ${formatShortDate(productStatus.lastSyncedAt)}.` : "Nog geen sync.", icon: "Beef" }
+      ], "hub-kpi-grid")}
+    </div>
+    <div class="section-head teamhub-chat-heading"><h2>Teamchat</h2><span class="muted">KPI-besluiten en acties in herkenbare gesprekken.</span></div>
+    <section class="hub-layout ${selectedThread ? "hub-layout--thread" : "hub-layout--list"}">
+      <aside class="chat-sidebar">
+        <div class="chat-sidebar-head"><div><h2>Gesprekken</h2><p class="helper">${threads.length} actieve en afgeronde threads.</p></div><span class="notification-badge" data-notification-badge="teamhub" hidden></span></div>
+        <div class="chat-search">${icon("Search")}<input type="search" data-thread-search-input placeholder="Zoek gesprek" aria-label="Zoek gesprek"></div>
+        ${canManage ? `<details class="chat-new-thread">
+          <summary>${icon("MessageSquarePlus")}Nieuw gesprek</summary>
           <form method="post" action="/admin/teamhub/threads" class="thread-create">
             <label>Titel<input name="title" placeholder="Bijv. Orders zonder lot onderzoeken" required></label>
             <div class="form-grid">
@@ -2376,14 +2521,25 @@ adminRouter.get("/teamhub", (req, res) => {
             <label>Eerste bericht<textarea name="body" placeholder="Wat zien we, waarom maakt het uit, en wat moet beslist worden?" required></textarea></label>
             <div class="actions" style="justify-content:flex-start"><button class="button--gold" type="submit">${icon("MessageSquarePlus")}Discussie starten</button></div>
           </form>
-        </section>` : ""}
-        <section class="panel panel-pad">
-          <div class="panel-title"><div><h2>Actieve threads</h2><p class="helper">${threads.length} discussie(s), nieuwste activiteit bovenaan.</p></div></div>
-          ${threadCards(threads, selectedThread?.id || "")}
-        </section>
-      </div>
-      ${threadPanel(selectedThread, messages, users, canManage)}
+        </details>` : ""}
+        ${threadCards(threads, selectedThread?.id || "")}
+      </aside>
+      ${threadPanel(selectedThread, messages, teamUsers, canManage, currentUserId)}
     </section>
+    <div class="section-head"><h2>Teamprofielen</h2><span class="muted">Wie pakt welke signalen op?</span></div>
+    ${teamCards(teamUsers)}
+    <script>
+      (() => {
+        const input = document.querySelector("[data-thread-search-input]");
+        if (!input) return;
+        input.addEventListener("input", () => {
+          const query = input.value.trim().toLowerCase();
+          document.querySelectorAll("[data-thread-search]").forEach((thread) => {
+            thread.hidden = Boolean(query) && !thread.dataset.threadSearch.includes(query);
+          });
+        });
+      })();
+    </script>
   `));
 });
 

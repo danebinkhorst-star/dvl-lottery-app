@@ -237,6 +237,15 @@ export function initDb() {
       FOREIGN KEY (user_id) REFERENCES admin_users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS admin_kpi_thread_reads (
+      thread_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      last_read_at TEXT NOT NULL,
+      PRIMARY KEY (thread_id, user_id),
+      FOREIGN KEY (thread_id) REFERENCES admin_kpi_threads(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -310,6 +319,7 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_admin_kpi_threads_status ON admin_kpi_threads(status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_admin_kpi_threads_kpi ON admin_kpi_threads(kpi_key, updated_at);
     CREATE INDEX IF NOT EXISTS idx_admin_kpi_messages_thread ON admin_kpi_messages(thread_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_kpi_thread_reads_user ON admin_kpi_thread_reads(user_id, last_read_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);

@@ -34,6 +34,13 @@ function cleanAssignee(userId) {
   return user ? user.id : null;
 }
 
+function activeAdminUserId(userId) {
+  const nextId = cleanText(userId, 80);
+  if (!nextId) return "";
+  const user = db.prepare("SELECT id FROM admin_users WHERE id = ? AND status = 'ACTIVE'").get(nextId);
+  return user?.id || "";
+}
+
 export const kpiThreadDefinitions = [
   ["overview", "Overzicht", "Algemene dagsturing en prioriteiten."],
   ["entries", "Loten", "Aantal loten, bronnen en opvallende deelname."],
@@ -109,9 +116,12 @@ export function updateKpiThread({ threadId, status, priority, assignedTo = undef
   return getKpiThread(thread.id);
 }
 
-export function listKpiThreads({ status = "", kpiKey = "", limit = 40 } = {}) {
+export function listKpiThreads({ status = "", kpiKey = "", limit = 40, userId = "" } = {}) {
   const filters = [];
-  const params = { limit: Math.max(1, Math.min(120, Number(limit || 40))) };
+  const params = {
+    limit: Math.max(1, Math.min(120, Number(limit || 40))),
+    userId: activeAdminUserId(userId)
+  };
   if (status) {
     filters.push("t.status = @status");
     params.status = cleanStatus(status);
@@ -129,7 +139,25 @@ export function listKpiThreads({ status = "", kpiKey = "", limit = 40 } = {}) {
       assignee.username AS assignee_username,
       assignee.name AS assignee_name,
       COUNT(m.id) AS message_count,
-      MAX(m.created_at) AS last_message_at
+      MAX(m.created_at) AS last_message_at,
+      (
+        SELECT latest.body
+        FROM admin_kpi_messages latest
+        WHERE latest.thread_id = t.id
+        ORDER BY latest.created_at DESC, latest.id DESC
+        LIMIT 1
+      ) AS last_message_body,
+      (
+        SELECT COUNT(*)
+        FROM admin_kpi_messages unread
+        LEFT JOIN admin_kpi_thread_reads read_state
+          ON read_state.thread_id = unread.thread_id
+          AND read_state.user_id = @userId
+        WHERE unread.thread_id = t.id
+          AND @userId != ''
+          AND COALESCE(unread.user_id, '') != @userId
+          AND unread.created_at > COALESCE(read_state.last_read_at, '1970-01-01T00:00:00.000Z')
+      ) AS unread_count
     FROM admin_kpi_threads t
     LEFT JOIN admin_users creator ON creator.id = t.created_by
     LEFT JOIN admin_users assignee ON assignee.id = t.assigned_to
@@ -139,6 +167,35 @@ export function listKpiThreads({ status = "", kpiKey = "", limit = 40 } = {}) {
     ORDER BY t.status = 'OPEN' DESC, t.priority = 'URGENT' DESC, t.priority = 'HIGH' DESC, COALESCE(MAX(m.created_at), t.updated_at) DESC
     LIMIT @limit
   `).all(params);
+}
+
+export function markKpiThreadRead({ threadId, userId }) {
+  const nextThreadId = cleanText(threadId, 80);
+  const nextUserId = activeAdminUserId(userId);
+  if (!nextThreadId || !nextUserId) return false;
+  const thread = db.prepare("SELECT id FROM admin_kpi_threads WHERE id = ?").get(nextThreadId);
+  if (!thread) return false;
+  db.prepare(`
+    INSERT INTO admin_kpi_thread_reads (thread_id, user_id, last_read_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at
+  `).run(thread.id, nextUserId, nowIso());
+  return true;
+}
+
+export function unreadKpiMessageCount(userId) {
+  const nextUserId = activeAdminUserId(userId);
+  if (!nextUserId) return 0;
+  const row = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM admin_kpi_messages m
+    LEFT JOIN admin_kpi_thread_reads read_state
+      ON read_state.thread_id = m.thread_id
+      AND read_state.user_id = ?
+    WHERE COALESCE(m.user_id, '') != ?
+      AND m.created_at > COALESCE(read_state.last_read_at, '1970-01-01T00:00:00.000Z')
+  `).get(nextUserId, nextUserId);
+  return Number(row?.count || 0);
 }
 
 export function getKpiThread(threadId) {
