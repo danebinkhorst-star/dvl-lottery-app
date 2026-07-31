@@ -169,6 +169,8 @@ test("embed frame uses Shopify frame ancestor CSP without X-Frame-Options", asyn
   const response = await request(app).get("/embed/frame?widget=winners").expect(200);
   assert.match(response.headers["content-security-policy"], /frame-ancestors .*myshopify\.com/);
   assert.equal(response.headers["x-frame-options"], undefined);
+  assert.match(response.text, /dvl:lottery-frame-ready/);
+  assert.match(response.text, /\.mff-winner, \.mff-winner-empty/);
 });
 
 test("live embed avoids repeated threshold copy and hard text shadows", async () => {

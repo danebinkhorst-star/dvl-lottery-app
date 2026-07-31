@@ -411,7 +411,7 @@ function widgetRuntime() {
       .mff-winners-carousel--compact{--mff-marquee-height:104px;margin-top:18px}
       .mff-winners-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(520px,calc(100% - 18px));gap:clamp(14px,2.5vw,24px);max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;padding:2px 4px 10px 2px;scrollbar-width:none}
       .mff-winners-carousel--compact .mff-winners-track{grid-auto-columns:min(390px,calc(100% - 18px));gap:14px}
-      .mff-winners-track--marquee{position:absolute;top:2px;left:0;display:flex;gap:0;width:max-content;max-width:none;overflow:visible;scroll-snap-type:none;scroll-padding-inline:0;scrollbar-width:none;padding:0 0 10px;animation:mffWinnerMarquee var(--mff-winner-speed,32s) linear infinite;will-change:transform}
+      .mff-winners-track--marquee{position:relative;display:flex;gap:0;width:max-content;max-width:none;overflow:visible;scroll-snap-type:none;scroll-padding-inline:0;scrollbar-width:none;padding:2px 0 10px;animation:mffWinnerMarquee var(--mff-winner-speed,32s) linear infinite}
       .mff-winners-carousel--compact .mff-winners-track--marquee{--mff-winner-speed:24s}
       .mff-winners-carousel:hover .mff-winners-track--marquee,.mff-winners-carousel:focus-within .mff-winners-track--marquee{animation-play-state:paused}
       .mff-winners-group{display:flex;gap:clamp(14px,2.5vw,24px);padding-right:clamp(14px,2.5vw,24px)}
@@ -433,7 +433,7 @@ function widgetRuntime() {
       .mff-winners-title span{color:var(--mff-muted);font-size:11px;text-align:right}
       .mff-winner-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:950}
       .mff-winner-empty b{color:var(--mff-red)}
-      @keyframes mffWinnerMarquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+      @keyframes mffWinnerMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       .mff-flow{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(22px,5vw,76px);align-items:center;background:transparent}
       .mff-flow .mff-visual{max-height:170px;margin-top:18px;object-position:left center}
       .mff-steps{
@@ -2355,14 +2355,26 @@ embedRouter.get("/frame", (req, res) => {
       window.DVL_WIDGET_PREVIEW = ${JSON.stringify(previewPayload)};
       (() => {
         const sectionId = ${JSON.stringify(sectionId)};
-        const sendHeight = () => {
+        const widget = ${JSON.stringify(widget)};
+        const root = document.querySelector('[data-dvl-lottery="${widget}"]');
+        const hasRenderedContent = () => {
+          if (!root || !root.firstElementChild) return false;
+          if (widget !== "winners") return true;
+          return Boolean(root.querySelector(".mff-winner, .mff-winner-empty"));
+        };
+        const sendFrameState = () => {
           const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
           window.parent.postMessage({ type: "dvl:lottery-frame-height", sectionId, height }, "*");
+          if (hasRenderedContent()) {
+            window.parent.postMessage({ type: "dvl:lottery-frame-ready", sectionId, height }, "*");
+          }
         };
-        window.addEventListener("load", sendHeight);
-        window.addEventListener("resize", sendHeight);
-        new ResizeObserver(sendHeight).observe(document.body);
-        window.setInterval(sendHeight, 1200);
+        window.addEventListener("load", sendFrameState);
+        window.addEventListener("pageshow", sendFrameState);
+        window.addEventListener("resize", sendFrameState);
+        new ResizeObserver(sendFrameState).observe(document.body);
+        if (root) new MutationObserver(sendFrameState).observe(root, { childList: true, subtree: true });
+        window.setInterval(sendFrameState, 1200);
       })();
     </script>
     <script src="${scriptSrc}"></script>
