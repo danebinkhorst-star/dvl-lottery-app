@@ -2335,7 +2335,7 @@ embedRouter.get("/frame", (req, res) => {
     "script-src 'self' 'unsafe-inline'",
     "connect-src 'self'",
     "object-src 'none'",
-    "frame-ancestors https://*.myshopify.com https://admin.shopify.com https://*.shopify.com"
+    "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.shopify.com"
   ].join("; "));
   res.send(`<!doctype html>
 <html lang="nl">

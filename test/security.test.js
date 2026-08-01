@@ -163,11 +163,11 @@ test("admin image upload rejects spoofed image content", async () => {
   assert.equal(db.prepare("SELECT action FROM audit_logs WHERE action = 'ADMIN_IMAGE_UPLOAD_REJECTED'").get().action, "ADMIN_IMAGE_UPLOAD_REJECTED");
 });
 
-test("embed frame uses Shopify frame ancestor CSP without X-Frame-Options", async () => {
+test("embed frame allows same-origin admin previews and Shopify embeds without X-Frame-Options", async () => {
   resetDb();
   const app = createApp();
   const response = await request(app).get("/embed/frame?widget=winners").expect(200);
-  assert.match(response.headers["content-security-policy"], /frame-ancestors .*myshopify\.com/);
+  assert.match(response.headers["content-security-policy"], /frame-ancestors 'self' .*myshopify\.com/);
   assert.equal(response.headers["x-frame-options"], undefined);
   assert.match(response.text, /dvl:lottery-frame-ready/);
   assert.match(response.text, /\.mff-winner, \.mff-winner-empty/);
