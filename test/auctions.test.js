@@ -26,10 +26,47 @@ function resetDb() {
     UPDATE auctions SET winner_bid_id = NULL;
     DELETE FROM auction_bids;
     DELETE FROM auctions;
+    DELETE FROM shopify_products;
     DELETE FROM customers;
     DELETE FROM security_events;
     DELETE FROM audit_logs;
   `);
+}
+
+function insertSyncedProduct(overrides = {}) {
+  const product = {
+    id: "prod-auction-picker",
+    shopify_product_id: "777001",
+    handle: "premium-auction-box",
+    title: "Premium auction box",
+    vendor: "Meat For Free",
+    product_type: "Box",
+    status: "active",
+    tags_json: JSON.stringify(["Nieuw"]),
+    image_url: "https://cdn.example.com/premium.jpg",
+    price_cents: 4900,
+    compare_at_cents: 0,
+    variant_id: "888001",
+    available: 1,
+    inventory_quantity: 4,
+    product_url: "/products/premium-auction-box",
+    status_tag: "Nieuw",
+    synced_at: nowIso(),
+    raw_json: "{}",
+    ...overrides
+  };
+  db.prepare(`
+    INSERT INTO shopify_products (
+      id, shopify_product_id, handle, title, vendor, product_type, status, tags_json, image_url,
+      price_cents, compare_at_cents, variant_id, available, inventory_quantity, product_url,
+      status_tag, synced_at, raw_json
+    ) VALUES (
+      @id, @shopify_product_id, @handle, @title, @vendor, @product_type, @status, @tags_json, @image_url,
+      @price_cents, @compare_at_cents, @variant_id, @available, @inventory_quantity, @product_url,
+      @status_tag, @synced_at, @raw_json
+    )
+  `).run(product);
+  return product;
 }
 
 function auctionInput(overrides = {}) {
@@ -115,6 +152,44 @@ test("auction API accepts the synced per-customer auction token", async () => {
     .expect(201);
 
   assert.equal(response.body.auction.currentBidCents, 2500);
+});
+
+test("admin can create an auction by picking a synced Shopify product", async () => {
+  resetDb();
+  const product = insertSyncedProduct();
+  const app = createApp();
+  const agent = request.agent(app);
+
+  await agent
+    .post("/admin/login")
+    .type("form")
+    .send({ username: "dvl", password: process.env.ADMIN_PASSWORD })
+    .expect(302);
+
+  const page = await agent.get("/admin/veilingen").expect(200);
+  assert.match(page.text, /Premium auction box/);
+  const token = page.text.match(/name="_csrf" value="([^"]+)"/)?.[1];
+  assert.ok(token);
+
+  await agent
+    .post("/admin/veilingen")
+    .type("form")
+    .send({
+      _csrf: token,
+      shopifyProductId: product.shopify_product_id,
+      startPrice: "25.00",
+      bidStep: "5.00",
+      status: "LIVE",
+      startsAt: new Date(Date.now() - 60_000).toISOString().slice(0, 16),
+      endsAt: new Date(Date.now() + 86400_000).toISOString().slice(0, 16)
+    })
+    .expect(302);
+
+  const auction = db.prepare("SELECT * FROM auctions WHERE shopify_product_id = ?").get(product.shopify_product_id);
+  assert.equal(auction.product_handle, product.handle);
+  assert.equal(auction.product_title, product.title);
+  assert.equal(auction.product_image_url, product.image_url);
+  assert.equal(auction.title, `${product.title} veiling`);
 });
 
 test("ended auctions reject bids and admin can award the highest bidder", () => {

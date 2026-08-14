@@ -361,6 +361,10 @@ function page(title, active, body) {
         .product-thumb { width:58px; aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f5ef; }
         .product-thumb img { width:100%; height:100%; display:block; object-fit:cover; }
         .product-thumb--empty { display:grid; place-items:center; color:var(--muted); }
+        .product-picker-preview { display:grid; grid-template-columns:74px minmax(0,1fr); gap:12px; align-items:center; min-height:88px; padding:12px; border:1px solid var(--line-soft); border-radius:10px; background:#fffdf8; }
+        .product-picker-preview__image { width:74px; aspect-ratio:1; display:grid; place-items:center; overflow:hidden; border:1px solid var(--line); border-radius:8px; background:#f7f5ef; color:var(--muted); }
+        .product-picker-preview__image img { width:100%; height:100%; display:block; object-fit:cover; }
+        .product-picker-preview strong { display:block; font-size:15px; font-weight:950; line-height:1.15; }
         .sync-health { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
         .sync-health-item { padding:12px; border:1px solid var(--line-soft); border-radius:10px; background:#fff; }
         .sync-health-item strong { display:block; margin-top:4px; font-size:16px; font-weight:950; }
@@ -2454,6 +2458,7 @@ adminRouter.get("/notifications", (req, res) => {
 adminRouter.get("/veilingen", (req, res) => {
   const selectedId = textParam(req.query.id);
   const rows = listAuctions({ limit: 120 });
+  const products = listSyncedProducts({ available: "yes", limit: 200 });
   const selected = selectedId ? getAuction(selectedId) : rows[0] || null;
   const selectedBids = selected ? listAuctionBids(selected.id, 120) : [];
   const publicSelected = selected ? publicAuction(selected) : null;
@@ -2463,27 +2468,17 @@ adminRouter.get("/veilingen", (req, res) => {
   const highestValue = rows.reduce((max, row) => Math.max(max, Number(row.amount_cents || 0)), 0);
 
   res.send(page("Veilingen | Meat For Free", "veilingen", `
-    ${topbar("Veilingen", "Productveilingen met login-only biedingen.", "Maak een aparte PDP/collectie voor biedproducten, laat klanten alleen met token bieden en kies achteraf de winnaar.", "")}
-    ${kpiGrid([
-      { label: "Veilingen", value: rows.length, help: "Alle actieve, afgelopen en conceptveilingen.", icon: "Gavel" },
-      { label: "Live", value: liveCount, help: "Nu zichtbaar en biedbaar.", icon: "Activity" },
-      { label: "Biedingen", value: totalBids, help: "Alle geldige biedingen samen.", icon: "BadgeEuro" },
-      { label: "Hoogste bod", value: highestValue ? formatEuro(highestValue) : "-", help: `${awardedCount} veiling(en) met gekozen winnaar.`, icon: "Trophy" }
-    ])}
-    <section class="grid grid-2">
-      <div class="panel panel-pad">
-        <div class="panel-title"><div><p class="eyebrow">Nieuwe veiling</p><h2>Aanmaken</h2></div></div>
-        ${auctionForm(null, "/admin/veilingen", "Veiling aanmaken")}
-      </div>
-      <div class="panel panel-pad">
-        <div class="panel-title"><div><p class="eyebrow">Controle</p><h2>Publicatie-eisen</h2></div></div>
-        <div class="stack">
-          <div class="ops-item"><span class="ops-icon">${icon("LockKeyhole")}</span><span><strong>Login en token verplicht</strong><br><span class="muted">De API accepteert geen bod zonder geldige klanttoken.</span></span><span class="status status--goed">Hard</span></div>
-          <div class="ops-item"><span class="ops-icon">${icon("BadgeEuro")}</span><span><strong>Minimum bod wordt server-side berekend</strong><br><span class="muted">Startprijs of hoogste bod plus stapgrootte.</span></span><span class="status status--goed">Hard</span></div>
-          <div class="ops-item"><span class="ops-icon">${icon("ClipboardCheck")}</span><span><strong>Winnaar kiezen blijft admin-besluit</strong><br><span class="muted">Hoogste bod is default, handmatige keuze vraagt notitie.</span></span><span class="status">Admin</span></div>
-        </div>
-      </div>
+    ${topbar("Veilingen", "Kies een product, zet bod en timing.", "De productdata komt uit Shopify sync. Klanten moeten ingelogd zijn voordat ze kunnen bieden.", `<form class="inline-form" method="post" action="/admin/sync-products"><button class="button--ghost" type="submit">${icon("RefreshCw")}Producten syncen</button></form>`)}
+    <section class="panel panel-pad">
+      <div class="panel-title"><div><p class="eyebrow">Nieuwe veiling</p><h2>Product kiezen</h2></div><span class="status">${products.length} producten</span></div>
+      ${products.length ? auctionForm(null, "/admin/veilingen", "Veiling aanmaken", products) : `<div class="empty">Geen gesyncte producten gevonden. Klik eerst op Producten syncen.</div>`}
     </section>
+    ${kpiGrid([
+      { label: "Live", value: liveCount, help: `${rows.length} veiling(en) totaal.`, icon: "Activity" },
+      { label: "Biedingen", value: totalBids, help: "Alle geldige biedingen samen.", icon: "BadgeEuro" },
+      { label: "Hoogste bod", value: highestValue ? formatEuro(highestValue) : "-", help: "Hoogste bod over alle veilingen.", icon: "Trophy" },
+      { label: "Winnaars", value: awardedCount, help: "Veilingen met gekozen winnaar.", icon: "BadgeCheck" }
+    ])}
     <div class="section-head"><h2>Alle veilingen</h2><span class="muted">${rows.length} items</span></div>
     <div class="panel">${auctionTable(rows, selected?.id || "")}</div>
     ${selected ? `
@@ -2491,7 +2486,7 @@ adminRouter.get("/veilingen", (req, res) => {
       <section class="grid grid-2">
         <div class="panel panel-pad">
           <div class="panel-title"><div><p class="eyebrow">Instellingen</p><h2>Bewerken</h2></div><span>${statusBadge(selected.status)}</span></div>
-          ${auctionForm(selected, `/admin/veilingen/${escapeHtml(selected.id)}/update`, "Wijzigingen opslaan")}
+          ${auctionForm(selected, `/admin/veilingen/${escapeHtml(selected.id)}/update`, "Wijzigingen opslaan", products)}
         </div>
         <div class="panel panel-pad">
           <div class="panel-title"><div><p class="eyebrow">Winnaar</p><h2>Kiezen</h2></div><span class="status">${escapeHtml(publicSelected?.currentBidLabel || "Geen bod")}</span></div>
@@ -4545,13 +4540,26 @@ function moneyInput(cents, fallback = "") {
   return (value / 100).toFixed(2);
 }
 
+function syncedProductByShopifyId(shopifyProductId) {
+  const idValue = textParam(shopifyProductId);
+  if (!idValue) return null;
+  const row = db.prepare("SELECT * FROM shopify_products WHERE shopify_product_id = ?").get(idValue);
+  if (!row) return null;
+  return {
+    ...row,
+    tags: JSON.parse(row.tags_json || "[]")
+  };
+}
+
 function auctionPayloadFromBody(body) {
+  const product = syncedProductByShopifyId(body.shopifyProductId);
+  const productTitle = product?.title || textParam(body.productTitle);
   return {
     shopifyProductId: textParam(body.shopifyProductId),
-    productHandle: textParam(body.productHandle),
-    productTitle: textParam(body.productTitle),
-    productImageUrl: textParam(body.productImageUrl),
-    title: textParam(body.title),
+    productHandle: product?.handle || textParam(body.productHandle),
+    productTitle,
+    productImageUrl: product?.image_url || textParam(body.productImageUrl),
+    title: textParam(body.title) || (productTitle ? `${productTitle} veiling` : ""),
     description: textParam(body.description),
     startPrice: textParam(body.startPrice),
     bidStep: textParam(body.bidStep),
@@ -4562,27 +4570,54 @@ function auctionPayloadFromBody(body) {
   };
 }
 
-function auctionForm(auction, action, buttonLabel) {
+function auctionForm(auction, action, buttonLabel, products = []) {
   const startsAt = auction?.starts_at || nowIso();
   const endsAt = auction?.ends_at || new Date(Date.now() + 7 * 86400000).toISOString();
   const statusOptions = (auction ? editableAuctionStatuses : ["DRAFT", "LIVE"]).map((status) => option(status, auction?.status || "DRAFT", statusLabel(status))).join("");
-  return `<form method="post" action="${escapeHtml(action)}">
+  const currentProduct = auction ? {
+    shopify_product_id: auction.shopify_product_id,
+    handle: auction.product_handle,
+    title: auction.product_title,
+    image_url: auction.product_image_url,
+    price_cents: 0,
+    status_tag: ""
+  } : products[0];
+  const productRows = auction && !products.some((product) => product.shopify_product_id === auction.shopify_product_id)
+    ? [currentProduct, ...products]
+    : products;
+  return `<form method="post" action="${escapeHtml(action)}" class="auction-editor" data-auction-product-picker>
     <div class="form-grid">
-      <label>Shopify product ID<input name="shopifyProductId" value="${escapeHtml(auction?.shopify_product_id || "")}" ${auction ? "readonly" : "required"} placeholder="Bijv. 1234567890"></label>
-      <label>Product handle<input name="productHandle" value="${escapeHtml(auction?.product_handle || "")}" placeholder="ribeye-box"></label>
-      <label class="wide">Producttitel<input name="productTitle" value="${escapeHtml(auction?.product_title || "")}" required placeholder="Naam zoals op Shopify"></label>
-      <label class="wide">Product image URL<input name="productImageUrl" value="${escapeHtml(auction?.product_image_url || "")}" placeholder="https://..."></label>
-      <label class="wide">Veilingtitel<input name="title" value="${escapeHtml(auction?.title || "")}" required placeholder="Bijv. Premium grillpakket veiling"></label>
-      <label class="wide">Beschrijving<textarea name="description" rows="3" placeholder="Kort, concreet, geen marketingruis.">${escapeHtml(auction?.description || "")}</textarea></label>
+      <label class="wide">Product
+        <select name="shopifyProductId" required data-auction-product-select${auction && listAuctionBids(auction.id, 1).length ? " disabled" : ""}>
+          ${productRows.map((product) => `<option
+            value="${escapeHtml(product.shopify_product_id)}"
+            data-handle="${escapeHtml(product.handle || "")}"
+            data-title="${escapeHtml(product.title || "")}"
+            data-image="${escapeHtml(product.image_url || "")}"
+            data-price="${escapeHtml(product.price_cents ? formatEuro(product.price_cents) : "")}"
+            data-tag="${escapeHtml(product.status_tag || "")}"
+            ${String(product.shopify_product_id) === String(currentProduct?.shopify_product_id || "") ? " selected" : ""}
+          >${escapeHtml(product.title || product.shopify_product_id)}${product.price_cents ? ` - ${escapeHtml(formatEuro(product.price_cents))}` : ""}${product.status_tag ? ` - ${escapeHtml(product.status_tag)}` : ""}</option>`).join("")}
+        </select>
+      </label>
+      ${auction && listAuctionBids(auction.id, 1).length ? `<input type="hidden" name="shopifyProductId" value="${escapeHtml(auction.shopify_product_id)}">` : ""}
+      <input type="hidden" name="productHandle" value="${escapeHtml(auction?.product_handle || currentProduct?.handle || "")}" data-auction-product-handle>
+      <input type="hidden" name="productTitle" value="${escapeHtml(auction?.product_title || currentProduct?.title || "")}" data-auction-product-title>
+      <input type="hidden" name="productImageUrl" value="${escapeHtml(auction?.product_image_url || currentProduct?.image_url || "")}" data-auction-product-image>
+      <div class="wide product-picker-preview" data-auction-product-preview>
+        <div class="product-picker-preview__image">${currentProduct?.image_url ? `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` : icon("Package")}</div>
+        <div><strong>${escapeHtml(currentProduct?.title || "Kies een product")}</strong><span class="muted">${escapeHtml(currentProduct?.handle || "")}${currentProduct?.price_cents ? ` · ${escapeHtml(formatEuro(currentProduct.price_cents))}` : ""}${currentProduct?.status_tag ? ` · ${escapeHtml(currentProduct.status_tag)}` : ""}</span></div>
+      </div>
+      <label class="wide">Interne veilingnaam<input name="title" value="${escapeHtml(auction?.title || "")}" placeholder="Leeg laten = productnaam + veiling"></label>
+      <label class="wide">Korte veilingnotitie<textarea name="description" rows="2" placeholder="Optioneel. Bijvoorbeeld conditie, pakketinhoud of afhaalinstructie.">${escapeHtml(auction?.description || "")}</textarea></label>
       <label>Startbod<input name="startPrice" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.start_price_cents, "25.00"))}" required></label>
       <label>Biedstap<input name="bidStep" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.bid_step_cents, "5.00"))}" required></label>
-      <label>Reserveprijs<input name="reservePrice" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.reserve_price_cents, "0.00"))}"></label>
       <label>Status<select name="status">${statusOptions}</select></label>
       <label>Start<input type="datetime-local" name="startsAt" value="${escapeHtml(dateTimeLocal(startsAt))}" required></label>
       <label>Einde<input type="datetime-local" name="endsAt" value="${escapeHtml(dateTimeLocal(endsAt))}" required></label>
     </div>
     <div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="button--gold" type="submit">${icon(auction ? "Save" : "Plus")}${escapeHtml(buttonLabel)}</button></div>
-  </form>`;
+  </form>${auctionProductPickerScript()}`;
 }
 
 function auctionTable(rows, selectedId = "") {
@@ -4640,6 +4675,36 @@ function auctionBidsTable(bids) {
       <td><span class="muted">${escapeHtml(String(bid.ip_hash || "").slice(0, 12))}${bid.ip_hash ? "..." : "-"}</span></td>
     </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen biedingen.</div></td></tr>`}</tbody>
   </table>`;
+}
+
+function auctionProductPickerScript() {
+  return `<script>
+    (() => {
+      document.querySelectorAll("[data-auction-product-picker]").forEach((form) => {
+        const select = form.querySelector("[data-auction-product-select]");
+        const handle = form.querySelector("[data-auction-product-handle]");
+        const title = form.querySelector("[data-auction-product-title]");
+        const image = form.querySelector("[data-auction-product-image]");
+        const preview = form.querySelector("[data-auction-product-preview]");
+        if (!select || !preview) return;
+        const render = () => {
+          const option = select.selectedOptions[0];
+          if (!option) return;
+          const nextHandle = option.dataset.handle || "";
+          const nextTitle = option.dataset.title || option.textContent.trim();
+          const nextImage = option.dataset.image || "";
+          const nextPrice = option.dataset.price || "";
+          const nextTag = option.dataset.tag || "";
+          if (handle) handle.value = nextHandle;
+          if (title) title.value = nextTitle;
+          if (image) image.value = nextImage;
+          preview.innerHTML = '<div class="product-picker-preview__image">' + (nextImage ? '<img src="' + nextImage.replaceAll('"', '&quot;') + '" alt="">' : '${icon("Package").replaceAll("'", "\\'")}') + '</div><div><strong>' + nextTitle.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\\\"": "&quot;", "'": "&#039;" }[char])) + '</strong><span class="muted">' + [nextHandle, nextPrice, nextTag].filter(Boolean).join(" · ").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\\\"": "&quot;", "'": "&#039;" }[char])) + '</span></div>';
+        };
+        select.addEventListener("change", render);
+        render();
+      });
+    })();
+  </script>`;
 }
 
 function entryFilters(filter, action, drawOptions = []) {
