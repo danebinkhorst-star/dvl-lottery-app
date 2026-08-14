@@ -9,7 +9,8 @@ import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../servi
 import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { clientIp, recordSecurityEvent } from "../services/security-events.js";
 import { recordAnalyticsEvent } from "../services/analytics.js";
-import { isValidWriteSecret, signCustomerToken, verifyCustomerToken } from "../auth.js";
+import { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken, verifyCustomerToken } from "../auth.js";
+import { createAuction, getAuctionByProduct, listAuctions, placeAuctionBid, publicAuction } from "../services/auctions.js";
 
 export const apiRouter = express.Router();
 
@@ -61,6 +62,21 @@ const analyticsLimiter = rateLimit({
     res.status(204).end();
   }
 });
+const bidLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 12,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (req, res) => {
+    recordSecurityEvent({
+      eventType: "AUCTION_BID_RATE_LIMIT",
+      req,
+      email: req.body?.customerEmail,
+      message: "Veiling bieding rate limit geraakt."
+    });
+    res.status(429).json({ error: "Te veel biedingen in korte tijd. Probeer het zo opnieuw." });
+  }
+});
 const analyticsEventSchema = z.object({
   eventType: z.string().trim().max(64).optional().default("widget_event"),
   widget: z.string().trim().max(40),
@@ -71,6 +87,12 @@ const analyticsEventSchema = z.object({
   referrer: z.string().trim().max(520).optional().default(""),
   shopOrigin: z.string().trim().max(520).optional().default(""),
   metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default({})
+});
+const auctionBidSchema = z.object({
+  shopifyCustomerId: z.string().trim().min(1).max(80),
+  customerEmail: z.string().trim().email().max(160),
+  customerName: z.string().trim().max(140).optional().default(""),
+  amount: z.union([z.string().trim().max(40), z.number()])
 });
 
 function allowFreeEntryAttempt(key) {
@@ -272,6 +294,52 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
   res.json(buildCustomerDashboardPayload(customer));
 });
 
+apiRouter.get("/auctions", async (req, res) => {
+  const status = String(req.query.status || "");
+  const auctions = listAuctions({ status, publicOnly: true, limit: req.query.limit || 80 }).map(publicAuction);
+  return res.json({ auctions });
+});
+
+apiRouter.get("/auctions/product/:shopifyProductId", async (req, res) => {
+  const auction = getAuctionByProduct(req.params.shopifyProductId);
+  if (!auction) return res.status(404).json({ error: "Geen veiling gevonden voor dit product." });
+  return res.json({ auction: publicAuction(auction) });
+});
+
+apiRouter.post("/auctions/:auctionId/bids", bidLimiter, async (req, res) => {
+  try {
+    const payload = auctionBidSchema.parse(req.body || {});
+    const suppliedToken = req.get("x-dvl-customer-token") || "";
+    if (!verifyCustomerAccessToken(payload.shopifyCustomerId, suppliedToken)) {
+      recordSecurityEvent({
+        eventType: "AUCTION_BID_UNAUTHORIZED",
+        req,
+        email: payload.customerEmail,
+        message: "Veiling bod zonder geldige klanttoken."
+      });
+      return res.status(401).json({ error: "Log opnieuw in voordat je biedt." });
+    }
+    const result = placeAuctionBid(req.params.auctionId, {
+      ...payload,
+      ip: clientIp(req),
+      userAgent: req.get("user-agent") || ""
+    });
+    return res.status(201).json({
+      ok: true,
+      auction: publicAuction(result.auction),
+      bid: {
+        id: result.bid.id,
+        amountCents: result.bid.amount_cents,
+        status: result.bid.status,
+        createdAt: result.bid.created_at
+      }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Controleer je bod en klantgegevens." });
+    return res.status(400).json({ error: error.message || "Bod kon niet worden geplaatst." });
+  }
+});
+
 apiRouter.post("/customers/:shopifyCustomerId/token", adminWriteLimiter, async (req, res) => {
   const suppliedSecret = req.get("x-dvl-admin-secret") || "";
   if (!isValidWriteSecret(suppliedSecret)) {
@@ -290,6 +358,15 @@ apiRouter.post("/draws", adminWriteLimiter, async (req, res) => {
   }
   const draw = await createDraw(req.body);
   return res.status(201).json({ draw });
+});
+
+apiRouter.post("/auctions", adminWriteLimiter, async (req, res) => {
+  const suppliedSecret = req.get("x-dvl-admin-secret") || "";
+  if (!isValidWriteSecret(suppliedSecret)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const auction = createAuction(req.body || {});
+  return res.status(201).json({ auction: publicAuction(auction) });
 });
 
 apiRouter.post("/reconcile/orders", adminWriteLimiter, async (req, res) => {

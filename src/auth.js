@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { config } from "./config.js";
+import { db, nowIso } from "./db.js";
 
 export function safeEqual(a, b) {
   const left = Buffer.from(String(a || ""));
@@ -40,4 +41,21 @@ export function verifyCustomerToken(shopifyCustomerId, token) {
     .update(`${tokenCustomerId}.${expiresAt}`)
     .digest("base64url");
   return safeEqual(signature, expected);
+}
+
+export function ensureCustomerAuctionToken(shopifyCustomerId) {
+  if (!shopifyCustomerId) return "";
+  const customer = db.prepare("SELECT id, auction_token FROM customers WHERE shopify_customer_id = ?").get(String(shopifyCustomerId));
+  if (!customer) return "";
+  if (customer.auction_token) return customer.auction_token;
+  const token = crypto.randomBytes(32).toString("base64url");
+  db.prepare("UPDATE customers SET auction_token = ?, updated_at = ? WHERE id = ?").run(token, nowIso(), customer.id);
+  return token;
+}
+
+export function verifyCustomerAccessToken(shopifyCustomerId, token) {
+  if (verifyCustomerToken(shopifyCustomerId, token)) return true;
+  if (!shopifyCustomerId || !token) return false;
+  const customer = db.prepare("SELECT auction_token FROM customers WHERE shopify_customer_id = ?").get(String(shopifyCustomerId));
+  return Boolean(customer?.auction_token) && safeEqual(customer.auction_token, token);
 }

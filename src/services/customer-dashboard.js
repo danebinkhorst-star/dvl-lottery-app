@@ -3,9 +3,10 @@ import { db, nowIso } from "../db.js";
 import { shopifyRest } from "../shopify/admin-api.js";
 import { getLotteryRule } from "./settings.js";
 import { formatEuro } from "../utils.js";
+import { ensureCustomerAuctionToken } from "../auth.js";
 
 const NAMESPACE = "dvl_lottery";
-const DASHBOARD_KEYS = new Set(["summary", "entries", "orders", "active_draw"]);
+const DASHBOARD_KEYS = new Set(["summary", "entries", "orders", "active_draw", "auction_token"]);
 
 function isTestRun() {
   return Boolean(process.env.NODE_TEST_CONTEXT);
@@ -207,8 +208,8 @@ async function upsertCustomerMetafield(shopifyCustomerId, existing, key, value) 
     metafield: {
       namespace: NAMESPACE,
       key,
-      type: "json",
-      value: JSON.stringify(value)
+      type: key === "auction_token" ? "single_line_text_field" : "json",
+      value: key === "auction_token" ? String(value || "") : JSON.stringify(value)
     }
   };
   const match = existing.find((metafield) => metafield.namespace === NAMESPACE && metafield.key === key);
@@ -243,6 +244,7 @@ export async function syncCustomerDashboardMetafields(customerOrId) {
     await upsertCustomerMetafield(shopifyCustomerId, existing, "entries", payload.entries);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "orders", payload.orders);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "active_draw", payload.activeDraw);
+    await upsertCustomerMetafield(shopifyCustomerId, existing, "auction_token", ensureCustomerAuctionToken(customer.shopify_customer_id));
     return { ok: true, shopifyCustomerId, totalEntries: payload.summary.totalEntries };
   } catch (error) {
     console.warn(`Customer dashboard sync failed for ${shopifyCustomerId}: ${error.message}`);

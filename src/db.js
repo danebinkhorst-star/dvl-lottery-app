@@ -20,6 +20,7 @@ export function initDb() {
       email TEXT UNIQUE,
       first_name TEXT,
       last_name TEXT,
+      auction_token TEXT,
       total_entries INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -273,6 +274,42 @@ export function initDb() {
       raw_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS auctions (
+      id TEXT PRIMARY KEY,
+      shopify_product_id TEXT NOT NULL,
+      product_handle TEXT,
+      product_title TEXT NOT NULL,
+      product_image_url TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      start_price_cents INTEGER NOT NULL DEFAULT 0,
+      bid_step_cents INTEGER NOT NULL DEFAULT 100,
+      reserve_price_cents INTEGER NOT NULL DEFAULT 0,
+      starts_at TEXT NOT NULL,
+      ends_at TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      winner_bid_id TEXT,
+      winner_note TEXT,
+      awarded_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (winner_bid_id) REFERENCES auction_bids(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS auction_bids (
+      id TEXT PRIMARY KEY,
+      auction_id TEXT NOT NULL,
+      shopify_customer_id TEXT NOT NULL,
+      customer_email TEXT NOT NULL,
+      customer_name TEXT,
+      amount_cents INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      ip_hash TEXT,
+      user_agent_hash TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (auction_id) REFERENCES auctions(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS security_events (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -323,6 +360,10 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_shopify_products_synced ON shopify_products(synced_at);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_available ON shopify_products(available, price_cents);
     CREATE INDEX IF NOT EXISTS idx_shopify_products_status_tag ON shopify_products(status_tag);
+    CREATE INDEX IF NOT EXISTS idx_auctions_product_status ON auctions(shopify_product_id, status, ends_at);
+    CREATE INDEX IF NOT EXISTS idx_auctions_status_time ON auctions(status, starts_at, ends_at);
+    CREATE INDEX IF NOT EXISTS idx_auction_bids_auction_amount ON auction_bids(auction_id, amount_cents, created_at);
+    CREATE INDEX IF NOT EXISTS idx_auction_bids_customer ON auction_bids(shopify_customer_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_created ON security_events(created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip_hash, created_at);
@@ -338,6 +379,7 @@ export function initDb() {
   ensureColumn("lottery_draws", "winner_consent_status", "TEXT NOT NULL DEFAULT 'UNKNOWN'");
   ensureColumn("lottery_draws", "winner_consent_reference", "TEXT");
   ensureColumn("lottery_draws", "winner_internal_note", "TEXT");
+  ensureColumn("customers", "auction_token", "TEXT");
   ensureColumn("admin_users", "team_id", "TEXT");
   ensureColumn("admin_users", "title", "TEXT");
   ensureColumn("admin_users", "avatar_url", "TEXT");
@@ -348,6 +390,8 @@ export function initDb() {
   ensureColumn("admin_users", "totp_secret", "TEXT");
   ensureColumn("admin_users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("admin_users", "totp_confirmed_at", "TEXT");
+  ensureColumn("auctions", "winner_note", "TEXT");
+  ensureColumn("auctions", "awarded_at", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_draws_winner_public ON lottery_draws(winner_public_status, draw_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_admin_users_team ON admin_users(team_id, status)");
 }

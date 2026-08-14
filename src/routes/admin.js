@@ -9,6 +9,16 @@ import { recentSecurityEvents, securityEventSummary } from "../services/security
 import { analyticsActionItems, analyticsSummary } from "../services/analytics.js";
 import { writeAuditLog } from "../services/audit.js";
 import {
+  awardAuctionWinner,
+  cancelAuction,
+  createAuction,
+  getAuction,
+  listAuctionBids,
+  listAuctions,
+  publicAuction,
+  updateAuction
+} from "../services/auctions.js";
+import {
   adminPermissionDefinitions,
   changeOwnAdminPassword,
   confirmAdminTotpSetup,
@@ -59,6 +69,7 @@ const drawStatuses = ["DRAFT", "LIVE", "DRAWN", "ARCHIVED"];
 const editableDrawStatuses = ["DRAFT", "LIVE", "ARCHIVED"];
 const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
+const editableAuctionStatuses = ["DRAFT", "LIVE", "ENDED"];
 
 function actor(req) {
   return req.adminUser?.username || "admin";
@@ -95,8 +106,13 @@ function statusLabel(status) {
     LIVE: "Live",
     DRAWN: "Getrokken",
     ARCHIVED: "Gearchiveerd",
+    ENDED: "Afgelopen",
+    AWARDED: "Toegewezen",
+    CANCELLED: "Geannuleerd",
     ACTIVE: "Actief",
     WINNER: "Winnaar",
+    WINNING: "Hoogste bod",
+    OUTBID: "Overboden",
     VOID: "Ongeldig",
     ORDER_THRESHOLD: "Orderlot",
     FREE_ENTRY: "Gratis deelname",
@@ -178,6 +194,7 @@ function page(title, active, body) {
     ["analyse", "/admin/analyse", "ChartNoAxesCombined", "Analyse"],
     ["groei", "/admin/groei", "LineChart", "Groei"],
     ["winacties", "/admin/winacties", "Gift", "Winacties"],
+    ["veilingen", "/admin/veilingen", "Gavel", "Veilingen"],
     ["winnaars", "/admin/winnaars", "Trophy", "Winnaars"],
     ["loten", "/admin/loten", "Tickets", "Loten"],
     ["orders", "/admin/orders", "ShoppingCart", "Orders"],
@@ -2196,6 +2213,7 @@ function routePermission(req) {
   if (path.startsWith("/site-structuur")) return "manage_site";
   if (path.startsWith("/analyse") || path.startsWith("/groei")) return "view_analytics";
   if (path.startsWith("/winnaars")) return method === "GET" ? "view_winners" : "manage_winners";
+  if (path.startsWith("/veilingen")) return method === "GET" ? "view_draws" : "manage_draws";
   if (path.startsWith("/winacties") || path.startsWith("/new-draw") || path.startsWith("/draws")) return method === "GET" ? "view_draws" : "manage_draws";
   if (path.startsWith("/loten")) return method === "GET" ? "view_entries" : "manage_entries";
   if (path.startsWith("/orders")) return "view_orders";
@@ -2433,10 +2451,134 @@ adminRouter.get("/notifications", (req, res) => {
   });
 });
 
+adminRouter.get("/veilingen", (req, res) => {
+  const selectedId = textParam(req.query.id);
+  const rows = listAuctions({ limit: 120 });
+  const selected = selectedId ? getAuction(selectedId) : rows[0] || null;
+  const selectedBids = selected ? listAuctionBids(selected.id, 120) : [];
+  const publicSelected = selected ? publicAuction(selected) : null;
+  const liveCount = rows.filter((row) => row.status === "LIVE").length;
+  const awardedCount = rows.filter((row) => row.status === "AWARDED").length;
+  const totalBids = rows.reduce((sum, row) => sum + Number(row.bid_count || 0), 0);
+  const highestValue = rows.reduce((max, row) => Math.max(max, Number(row.amount_cents || 0)), 0);
+
+  res.send(page("Veilingen | Meat For Free", "veilingen", `
+    ${topbar("Veilingen", "Productveilingen met login-only biedingen.", "Maak een aparte PDP/collectie voor biedproducten, laat klanten alleen met token bieden en kies achteraf de winnaar.", "")}
+    ${kpiGrid([
+      { label: "Veilingen", value: rows.length, help: "Alle actieve, afgelopen en conceptveilingen.", icon: "Gavel" },
+      { label: "Live", value: liveCount, help: "Nu zichtbaar en biedbaar.", icon: "Activity" },
+      { label: "Biedingen", value: totalBids, help: "Alle geldige biedingen samen.", icon: "BadgeEuro" },
+      { label: "Hoogste bod", value: highestValue ? formatEuro(highestValue) : "-", help: `${awardedCount} veiling(en) met gekozen winnaar.`, icon: "Trophy" }
+    ])}
+    <section class="grid grid-2">
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Nieuwe veiling</p><h2>Aanmaken</h2></div></div>
+        ${auctionForm(null, "/admin/veilingen", "Veiling aanmaken")}
+      </div>
+      <div class="panel panel-pad">
+        <div class="panel-title"><div><p class="eyebrow">Controle</p><h2>Publicatie-eisen</h2></div></div>
+        <div class="stack">
+          <div class="ops-item"><span class="ops-icon">${icon("LockKeyhole")}</span><span><strong>Login en token verplicht</strong><br><span class="muted">De API accepteert geen bod zonder geldige klanttoken.</span></span><span class="status status--goed">Hard</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("BadgeEuro")}</span><span><strong>Minimum bod wordt server-side berekend</strong><br><span class="muted">Startprijs of hoogste bod plus stapgrootte.</span></span><span class="status status--goed">Hard</span></div>
+          <div class="ops-item"><span class="ops-icon">${icon("ClipboardCheck")}</span><span><strong>Winnaar kiezen blijft admin-besluit</strong><br><span class="muted">Hoogste bod is default, handmatige keuze vraagt notitie.</span></span><span class="status">Admin</span></div>
+        </div>
+      </div>
+    </section>
+    <div class="section-head"><h2>Alle veilingen</h2><span class="muted">${rows.length} items</span></div>
+    <div class="panel">${auctionTable(rows, selected?.id || "")}</div>
+    ${selected ? `
+      <div class="section-head"><h2>${escapeHtml(selected.title)}</h2><span class="muted">${escapeHtml(selected.product_title)}</span></div>
+      <section class="grid grid-2">
+        <div class="panel panel-pad">
+          <div class="panel-title"><div><p class="eyebrow">Instellingen</p><h2>Bewerken</h2></div><span>${statusBadge(selected.status)}</span></div>
+          ${auctionForm(selected, `/admin/veilingen/${escapeHtml(selected.id)}/update`, "Wijzigingen opslaan")}
+        </div>
+        <div class="panel panel-pad">
+          <div class="panel-title"><div><p class="eyebrow">Winnaar</p><h2>Kiezen</h2></div><span class="status">${escapeHtml(publicSelected?.currentBidLabel || "Geen bod")}</span></div>
+          ${auctionWinnerForm(selected, selectedBids)}
+        </div>
+      </section>
+      <div class="section-head"><h2>Biedingen</h2><span class="muted">Hoogste bod bovenaan</span></div>
+      <div class="panel">${auctionBidsTable(selectedBids)}</div>
+    ` : ""}
+  `));
+});
+
+adminRouter.post("/veilingen", urlencoded, (req, res) => {
+  try {
+    const auction = createAuction(auctionPayloadFromBody(req.body || {}));
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILING_AANGEMAAKT",
+      targetType: "auction",
+      targetId: auction.id,
+      message: `${auction.title} aangemaakt.`
+    });
+    res.redirect(`/admin/veilingen?id=${encodeURIComponent(auction.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Veiling fout | Meat For Free", "veilingen", topbar("Niet opgeslagen", "Veiling kon niet worden aangemaakt.", error.message, `<a class="button button--gold" href="/admin/veilingen">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/veilingen/:id/update", urlencoded, (req, res) => {
+  try {
+    const auction = updateAuction(req.params.id, auctionPayloadFromBody(req.body || {}));
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILING_BIJGEWERKT",
+      targetType: "auction",
+      targetId: auction.id,
+      message: `${auction.title} bijgewerkt.`
+    });
+    res.redirect(`/admin/veilingen?id=${encodeURIComponent(auction.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Veiling fout | Meat For Free", "veilingen", topbar("Niet opgeslagen", "Veiling kon niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/veilingen">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/veilingen/:id/winner", urlencoded, (req, res) => {
+  try {
+    const bidId = textParam(req.body.bidId);
+    const note = textParam(req.body.note);
+    if (bidId && !note) throw new Error("Vul een notitie in wanneer je niet automatisch het hoogste bod kiest.");
+    const result = awardAuctionWinner(req.params.id, { bidId, note });
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILING_WINNAAR_GEKOZEN",
+      targetType: "auction",
+      targetId: result.auction.id,
+      message: `${result.bid.customer_email} gekozen met ${formatEuro(result.bid.amount_cents)}.`,
+      metadata: { bidId: result.bid.id, manualOverride: Boolean(bidId), note: note || "" }
+    });
+    res.redirect(`/admin/veilingen?id=${encodeURIComponent(result.auction.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Winnaar fout | Meat For Free", "veilingen", topbar("Niet opgeslagen", "Winnaar kon niet worden gekozen.", error.message, `<a class="button button--gold" href="/admin/veilingen?id=${encodeURIComponent(req.params.id)}">Terug</a>`)));
+  }
+});
+
+adminRouter.post("/veilingen/:id/cancel", urlencoded, (req, res) => {
+  try {
+    const note = textParam(req.body.note);
+    if (!note) throw new Error("Vul een reden in voordat je een veiling annuleert.");
+    const auction = cancelAuction(req.params.id, note);
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILING_GEANNULERD",
+      targetType: "auction",
+      targetId: auction.id,
+      message: note
+    });
+    res.redirect(`/admin/veilingen?id=${encodeURIComponent(auction.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Annuleren fout | Meat For Free", "veilingen", topbar("Niet geannuleerd", "Veiling kon niet worden geannuleerd.", error.message, `<a class="button button--gold" href="/admin/veilingen?id=${encodeURIComponent(req.params.id)}">Terug</a>`)));
+  }
+});
+
 adminRouter.get("/menu", (_req, res) => {
   const groups = [
     ["Beheer", [
       ["groei", "Groei", "/admin/groei", "LineChart", "Conversie, widgetperformance en live readiness."],
+      ["veilingen", "Veilingen", "/admin/veilingen", "Gavel", "Productveilingen, biedingen en winnaarselectie."],
       ["winnaars", "Winnaars", "/admin/winnaars", "Trophy", "Getrokken winnaars en social-proof publicatie."],
       ["loten", "Loten", "/admin/loten", "Tickets", "Alle deelnamebewijzen en bronnen."],
       ["orders", "Orders", "/admin/orders", "ShoppingCart", "Orderwaarde en lottoekenning."],
@@ -4387,6 +4529,116 @@ function drawTable(draws) {
         ${draw.status === "LIVE" ? `<form class="inline-form" method="post" action="/admin/draws/${escapeHtml(draw.id)}/draw"><button type="submit">Trek</button></form>` : ""}
       </div></td>
     </tr>`).join("") : `<tr><td colspan="7"><div class="empty">Nog geen winacties.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function dateTimeLocal(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 16);
+}
+
+function moneyInput(cents, fallback = "") {
+  const value = Number(cents ?? 0);
+  if (!Number.isFinite(value) || value === 0) return fallback;
+  return (value / 100).toFixed(2);
+}
+
+function auctionPayloadFromBody(body) {
+  return {
+    shopifyProductId: textParam(body.shopifyProductId),
+    productHandle: textParam(body.productHandle),
+    productTitle: textParam(body.productTitle),
+    productImageUrl: textParam(body.productImageUrl),
+    title: textParam(body.title),
+    description: textParam(body.description),
+    startPrice: textParam(body.startPrice),
+    bidStep: textParam(body.bidStep),
+    reservePrice: textParam(body.reservePrice),
+    startsAt: body.startsAt ? new Date(textParam(body.startsAt)).toISOString() : nowIso(),
+    endsAt: body.endsAt ? new Date(textParam(body.endsAt)).toISOString() : "",
+    status: textParam(body.status)
+  };
+}
+
+function auctionForm(auction, action, buttonLabel) {
+  const startsAt = auction?.starts_at || nowIso();
+  const endsAt = auction?.ends_at || new Date(Date.now() + 7 * 86400000).toISOString();
+  const statusOptions = (auction ? editableAuctionStatuses : ["DRAFT", "LIVE"]).map((status) => option(status, auction?.status || "DRAFT", statusLabel(status))).join("");
+  return `<form method="post" action="${escapeHtml(action)}">
+    <div class="form-grid">
+      <label>Shopify product ID<input name="shopifyProductId" value="${escapeHtml(auction?.shopify_product_id || "")}" ${auction ? "readonly" : "required"} placeholder="Bijv. 1234567890"></label>
+      <label>Product handle<input name="productHandle" value="${escapeHtml(auction?.product_handle || "")}" placeholder="ribeye-box"></label>
+      <label class="wide">Producttitel<input name="productTitle" value="${escapeHtml(auction?.product_title || "")}" required placeholder="Naam zoals op Shopify"></label>
+      <label class="wide">Product image URL<input name="productImageUrl" value="${escapeHtml(auction?.product_image_url || "")}" placeholder="https://..."></label>
+      <label class="wide">Veilingtitel<input name="title" value="${escapeHtml(auction?.title || "")}" required placeholder="Bijv. Premium grillpakket veiling"></label>
+      <label class="wide">Beschrijving<textarea name="description" rows="3" placeholder="Kort, concreet, geen marketingruis.">${escapeHtml(auction?.description || "")}</textarea></label>
+      <label>Startbod<input name="startPrice" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.start_price_cents, "25.00"))}" required></label>
+      <label>Biedstap<input name="bidStep" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.bid_step_cents, "5.00"))}" required></label>
+      <label>Reserveprijs<input name="reservePrice" inputmode="decimal" value="${escapeHtml(moneyInput(auction?.reserve_price_cents, "0.00"))}"></label>
+      <label>Status<select name="status">${statusOptions}</select></label>
+      <label>Start<input type="datetime-local" name="startsAt" value="${escapeHtml(dateTimeLocal(startsAt))}" required></label>
+      <label>Einde<input type="datetime-local" name="endsAt" value="${escapeHtml(dateTimeLocal(endsAt))}" required></label>
+    </div>
+    <div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="button--gold" type="submit">${icon(auction ? "Save" : "Plus")}${escapeHtml(buttonLabel)}</button></div>
+  </form>`;
+}
+
+function auctionTable(rows, selectedId = "") {
+  return `<table>
+    <thead><tr><th>Veiling</th><th>Status</th><th>Product</th><th>Biedingen</th><th>Hoogste bod</th><th>Timing</th><th>Actie</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => `<tr>
+      <td><strong>${escapeHtml(row.title)}</strong><span class="muted">${escapeHtml(row.id)}</span></td>
+      <td>${statusBadge(row.status)}</td>
+      <td><strong>${escapeHtml(row.product_title)}</strong><span class="muted">${escapeHtml(row.product_handle || row.shopify_product_id)}</span></td>
+      <td>${Number(row.bid_count || 0)}</td>
+      <td>${row.amount_cents ? `<strong>${escapeHtml(formatEuro(row.amount_cents))}</strong><span class="muted">${escapeHtml(row.highest_customer_email || "")}</span>` : "-"}</td>
+      <td><span class="muted">Start</span> ${escapeHtml(dateInput(row.starts_at) || "-")}<br><span class="muted">Einde</span> ${escapeHtml(dateInput(row.ends_at) || "-")}</td>
+      <td><a class="button ${row.id === selectedId ? "button--gold" : "button--ghost"}" href="/admin/veilingen?id=${encodeURIComponent(row.id)}">${row.id === selectedId ? "Open" : "Beheer"}</a></td>
+    </tr>`).join("") : `<tr><td colspan="7"><div class="empty">Nog geen veilingen. Maak de eerste veiling hierboven aan.</div></td></tr>`}</tbody>
+  </table>`;
+}
+
+function auctionWinnerForm(auction, bids) {
+  if (auction.status === "AWARDED") {
+    const winner = bids.find((bid) => bid.id === auction.winner_bid_id);
+    return `<div class="stack">
+      <div class="ops-item"><span class="ops-icon">${icon("Trophy")}</span><span><strong>${escapeHtml(winner?.customer_email || "Winnaar vastgelegd")}</strong><br><span class="muted">${winner ? escapeHtml(formatEuro(winner.amount_cents)) : "Bod opgeslagen"}</span></span><span class="status status--winner">Winnaar</span></div>
+      ${auction.winner_note ? `<div class="empty">${escapeHtml(auction.winner_note)}</div>` : ""}
+    </div>`;
+  }
+  if (!bids.length) return `<div class="empty">Nog geen biedingen. De winnaarselectie komt beschikbaar zodra er minstens een bod is.</div>`;
+  const highest = bids[0];
+  return `<div class="stack">
+    <div class="ops-item"><span class="ops-icon">${icon("Trophy")}</span><span><strong>Default: hoogste bod</strong><br><span class="muted">${escapeHtml(highest.customer_email)} met ${escapeHtml(formatEuro(highest.amount_cents))}</span></span><span class="status">Aanbevolen</span></div>
+    <form method="post" action="/admin/veilingen/${escapeHtml(auction.id)}/winner">
+      <div class="form-grid">
+        <label class="wide">Winnaar<select name="bidId">
+          ${option("", "", `Hoogste bod automatisch: ${highest.customer_email} (${formatEuro(highest.amount_cents)})`)}
+          ${bids.map((bid) => option(bid.id, "", `${bid.customer_email} - ${formatEuro(bid.amount_cents)} - ${statusLabel(bid.status)}`)).join("")}
+        </select></label>
+        <label class="wide">Notitie bij handmatige keuze<textarea name="note" rows="3" placeholder="Verplicht als je niet het hoogste bod kiest."></textarea></label>
+      </div>
+      <div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="button--gold" type="submit">${icon("Trophy")}Winnaar vastleggen</button></div>
+    </form>
+    <form method="post" action="/admin/veilingen/${escapeHtml(auction.id)}/cancel">
+      <label>Annuleerreden<textarea name="note" rows="2" placeholder="Alleen gebruiken bij fout product, fout looptijd of operationele blokkade."></textarea></label>
+      <div class="actions" style="justify-content:flex-start;margin-top:10px"><button class="button--ghost" type="submit">${icon("Ban")}Veiling annuleren</button></div>
+    </form>
+  </div>`;
+}
+
+function auctionBidsTable(bids) {
+  return `<table>
+    <thead><tr><th>Bieder</th><th>Bod</th><th>Status</th><th>Moment</th><th>Controle</th></tr></thead>
+    <tbody>${bids.length ? bids.map((bid) => `<tr>
+      <td><strong>${escapeHtml(bid.customer_email)}</strong><span class="muted">${escapeHtml(bid.customer_name || bid.shopify_customer_id)}</span></td>
+      <td><strong>${escapeHtml(formatEuro(bid.amount_cents))}</strong></td>
+      <td>${statusBadge(bid.status)}</td>
+      <td>${escapeHtml(bid.created_at)}</td>
+      <td><span class="muted">${escapeHtml(String(bid.ip_hash || "").slice(0, 12))}${bid.ip_hash ? "..." : "-"}</span></td>
+    </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen biedingen.</div></td></tr>`}</tbody>
   </table>`;
 }
 
