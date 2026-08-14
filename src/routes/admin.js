@@ -8,6 +8,7 @@ import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../s
 import { recentSecurityEvents, securityEventSummary } from "../services/security-events.js";
 import { analyticsActionItems, analyticsSummary } from "../services/analytics.js";
 import { writeAuditLog } from "../services/audit.js";
+import { ensureShopifyAuctionEntryPoints } from "../services/shopify-auctions.js";
 import {
   awardAuctionWinner,
   cancelAuction,
@@ -2499,9 +2500,10 @@ adminRouter.get("/veilingen", (req, res) => {
   `));
 });
 
-adminRouter.post("/veilingen", urlencoded, (req, res) => {
+adminRouter.post("/veilingen", urlencoded, async (req, res) => {
   try {
     const auction = createAuction(auctionPayloadFromBody(req.body || {}));
+    if (auction.status === "LIVE") await ensureShopifyAuctionEntryPoints(auction.shopify_product_id);
     writeAuditLog({
       actor: actor(req),
       action: "VEILING_AANGEMAAKT",
@@ -2515,9 +2517,10 @@ adminRouter.post("/veilingen", urlencoded, (req, res) => {
   }
 });
 
-adminRouter.post("/veilingen/:id/update", urlencoded, (req, res) => {
+adminRouter.post("/veilingen/:id/update", urlencoded, async (req, res) => {
   try {
     const auction = updateAuction(req.params.id, auctionPayloadFromBody(req.body || {}));
+    if (auction.status === "LIVE") await ensureShopifyAuctionEntryPoints(auction.shopify_product_id);
     writeAuditLog({
       actor: actor(req),
       action: "VEILING_BIJGEWERKT",
