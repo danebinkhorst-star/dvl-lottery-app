@@ -293,6 +293,23 @@ export async function syncAllCustomerDashboardMetafields() {
   return { count: customers.length, results };
 }
 
+export async function syncShopifyCustomerAuctionToken(shopifyCustomer) {
+  const shopifyCustomerId = normalizeShopifyCustomerId(shopifyCustomer?.id || shopifyCustomer?.admin_graphql_api_id);
+  if (!shopifyCustomerId) {
+    return { skipped: "missing_shopify_customer_id" };
+  }
+
+  const localCustomer = upsertLocalShopifyCustomer({ ...shopifyCustomer, id: shopifyCustomerId });
+  const token = ensureCustomerAuctionToken(localCustomer.shopify_customer_id || shopifyCustomerId);
+  if (isTestRun()) {
+    return { ok: true, shopifyCustomerId, email: shopifyCustomer.email || "", metafieldSkipped: "test_run" };
+  }
+  const existingResponse = await shopifyRest(`/customers/${shopifyCustomerId}/metafields.json?namespace=${NAMESPACE}`);
+  const existing = (existingResponse.metafields || []).filter((metafield) => metafield.key === "auction_token");
+  await upsertCustomerMetafield(shopifyCustomerId, existing, "auction_token", token);
+  return { ok: true, shopifyCustomerId, email: shopifyCustomer.email || "" };
+}
+
 export async function syncAllShopifyCustomerAuctionTokens({ limit = 250, maxPages = 25 } = {}) {
   if (isTestRun()) {
     return { skipped: "test_run" };
@@ -315,11 +332,7 @@ export async function syncAllShopifyCustomerAuctionTokens({ limit = 250, maxPage
     for (const shopifyCustomer of customers) {
       const shopifyCustomerId = normalizeShopifyCustomerId(shopifyCustomer.id);
       try {
-        const localCustomer = upsertLocalShopifyCustomer(shopifyCustomer);
-        const token = ensureCustomerAuctionToken(localCustomer.shopify_customer_id || shopifyCustomerId);
-        const existingResponse = await shopifyRest(`/customers/${shopifyCustomerId}/metafields.json?namespace=${NAMESPACE}`);
-        const existing = (existingResponse.metafields || []).filter((metafield) => metafield.key === "auction_token");
-        await upsertCustomerMetafield(shopifyCustomerId, existing, "auction_token", token);
+        await syncShopifyCustomerAuctionToken(shopifyCustomer);
         synced += 1;
         results.push({ ok: true, shopifyCustomerId, email: shopifyCustomer.email || "" });
       } catch (error) {

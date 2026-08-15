@@ -1,5 +1,6 @@
 import { db, id, nowIso } from "../db.js";
 import { config } from "../config.js";
+import { ensureCustomerAuctionToken } from "../auth.js";
 import { syncCustomerDashboardMetafields } from "./customer-dashboard.js";
 import { getLotteryRule } from "./settings.js";
 import { shopifyRest } from "../shopify/admin-api.js";
@@ -96,11 +97,14 @@ export async function getOrCreateCustomer({ shopifyCustomerId = null, email = nu
     db.prepare(`INSERT INTO customers
       (id, shopify_customer_id, email, first_name, last_name, total_entries, created_at, updated_at)
       VALUES (@id, @shopify_customer_id, @email, @first_name, @last_name, @total_entries, @created_at, @updated_at)`).run(customer);
-    return customer;
+    if (shopifyCustomerId) ensureCustomerAuctionToken(shopifyCustomerId);
+    return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
   }
 
   db.prepare("UPDATE customers SET shopify_customer_id = COALESCE(?, shopify_customer_id), email = COALESCE(?, email), first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE id = ?")
     .run(shopifyCustomerId, email, firstName, lastName, nowIso(), customer.id);
+  const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
+  if (updated?.shopify_customer_id) ensureCustomerAuctionToken(updated.shopify_customer_id);
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
 }
 

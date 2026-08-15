@@ -72,6 +72,20 @@ const entryStatuses = ["ACTIVE", "WINNER", "VOID"];
 const entrySources = ["ORDER_THRESHOLD", "FREE_ENTRY", "MANUAL", "SUBSCRIPTION"];
 const editableAuctionStatuses = ["DRAFT", "LIVE", "ENDED"];
 
+async function prepareLiveAuction(auction, req) {
+  const publishResult = await ensureShopifyAuctionEntryPoints(auction.shopify_product_id);
+  const tokenResult = await syncAllShopifyCustomerAuctionTokens({ limit: 250, maxPages: 40 });
+  writeAuditLog({
+    actor: actor(req),
+    action: "VEILING_LIVE_VOORBEREID",
+    targetType: "auction",
+    targetId: auction.id,
+    message: `${auction.product_title || auction.title} live klaargezet`,
+    metadata: { publishResult, tokenResult }
+  });
+  return { publishResult, tokenResult };
+}
+
 function actor(req) {
   return req.adminUser?.username || "admin";
 }
@@ -2503,7 +2517,7 @@ adminRouter.get("/veilingen", (req, res) => {
 adminRouter.post("/veilingen", urlencoded, async (req, res) => {
   try {
     const auction = createAuction(auctionPayloadFromBody(req.body || {}));
-    if (auction.status === "LIVE") await ensureShopifyAuctionEntryPoints(auction.shopify_product_id);
+    if (auction.status === "LIVE") await prepareLiveAuction(auction, req);
     writeAuditLog({
       actor: actor(req),
       action: "VEILING_AANGEMAAKT",
@@ -2520,7 +2534,7 @@ adminRouter.post("/veilingen", urlencoded, async (req, res) => {
 adminRouter.post("/veilingen/:id/update", urlencoded, async (req, res) => {
   try {
     const auction = updateAuction(req.params.id, auctionPayloadFromBody(req.body || {}));
-    if (auction.status === "LIVE") await ensureShopifyAuctionEntryPoints(auction.shopify_product_id);
+    if (auction.status === "LIVE") await prepareLiveAuction(auction, req);
     writeAuditLog({
       actor: actor(req),
       action: "VEILING_BIJGEWERKT",

@@ -51,6 +51,29 @@ test("webhook verification rejects missing secret and accepts valid HMAC", () =>
   assert.equal(verifyShopifyWebhook(body, shopifyHmac(body), process.env.SHOPIFY_WEBHOOK_SECRET), true);
 });
 
+test("customer webhooks create a bid-ready auction token", async () => {
+  resetDb();
+  const app = createApp();
+  const bodyText = JSON.stringify({
+    id: 456789,
+    email: "bidder@example.com",
+    first_name: "Bid",
+    last_name: "Ready"
+  });
+  const body = Buffer.from(bodyText);
+
+  await request(app)
+    .post("/webhooks/customers/create")
+    .set("X-Shopify-Hmac-Sha256", shopifyHmac(body))
+    .set("Content-Type", "application/json")
+    .send(bodyText)
+    .expect(200);
+
+  const customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get("456789");
+  assert.equal(customer.email, "bidder@example.com");
+  assert.ok(customer.auction_token);
+});
+
 test("internal write secret does not accept admin or webhook secrets", () => {
   assert.equal(isValidWriteSecret(process.env.INTERNAL_API_SECRET), true);
   assert.equal(isValidWriteSecret(process.env.ADMIN_PASSWORD), false);

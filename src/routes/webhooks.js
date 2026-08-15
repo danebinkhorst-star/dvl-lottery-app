@@ -1,5 +1,6 @@
 import express from "express";
 import { config } from "../config.js";
+import { syncShopifyCustomerAuctionToken } from "../services/customer-dashboard.js";
 import { assignEntriesForOrder, voidEntriesForOrder } from "../services/lottery.js";
 import { verifyShopifyWebhook } from "../utils.js";
 
@@ -66,4 +67,14 @@ webhookRouter.post("/refunds/create", express.raw({ type: "application/json" }),
   if (!orderId) return res.status(200).json({ ok: true, voided: 0, skipped: "missing_order_id" });
   const result = await voidEntriesForOrder(orderId, "Order refunded");
   res.status(200).json({ ok: true, ...result });
+});
+
+webhookRouter.post("/customers/create", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
+  const result = await syncShopifyCustomerAuctionToken(req.webhookPayload);
+  res.status(200).json({ ok: true, auctionToken: result });
+});
+
+webhookRouter.post("/customers/update", express.raw({ type: "application/json" }), parseWebhook, async (req, res) => {
+  const result = await syncShopifyCustomerAuctionToken(req.webhookPayload);
+  res.status(200).json({ ok: true, auctionToken: result });
 });

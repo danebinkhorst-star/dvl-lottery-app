@@ -11,7 +11,9 @@ const webhooks = [
   ["orders/updated", `${config.PUBLIC_APP_URL}/webhooks/orders/updated`],
   ["orders/paid", `${config.PUBLIC_APP_URL}/webhooks/orders/paid`],
   ["orders/cancelled", `${config.PUBLIC_APP_URL}/webhooks/orders/cancelled`],
-  ["refunds/create", `${config.PUBLIC_APP_URL}/webhooks/refunds/create`]
+  ["refunds/create", `${config.PUBLIC_APP_URL}/webhooks/refunds/create`],
+  ["customers/create", `${config.PUBLIC_APP_URL}/webhooks/customers/create`],
+  ["customers/update", `${config.PUBLIC_APP_URL}/webhooks/customers/update`]
 ];
 
 const existing = await shopifyRest("/webhooks.json?limit=250");
