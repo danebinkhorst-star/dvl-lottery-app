@@ -1,5 +1,5 @@
 import { config } from "../config.js";
-import { db, nowIso } from "../db.js";
+import { db, id, nowIso } from "../db.js";
 import { shopifyRest } from "../shopify/admin-api.js";
 import { getLotteryRule } from "./settings.js";
 import { formatEuro } from "../utils.js";
@@ -24,6 +24,38 @@ function normalizeShopifyCustomerId(value) {
 
 function customerByLocalId(customerId) {
   if (!customerId) return null;
+  return db.prepare("SELECT * FROM customers WHERE id = ?").get(customerId);
+}
+
+function upsertLocalShopifyCustomer(shopifyCustomer) {
+  const shopifyCustomerId = normalizeShopifyCustomerId(shopifyCustomer.id);
+  const email = String(shopifyCustomer.email || "").trim().toLowerCase();
+  const firstName = String(shopifyCustomer.first_name || "").trim();
+  const lastName = String(shopifyCustomer.last_name || "").trim();
+  const timestamp = nowIso();
+  let customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get(shopifyCustomerId);
+  if (!customer && email) {
+    customer = db.prepare("SELECT * FROM customers WHERE lower(email) = ?").get(email);
+  }
+
+  if (customer) {
+    db.prepare(`
+      UPDATE customers
+      SET shopify_customer_id = COALESCE(shopify_customer_id, ?),
+          email = COALESCE(NULLIF(email, ''), ?),
+          first_name = COALESCE(NULLIF(first_name, ''), ?),
+          last_name = COALESCE(NULLIF(last_name, ''), ?),
+          updated_at = ?
+      WHERE id = ?
+    `).run(shopifyCustomerId, email || null, firstName || null, lastName || null, timestamp, customer.id);
+    return db.prepare("SELECT * FROM customers WHERE id = ?").get(customer.id);
+  }
+
+  const customerId = id();
+  db.prepare(`
+    INSERT INTO customers (id, shopify_customer_id, email, first_name, last_name, total_entries, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+  `).run(customerId, shopifyCustomerId, email || null, firstName || null, lastName || null, timestamp, timestamp);
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customerId);
 }
 
@@ -259,4 +291,46 @@ export async function syncAllCustomerDashboardMetafields() {
     results.push(await syncCustomerDashboardMetafields(customer));
   }
   return { count: customers.length, results };
+}
+
+export async function syncAllShopifyCustomerAuctionTokens({ limit = 250, maxPages = 25 } = {}) {
+  if (isTestRun()) {
+    return { skipped: "test_run" };
+  }
+
+  const safeLimit = Math.max(1, Math.min(250, Number(limit) || 250));
+  const safeMaxPages = Math.max(1, Math.min(100, Number(maxPages) || 25));
+  const results = [];
+  let sinceId = "0";
+  let pages = 0;
+  let synced = 0;
+  let failed = 0;
+
+  while (pages < safeMaxPages) {
+    pages += 1;
+    const response = await shopifyRest(`/customers.json?limit=${safeLimit}&fields=id,email,first_name,last_name&since_id=${sinceId}`);
+    const customers = response.customers || [];
+    if (!customers.length) break;
+
+    for (const shopifyCustomer of customers) {
+      const shopifyCustomerId = normalizeShopifyCustomerId(shopifyCustomer.id);
+      try {
+        const localCustomer = upsertLocalShopifyCustomer(shopifyCustomer);
+        const token = ensureCustomerAuctionToken(localCustomer.shopify_customer_id || shopifyCustomerId);
+        const existingResponse = await shopifyRest(`/customers/${shopifyCustomerId}/metafields.json?namespace=${NAMESPACE}`);
+        const existing = (existingResponse.metafields || []).filter((metafield) => metafield.key === "auction_token");
+        await upsertCustomerMetafield(shopifyCustomerId, existing, "auction_token", token);
+        synced += 1;
+        results.push({ ok: true, shopifyCustomerId, email: shopifyCustomer.email || "" });
+      } catch (error) {
+        failed += 1;
+        results.push({ error: error.message, shopifyCustomerId, email: shopifyCustomer.email || "" });
+      }
+    }
+
+    sinceId = String(customers.at(-1)?.id || sinceId);
+    if (customers.length < safeLimit) break;
+  }
+
+  return { ok: failed === 0, synced, failed, pages, limit: safeLimit, results };
 }

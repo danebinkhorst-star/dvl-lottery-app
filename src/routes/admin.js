@@ -1,7 +1,7 @@
 import express from "express";
 import { db, id, nowIso } from "../db.js";
 import { createDraw, drawWinner, getOrCreateCustomer, syncStoredOrderLineItems } from "../services/lottery.js";
-import { syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
+import { syncAllCustomerDashboardMetafields, syncAllShopifyCustomerAuctionTokens, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
@@ -2469,7 +2469,7 @@ adminRouter.get("/veilingen", (req, res) => {
   const highestValue = rows.reduce((max, row) => Math.max(max, Number(row.amount_cents || 0)), 0);
 
   res.send(page("Veilingen | Meat For Free", "veilingen", `
-    ${topbar("Veilingen", "Kies een product, zet bod en timing.", "De productdata komt uit Shopify sync. Klanten moeten ingelogd zijn voordat ze kunnen bieden.", `<form class="inline-form" method="post" action="/admin/sync-products"><button class="button--ghost" type="submit">${icon("RefreshCw")}Producten syncen</button></form>`)}
+    ${topbar("Veilingen", "Kies een product, zet bod en timing.", "De productdata komt uit Shopify sync. Klanten moeten ingelogd zijn voordat ze kunnen bieden.", `<form class="inline-form" method="post" action="/admin/sync-products"><button class="button--ghost" type="submit">${icon("RefreshCw")}Producten syncen</button></form><form class="inline-form" method="post" action="/admin/sync-auction-tokens"><button class="button--gold" type="submit">${icon("KeyRound")}Veilingtokens syncen</button></form>`)}
     <section class="panel panel-pad">
       <div class="panel-title"><div><p class="eyebrow">Nieuwe veiling</p><h2>Product kiezen</h2></div><span class="status">${products.length} producten</span></div>
       ${products.length ? auctionForm(null, "/admin/veilingen", "Veiling aanmaken", products) : `<div class="empty">Geen gesyncte producten gevonden. Klik eerst op Producten syncen.</div>`}
@@ -3861,6 +3861,7 @@ adminRouter.get("/sync", (_req, res) => {
     <section class="grid grid-2">
       <div class="panel panel-pad"><div class="panel-title"><h2>Orders met loten synchroniseren</h2></div><p class="muted">Reconcilieert orders die recht hebben op loten maar nog geen lot kregen.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/reconcile"><button type="submit">Orders synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Klantdashboards synchroniseren</h2></div><p class="muted">Schrijft de huidige lotdata terug naar Shopify klantmetafields.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-dashboards"><button class="button--gold" type="submit">Klantdashboards synchroniseren</button></form></div></div>
+      <div class="panel panel-pad"><div class="panel-title"><h2>Veilingtokens synchroniseren</h2></div><p class="muted">Maakt bestaande Shopify klanten bied-klaar door het veilige veilingtoken naar klantmetafields te schrijven.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-auction-tokens"><button class="button--gold" type="submit">Veilingtokens synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Productkaarten synchroniseren</h2></div><p class="muted">Haalt actieve Shopify producten, prijzen, afbeeldingen en status-tags op voor de storefront kaarten.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-products"><button class="button--gold" type="submit">Producten synchroniseren</button></form></div></div>
       <div class="panel panel-pad"><div class="panel-title"><h2>Orderregels verrijken</h2></div><p class="muted">Haalt line-items op voor bestaande lokale orders. Dit vult productomzet en bestverkopende cuts zonder nieuwe loten te maken.</p><div style="margin-top:16px"><form class="inline-form" method="post" action="/admin/sync-order-items"><button class="button--gold" type="submit">Orderregels ophalen</button></form></div></div>
     </section>
@@ -4419,6 +4420,28 @@ adminRouter.post("/sync-dashboards", async (_req, res) => {
     metadata: result
   });
   res.redirect("/admin/sync");
+});
+
+adminRouter.post("/sync-auction-tokens", async (req, res) => {
+  try {
+    const result = await syncAllShopifyCustomerAuctionTokens({ limit: 250, maxPages: 40 });
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILINGTOKENS_GESYNCHRONISEERD",
+      targetType: "customer_metafields",
+      message: `${result.synced || 0} klanten bied-klaar gemaakt`,
+      metadata: result
+    });
+    res.redirect(req.get("referer") || "/admin/sync");
+  } catch (error) {
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILINGTOKENS_SYNC_MISLUKT",
+      targetType: "customer_metafields",
+      message: error.message
+    });
+    res.status(400).send(page("Veilingtoken sync fout | Meat For Free", "sync", topbar("Sync mislukt", "Veilingtokens konden niet worden bijgewerkt.", error.message, `<a class="button button--gold" href="/admin/sync">Terug</a>`)));
+  }
 });
 
 adminRouter.post("/sync-products", async (req, res) => {
