@@ -17,6 +17,7 @@ import {
   listAuctionBids,
   listAuctions,
   publicAuction,
+  updateAuctionBidModeration,
   updateAuction
 } from "../services/auctions.js";
 import {
@@ -2568,6 +2569,26 @@ adminRouter.post("/veilingen/:id/winner", urlencoded, (req, res) => {
   }
 });
 
+adminRouter.post("/veilingen/:id/bids/:bidId/moderate", urlencoded, (req, res) => {
+  try {
+    const bid = updateAuctionBidModeration(req.params.bidId, {
+      status: textParam(req.body.status),
+      messageStatus: textParam(req.body.messageStatus)
+    });
+    writeAuditLog({
+      actor: actor(req),
+      action: "VEILING_BOD_GEMODEREERD",
+      targetType: "auction_bid",
+      targetId: bid.id,
+      message: `${bid.customer_email} bod bijgewerkt.`,
+      metadata: { status: bid.status, messageStatus: bid.message_status }
+    });
+    res.redirect(`/admin/veilingen?id=${encodeURIComponent(req.params.id)}`);
+  } catch (error) {
+    res.status(400).send(page("Bod fout | Meat For Free", "veilingen", topbar("Niet opgeslagen", "Bod kon niet worden aangepast.", error.message, `<a class="button button--gold" href="/admin/veilingen?id=${encodeURIComponent(req.params.id)}">Terug</a>`)));
+  }
+});
+
 adminRouter.post("/veilingen/:id/cancel", urlencoded, (req, res) => {
   try {
     const note = textParam(req.body.note);
@@ -4706,14 +4727,18 @@ function auctionWinnerForm(auction, bids) {
 
 function auctionBidsTable(bids) {
   return `<table>
-    <thead><tr><th>Bieder</th><th>Bod</th><th>Status</th><th>Moment</th><th>Controle</th></tr></thead>
+    <thead><tr><th>Bieder</th><th>Bod</th><th>Status</th><th>Bericht</th><th>Moment</th><th>Controle</th></tr></thead>
     <tbody>${bids.length ? bids.map((bid) => `<tr>
       <td><strong>${escapeHtml(bid.customer_email)}</strong><span class="muted">${escapeHtml(bid.customer_name || bid.shopify_customer_id)}</span></td>
       <td><strong>${escapeHtml(formatEuro(bid.amount_cents))}</strong></td>
       <td>${statusBadge(bid.status)}</td>
+      <td><strong>${escapeHtml(bid.message || "-")}</strong><span class="muted">${escapeHtml(bid.message_status || "APPROVED")}</span></td>
       <td>${escapeHtml(bid.created_at)}</td>
-      <td><span class="muted">${escapeHtml(String(bid.ip_hash || "").slice(0, 12))}${bid.ip_hash ? "..." : "-"}</span></td>
-    </tr>`).join("") : `<tr><td colspan="5"><div class="empty">Nog geen biedingen.</div></td></tr>`}</tbody>
+      <td><div class="actions" style="justify-content:flex-start">
+        ${bid.message ? `<form class="inline-form" method="post" action="/admin/veilingen/${escapeHtml(bid.auction_id)}/bids/${escapeHtml(bid.id)}/moderate"><input type="hidden" name="messageStatus" value="${bid.message_status === "HIDDEN" ? "APPROVED" : "HIDDEN"}"><button class="button--ghost" type="submit">${bid.message_status === "HIDDEN" ? "Toon bericht" : "Verberg bericht"}</button></form>` : ""}
+        ${bid.status !== "VOID" ? `<form class="inline-form" method="post" action="/admin/veilingen/${escapeHtml(bid.auction_id)}/bids/${escapeHtml(bid.id)}/moderate"><input type="hidden" name="status" value="VOID"><button class="button--ghost" type="submit">Bod ongeldig</button></form>` : ""}
+      </div></td>
+    </tr>`).join("") : `<tr><td colspan="6"><div class="empty">Nog geen biedingen.</div></td></tr>`}</tbody>
   </table>`;
 }
 

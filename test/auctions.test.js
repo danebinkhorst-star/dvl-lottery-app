@@ -18,7 +18,9 @@ const {
   awardAuctionWinner,
   createAuction,
   listAuctionBids,
-  placeAuctionBid
+  placeAuctionBid,
+  publicAuctionWithBids,
+  updateAuctionBidModeration
 } = await import("../src/services/auctions.js");
 
 function resetDb() {
@@ -154,6 +156,42 @@ test("auction API accepts the synced per-customer auction token", async () => {
   assert.equal(response.body.auction.currentBidCents, 2500);
 });
 
+test("auction bids support short moderated public messages", async () => {
+  resetDb();
+  const auction = createAuction(auctionInput({ shopifyProductId: "901236" }));
+  db.prepare(`
+    INSERT INTO customers (id, shopify_customer_id, email, first_name, last_name, total_entries, created_at, updated_at)
+    VALUES ('cust-auction-message', '302', 'message@example.com', 'Message', 'Klant', 0, ?, ?)
+  `).run(nowIso(), nowIso());
+  const token = ensureCustomerAuctionToken("302");
+
+  const app = createApp();
+  const response = await request(app)
+    .post(`/api/auctions/${auction.id}/bids`)
+    .set("x-dvl-customer-token", token)
+    .send({
+      shopifyCustomerId: "302",
+      customerEmail: "message@example.com",
+      customerName: "Message Klant",
+      amount: "25.00",
+      message: "Voor de zondag BBQ"
+    })
+    .expect(201);
+
+  assert.equal(response.body.bid.message, "Voor de zondag BBQ");
+  assert.equal(response.body.auction.bids[0].message, "Voor de zondag BBQ");
+
+  const bad = placeAuctionBid(auction.id, {
+    shopifyCustomerId: "303",
+    customerEmail: "bad@example.com",
+    customerName: "Bad Klant",
+    amount: "30.00",
+    message: "www.spam.test"
+  });
+  assert.equal(bad.bid.message_status, "HIDDEN");
+  assert.equal(publicAuctionWithBids(bad.auction).bids[0].message, "");
+});
+
 test("admin can create an auction by picking a synced Shopify product", async () => {
   resetDb();
   const product = insertSyncedProduct();
@@ -214,4 +252,17 @@ test("ended auctions reject bids and admin can award the highest bidder", () => 
     customerEmail: "late@example.com",
     amount: "25.00"
   }), /niet open/);
+});
+
+test("admin voiding the winning bid promotes the next highest bid", () => {
+  resetDb();
+  const auction = createAuction(auctionInput({ shopifyProductId: "904567" }));
+  const first = placeAuctionBid(auction.id, { shopifyCustomerId: "401", customerEmail: "one@example.com", amount: "25.00" });
+  const second = placeAuctionBid(auction.id, { shopifyCustomerId: "402", customerEmail: "two@example.com", amount: "35.00" });
+
+  updateAuctionBidModeration(second.bid.id, { status: "VOID" });
+  const bids = listAuctionBids(auction.id);
+
+  assert.equal(bids.find((bid) => bid.id === second.bid.id).status, "VOID");
+  assert.equal(bids.find((bid) => bid.id === first.bid.id).status, "WINNING");
 });

@@ -304,6 +304,8 @@ export function initDb() {
       customer_name TEXT,
       amount_cents INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
+      message TEXT,
+      message_status TEXT NOT NULL DEFAULT 'APPROVED',
       ip_hash TEXT,
       user_agent_hash TEXT,
       created_at TEXT NOT NULL,
@@ -392,6 +394,8 @@ export function initDb() {
   ensureColumn("admin_users", "totp_confirmed_at", "TEXT");
   ensureColumn("auctions", "winner_note", "TEXT");
   ensureColumn("auctions", "awarded_at", "TEXT");
+  ensureColumn("auction_bids", "message", "TEXT");
+  ensureColumn("auction_bids", "message_status", "TEXT NOT NULL DEFAULT 'APPROVED'");
   db.exec("CREATE INDEX IF NOT EXISTS idx_draws_winner_public ON lottery_draws(winner_public_status, draw_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_admin_users_team ON admin_users(team_id, status)");
 }

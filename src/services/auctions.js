@@ -4,6 +4,23 @@ import { formatEuro } from "../utils.js";
 
 export const auctionStatuses = ["DRAFT", "LIVE", "ENDED", "AWARDED", "CANCELLED"];
 export const auctionBidStatuses = ["WINNING", "OUTBID", "WINNER", "VOID"];
+const bannedMessagePatterns = [
+  /kanker/i,
+  /tering/i,
+  /tyfus/i,
+  /hoer/i,
+  /neuk/i,
+  /kut/i,
+  /lul/i,
+  /mongool/i,
+  /nazi/i,
+  /fuck/i,
+  /shit/i,
+  /bitch/i,
+  /cunt/i,
+  /http/i,
+  /www\./i
+];
 
 function text(value, max = 500) {
   return String(value ?? "").trim().slice(0, max);
@@ -30,6 +47,39 @@ function normalizeShopifyProductId(value) {
 function hashValue(value) {
   if (!value) return "";
   return crypto.createHash("sha256").update(String(value)).digest("hex");
+}
+
+function cleanBidMessage(value) {
+  const raw = text(value, 120)
+    .replace(/\s+/g, " ")
+    .replace(/[<>]/g, "")
+    .trim();
+  if (!raw) return { message: "", status: "APPROVED" };
+  const bad = bannedMessagePatterns.some((pattern) => pattern.test(raw));
+  const tooLoud = raw.length > 18 && raw === raw.toUpperCase();
+  return {
+    message: bad ? "" : raw,
+    status: bad || tooLoud ? "HIDDEN" : "APPROVED"
+  };
+}
+
+function publicBidderName(bid) {
+  const source = text(bid.customer_name, 80) || text((bid.customer_email || "").split("@")[0], 80) || "Bieder";
+  const first = source.split(/\s+/)[0] || "Bieder";
+  if (first.length <= 2) return `${first[0] || "B"}***`;
+  return `${first[0]}${"*".repeat(Math.min(3, first.length - 1))}${first.slice(-1)}`;
+}
+
+function publicBid(bid) {
+  return {
+    id: bid.id,
+    bidder: publicBidderName(bid),
+    amountCents: Number(bid.amount_cents || 0),
+    amountLabel: formatEuro(Number(bid.amount_cents || 0)),
+    status: bid.status,
+    message: bid.message_status === "APPROVED" ? bid.message || "" : "",
+    createdAt: bid.created_at
+  };
 }
 
 function liveStatusFor(auction, at = new Date()) {
@@ -100,6 +150,32 @@ export function publicAuction(auction) {
     bidCount: Number(auction.bid_count ?? bidCount(auction.id)),
     canBid: status === "LIVE",
     winnerSelected: Boolean(auction.winner_bid_id)
+  };
+}
+
+export function publicAuctionWithBids(auction, { shopifyCustomerId = "", limit = 8 } = {}) {
+  const publicData = publicAuction(auction);
+  if (!publicData) return null;
+  const bids = listAuctionBids(auction.id, limit);
+  const ownBid = shopifyCustomerId
+    ? db.prepare(`
+      SELECT *
+      FROM auction_bids
+      WHERE auction_id = ? AND shopify_customer_id = ? AND status IN ('WINNING', 'OUTBID', 'WINNER')
+      ORDER BY amount_cents DESC, created_at DESC
+      LIMIT 1
+    `).get(auction.id, String(shopifyCustomerId))
+    : null;
+  return {
+    ...publicData,
+    bids: bids.filter((bid) => bid.status !== "VOID").map(publicBid),
+    viewer: ownBid ? {
+      hasBid: true,
+      isWinning: ownBid.status === "WINNING" || ownBid.status === "WINNER",
+      amountCents: Number(ownBid.amount_cents || 0),
+      amountLabel: formatEuro(Number(ownBid.amount_cents || 0)),
+      status: ownBid.status
+    } : { hasBid: false, isWinning: false, amountCents: 0, amountLabel: "", status: "" }
   };
 }
 
@@ -275,6 +351,7 @@ export function placeAuctionBid(auctionId, input = {}) {
   const shopifyCustomerId = text(input.shopifyCustomerId, 80);
   const customerEmail = text(input.customerEmail, 160).toLowerCase();
   const customerName = text(input.customerName, 140);
+  const bidMessage = cleanBidMessage(input.message);
   if (!shopifyCustomerId || !customerEmail) throw new Error("Log in voordat je biedt.");
   if (amountCents <= 0) throw new Error("Vul een geldig bod in.");
 
@@ -307,6 +384,8 @@ export function placeAuctionBid(auctionId, input = {}) {
       customer_name: customerName,
       amount_cents: amountCents,
       status: "WINNING",
+      message: bidMessage.message,
+      message_status: bidMessage.status,
       ip_hash: hashValue(input.ip || ""),
       user_agent_hash: hashValue(input.userAgent || ""),
       created_at: nowIso()
@@ -314,19 +393,62 @@ export function placeAuctionBid(auctionId, input = {}) {
     db.prepare(`
       INSERT INTO auction_bids (
         id, auction_id, shopify_customer_id, customer_email, customer_name,
-        amount_cents, status, ip_hash, user_agent_hash, created_at
+        amount_cents, status, message, message_status, ip_hash, user_agent_hash, created_at
       ) VALUES (
         @id, @auction_id, @shopify_customer_id, @customer_email, @customer_name,
-        @amount_cents, @status, @ip_hash, @user_agent_hash, @created_at
+        @amount_cents, @status, @message, @message_status, @ip_hash, @user_agent_hash, @created_at
       )
     `).run(bid);
-    db.prepare("UPDATE auctions SET updated_at = ? WHERE id = ?").run(nowIso(), auction.id);
+    const now = nowIso();
+    const endsAt = new Date(auction.ends_at).getTime();
+    const shouldExtend = Number.isFinite(endsAt) && endsAt - Date.now() > 0 && endsAt - Date.now() <= 60_000;
+    const nextEndsAt = shouldExtend ? new Date(Date.now() + 120_000).toISOString() : auction.ends_at;
+    db.prepare("UPDATE auctions SET ends_at = ?, updated_at = ? WHERE id = ?").run(nextEndsAt, now, auction.id);
     db.exec("COMMIT");
     return { auction: getAuction(auction.id), bid };
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function updateAuctionBidModeration(bidId, { status = "", messageStatus = "" } = {}) {
+  const bid = db.prepare("SELECT * FROM auction_bids WHERE id = ?").get(bidId);
+  if (!bid) throw new Error("Bod niet gevonden.");
+  const nextStatus = text(status, 20).toUpperCase();
+  const nextMessageStatus = text(messageStatus, 20).toUpperCase();
+  const updates = [];
+  const params = [];
+  if (auctionBidStatuses.includes(nextStatus)) {
+    updates.push("status = ?");
+    params.push(nextStatus);
+  }
+  if (["APPROVED", "HIDDEN"].includes(nextMessageStatus)) {
+    updates.push("message_status = ?");
+    params.push(nextMessageStatus);
+  }
+  if (!updates.length) return bid;
+  params.push(bid.id);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(`UPDATE auction_bids SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+    if (nextStatus === "VOID" && bid.status === "WINNING") {
+      const nextWinning = db.prepare(`
+        SELECT id
+        FROM auction_bids
+        WHERE auction_id = ? AND status = 'OUTBID'
+        ORDER BY amount_cents DESC, created_at ASC
+        LIMIT 1
+      `).get(bid.auction_id);
+      if (nextWinning) db.prepare("UPDATE auction_bids SET status = 'WINNING' WHERE id = ?").run(nextWinning.id);
+    }
+    db.prepare("UPDATE auctions SET updated_at = ? WHERE id = ?").run(nowIso(), bid.auction_id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return db.prepare("SELECT * FROM auction_bids WHERE id = ?").get(bid.id);
 }
 
 export function awardAuctionWinner(auctionId, { bidId = "", note = "" } = {}) {

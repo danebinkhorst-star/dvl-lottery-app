@@ -10,7 +10,7 @@ import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "..
 import { clientIp, recordSecurityEvent } from "../services/security-events.js";
 import { recordAnalyticsEvent } from "../services/analytics.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken, verifyCustomerToken } from "../auth.js";
-import { createAuction, getAuctionByProduct, listAuctions, placeAuctionBid, publicAuction } from "../services/auctions.js";
+import { createAuction, getAuctionByProduct, listAuctions, placeAuctionBid, publicAuction, publicAuctionWithBids } from "../services/auctions.js";
 
 export const apiRouter = express.Router();
 
@@ -92,7 +92,8 @@ const auctionBidSchema = z.object({
   shopifyCustomerId: z.string().trim().min(1).max(80),
   customerEmail: z.string().trim().email().max(160),
   customerName: z.string().trim().max(140).optional().default(""),
-  amount: z.union([z.string().trim().max(40), z.number()])
+  amount: z.union([z.string().trim().max(40), z.number()]),
+  message: z.string().trim().max(120).optional().default("")
 });
 
 function allowFreeEntryAttempt(key) {
@@ -303,7 +304,12 @@ apiRouter.get("/auctions", async (req, res) => {
 apiRouter.get("/auctions/product/:shopifyProductId", async (req, res) => {
   const auction = getAuctionByProduct(req.params.shopifyProductId);
   if (!auction) return res.status(404).json({ error: "Geen veiling gevonden voor dit product." });
-  return res.json({ auction: publicAuction(auction) });
+  return res.json({
+    auction: publicAuctionWithBids(auction, {
+      shopifyCustomerId: String(req.query.customerId || ""),
+      limit: 8
+    })
+  });
 });
 
 apiRouter.post("/auctions/:auctionId/bids", bidLimiter, async (req, res) => {
@@ -326,11 +332,13 @@ apiRouter.post("/auctions/:auctionId/bids", bidLimiter, async (req, res) => {
     });
     return res.status(201).json({
       ok: true,
-      auction: publicAuction(result.auction),
+      auction: publicAuctionWithBids(result.auction, { shopifyCustomerId: payload.shopifyCustomerId, limit: 8 }),
       bid: {
         id: result.bid.id,
         amountCents: result.bid.amount_cents,
         status: result.bid.status,
+        message: result.bid.message || "",
+        messageStatus: result.bid.message_status || "APPROVED",
         createdAt: result.bid.created_at
       }
     });
