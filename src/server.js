@@ -14,7 +14,6 @@ import { embedRouter } from "./routes/embed.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw, syncStoredOrderLineItems } from "./services/lottery.js";
 import { syncShopifyProducts } from "./services/shopify-products.js";
-import { syncAllShopifyCustomerAuctionTokens } from "./services/customer-dashboard.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
 import { safeEqual } from "./auth.js";
@@ -41,8 +40,6 @@ const adminCsrfCookie = "mff_admin_csrf";
 const adminSessionMaxAgeSeconds = 60 * 60 * 12;
 const productSyncIntervalMs = 1000 * 60 * 60 * 6;
 const orderItemSyncIntervalMs = 1000 * 60 * 60 * 12;
-const maintenanceAuctionTokenSyncToken = "77906a2e9ecb9e737a75ebff674d0f8c229c1f99af99234c";
-const maintenanceAuctionTokenSyncExpiresAt = "2026-08-16T15:35:00.000Z";
 const uploadMimeTypes = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
@@ -519,38 +516,6 @@ export function createApp() {
       dashboard: "brand-secure-admin-v2",
       securityBuild: "team-access-v2"
     });
-  });
-
-  app.get(`/admin/maintenance/sync-auction-tokens/${maintenanceAuctionTokenSyncToken}`, async (_req, res) => {
-    res.setHeader("Cache-Control", "no-store");
-    if (Date.now() > new Date(maintenanceAuctionTokenSyncExpiresAt).getTime()) {
-      return res.status(410).json({ ok: false, error: "expired" });
-    }
-
-    try {
-      const result = await syncAllShopifyCustomerAuctionTokens({ limit: 250, maxPages: 40 });
-      writeAuditLog({
-        actor: "maintenance",
-        action: "VEILINGTOKENS_MAINTENANCE_SYNC",
-        targetType: "customer_metafields",
-        message: `${result.synced || 0} klanten bied-klaar gemaakt`,
-        metadata: result
-      });
-      return res.json({
-        ok: result.ok !== false,
-        synced: result.synced || 0,
-        failed: result.failed || 0,
-        pages: result.pages || 0
-      });
-    } catch (error) {
-      writeAuditLog({
-        actor: "maintenance",
-        action: "VEILINGTOKENS_MAINTENANCE_SYNC_MISLUKT",
-        targetType: "customer_metafields",
-        message: error.message
-      });
-      return res.status(500).json({ ok: false, error: "sync_failed" });
-    }
   });
 
   app.get("/admin/login", (req, res) => {
