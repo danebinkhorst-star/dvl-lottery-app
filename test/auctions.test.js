@@ -156,6 +156,21 @@ test("auction API accepts the synced per-customer auction token", async () => {
   assert.equal(response.body.auction.currentBidCents, 2500);
 });
 
+test("auction API returns fresh live state metadata for PDP fallback", async () => {
+  resetDb();
+  const auction = createAuction(auctionInput({ shopifyProductId: "901237" }));
+  const app = createApp();
+
+  const response = await request(app)
+    .get("/api/auctions/product/901237")
+    .expect("Cache-Control", /no-store/)
+    .expect(200);
+
+  assert.equal(response.body.auction.id, auction.id);
+  assert.ok(response.body.auction.updatedAt);
+  assert.ok(response.body.serverTime);
+});
+
 test("auction bids support short moderated public messages", async () => {
   resetDb();
   const auction = createAuction(auctionInput({ shopifyProductId: "901236" }));

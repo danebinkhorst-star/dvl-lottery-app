@@ -296,23 +296,27 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
 });
 
 apiRouter.get("/auctions", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   const status = String(req.query.status || "");
   const auctions = listAuctions({ status, publicOnly: true, limit: req.query.limit || 80 }).map(publicAuction);
-  return res.json({ auctions });
+  return res.json({ auctions, serverTime: new Date().toISOString() });
 });
 
 apiRouter.get("/auctions/product/:shopifyProductId", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   const auction = getAuctionByProduct(req.params.shopifyProductId);
   if (!auction) return res.status(404).json({ error: "Geen veiling gevonden voor dit product." });
   return res.json({
     auction: publicAuctionWithBids(auction, {
       shopifyCustomerId: String(req.query.customerId || ""),
       limit: 8
-    })
+    }),
+    serverTime: new Date().toISOString()
   });
 });
 
 apiRouter.post("/auctions/:auctionId/bids", bidLimiter, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const payload = auctionBidSchema.parse(req.body || {});
     const suppliedToken = req.get("x-dvl-customer-token") || "";
@@ -333,6 +337,7 @@ apiRouter.post("/auctions/:auctionId/bids", bidLimiter, async (req, res) => {
     return res.status(201).json({
       ok: true,
       auction: publicAuctionWithBids(result.auction, { shopifyCustomerId: payload.shopifyCustomerId, limit: 8 }),
+      serverTime: new Date().toISOString(),
       bid: {
         id: result.bid.id,
         amountCents: result.bid.amount_cents,

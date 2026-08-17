@@ -149,7 +149,8 @@ export function publicAuction(auction) {
     minimumBidLabel: formatEuro(minimumBidCents),
     bidCount: Number(auction.bid_count ?? bidCount(auction.id)),
     canBid: status === "LIVE",
-    winnerSelected: Boolean(auction.winner_bid_id)
+    winnerSelected: Boolean(auction.winner_bid_id),
+    updatedAt: auction.updated_at || auction.created_at || ""
   };
 }
 
