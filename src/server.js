@@ -13,6 +13,7 @@ import { apiRouter } from "./routes/api.js";
 import { embedRouter } from "./routes/embed.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw, syncStoredOrderLineItems } from "./services/lottery.js";
+import { reconcileLoyaltyOrders } from "./services/reconcile-loyalty.js";
 import { syncShopifyProducts } from "./services/shopify-products.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
@@ -40,6 +41,7 @@ const adminCsrfCookie = "mff_admin_csrf";
 const adminSessionMaxAgeSeconds = 60 * 60 * 12;
 const productSyncIntervalMs = 1000 * 60 * 60 * 6;
 const orderItemSyncIntervalMs = 1000 * 60 * 60 * 12;
+const loyaltyReconcileIntervalMs = 1000 * 60 * 60 * 12;
 const uploadMimeTypes = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
@@ -208,6 +210,21 @@ function startOrderItemSyncScheduler() {
   };
   const bootTimer = setTimeout(run, 6500);
   const interval = setInterval(run, orderItemSyncIntervalMs);
+  bootTimer.unref?.();
+  interval.unref?.();
+}
+
+function startLoyaltyReconcileScheduler() {
+  const run = async () => {
+    try {
+      const result = await reconcileLoyaltyOrders();
+      console.log(`Loyalty reconciliation complete: ${result.checked || 0} order(s), ${result.pointsDelta || 0} point(s) corrected`);
+    } catch (error) {
+      console.warn(`Loyalty reconciliation skipped: ${error.message}`);
+    }
+  };
+  const bootTimer = setTimeout(run, 9000);
+  const interval = setInterval(run, loyaltyReconcileIntervalMs);
   bootTimer.unref?.();
   interval.unref?.();
 }
@@ -712,6 +729,7 @@ if (process.env.NODE_ENV !== "test" && isDirectRun) {
   if (config.AUTO_CREATE_LIVE_DRAW) await getOrCreateLiveDraw();
   startProductSyncScheduler();
   startOrderItemSyncScheduler();
+  startLoyaltyReconcileScheduler();
   createApp().listen(config.PORT, () => {
     console.log(`Meat For Free lottery app running on http://localhost:${config.PORT}`);
   });
