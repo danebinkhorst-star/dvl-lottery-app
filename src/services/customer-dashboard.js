@@ -4,9 +4,11 @@ import { shopifyRest } from "../shopify/admin-api.js";
 import { getLotteryRule } from "./settings.js";
 import { formatEuro } from "../utils.js";
 import { ensureCustomerAuctionToken } from "../auth.js";
+import { listAuctions, publicAuction, publicAuctionWithBids, syncAuctionStatuses } from "./auctions.js";
+import { buildLoyaltyPayload } from "./loyalty.js";
 
 const NAMESPACE = "dvl_lottery";
-const DASHBOARD_KEYS = new Set(["summary", "entries", "orders", "active_draw", "auction_token"]);
+const DASHBOARD_KEYS = new Set(["summary", "entries", "orders", "active_draw", "auctions", "loyalty", "auction_token"]);
 
 function isTestRun() {
   return Boolean(process.env.NODE_TEST_CONTEXT);
@@ -198,6 +200,29 @@ export function buildCustomerDashboardPayload(customer) {
     customerEntryCount: Number(activeDrawEntries?.count || 0)
   } : null;
 
+  syncAuctionStatuses();
+  const shopifyCustomerId = String(customer.shopify_customer_id || "");
+  const liveAuctions = listAuctions({ status: "LIVE", publicOnly: true, limit: 40 }).map(publicAuction);
+  const customerAuctionRows = shopifyCustomerId ? db.prepare(`
+    SELECT DISTINCT a.*
+    FROM auctions a
+    JOIN auction_bids b ON b.auction_id = a.id
+    WHERE b.shopify_customer_id = ?
+      AND b.status IN ('WINNING', 'OUTBID', 'WINNER')
+    ORDER BY a.ends_at ASC
+  `).all(shopifyCustomerId) : [];
+  const activeBids = customerAuctionRows
+    .filter((auction) => auction.status === "LIVE")
+    .map((auction) => publicAuctionWithBids(auction, { shopifyCustomerId, limit: 0 }));
+  const wonAuctions = customerAuctionRows
+    .filter((auction) => auction.status === "AWARDED")
+    .filter((auction) => {
+      const winningBid = db.prepare("SELECT shopify_customer_id FROM auction_bids WHERE id = ?").get(auction.winner_bid_id);
+      return String(winningBid?.shopify_customer_id || "") === shopifyCustomerId;
+    })
+    .map((auction) => publicAuctionWithBids(auction, { shopifyCustomerId, limit: 0 }));
+  const loyalty = buildLoyaltyPayload(customer.id);
+
   return {
     summary: {
       customerEmail: customer.email || "",
@@ -230,6 +255,12 @@ export function buildCustomerDashboardPayload(customer) {
     ticketWallet: activeEntries.slice(0, 12).map(publicEntry),
     winnerHistory: winningEntries.slice(0, 8).map(publicEntry),
     nextAction,
+    auctions: {
+      live: liveAuctions,
+      activeBids,
+      won: wonAuctions
+    },
+    loyalty,
     orders: latestOrders.map(publicOrder),
     entries: entries.map(publicEntry)
   };
@@ -276,6 +307,8 @@ export async function syncCustomerDashboardMetafields(customerOrId) {
     await upsertCustomerMetafield(shopifyCustomerId, existing, "entries", payload.entries);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "orders", payload.orders);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "active_draw", payload.activeDraw);
+    await upsertCustomerMetafield(shopifyCustomerId, existing, "auctions", payload.auctions);
+    await upsertCustomerMetafield(shopifyCustomerId, existing, "loyalty", payload.loyalty);
     await upsertCustomerMetafield(shopifyCustomerId, existing, "auction_token", ensureCustomerAuctionToken(customer.shopify_customer_id));
     return { ok: true, shopifyCustomerId, totalEntries: payload.summary.totalEntries };
   } catch (error) {

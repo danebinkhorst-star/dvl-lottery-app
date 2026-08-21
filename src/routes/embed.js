@@ -407,6 +407,82 @@ function widgetRuntime() {
       .mff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;font-weight:900}
       .mff-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mff-row b{color:var(--mff-red)}
+      .mff-account-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:end}
+      .mff-account-head .mff-copy{max-width:54ch}
+      .mff-account-total{min-width:150px;text-align:right}
+      .mff-account-total strong{display:block;font-size:clamp(34px,5vw,58px);font-weight:950;line-height:.86}
+      .mff-account-total span{display:block;margin-top:7px;color:var(--mff-muted);font-size:10px;font-weight:950;text-transform:uppercase}
+      .mff-tabs{margin-top:24px}
+      .mff-tab-list{display:flex;gap:8px;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 3px 8px}
+      .mff-tab-list::-webkit-scrollbar{display:none}
+      .mff-tab{
+        flex:0 0 auto;
+        min-height:42px;
+        border:2px solid var(--mff-line);
+        border-radius:14px 5px 14px 5px;
+        background:var(--mff-paper);
+        color:var(--mff-ink);
+        box-shadow:3px 3px 0 #000;
+        padding:0 13px;
+        font:inherit;
+        font-size:10px;
+        font-weight:950;
+        letter-spacing:0;
+        text-transform:uppercase;
+        cursor:pointer;
+      }
+      .mff-tab[aria-selected="true"]{background:var(--mff-gold);transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+      .mff-tab:focus-visible{outline:3px solid var(--mff-red);outline-offset:2px}
+      .mff-tab-panel{padding-top:18px}
+      .mff-tab-panel[hidden]{display:none!important}
+      .mff-tab-heading{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:14px}
+      .mff-tab-heading h3{margin:0;font-size:clamp(22px,3vw,34px);font-weight:950;line-height:.92;text-transform:uppercase}
+      .mff-tab-heading span{color:var(--mff-muted);font-size:11px;font-weight:900;text-align:right}
+      .mff-auction-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+      .mff-auction-card{min-width:0;overflow:hidden;border:2px solid var(--mff-line);border-radius:18px 6px 18px 6px;background:var(--mff-paper);box-shadow:5px 5px 0 #000}
+      .mff-auction-media{position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--mff-soft)}
+      .mff-auction-media img{width:100%;height:100%;display:block;object-fit:cover}
+      .mff-auction-media--empty{display:grid;place-items:center;padding:18px;color:var(--mff-muted);font-size:11px;font-weight:950;text-align:center;text-transform:uppercase}
+      .mff-auction-status{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;border:2px solid #000;border-radius:11px 4px 11px 4px;background:var(--mff-gold);box-shadow:2px 2px 0 #000;padding:0 9px;color:var(--mff-ink);font-size:9px;font-weight:950;text-transform:uppercase}
+      .mff-auction-status--dark{background:var(--mff-ink);color:var(--mff-paper)}
+      .mff-auction-body{display:grid;gap:12px;padding:14px}
+      .mff-auction-title{margin:0;min-height:2.2em;font-size:18px;font-weight:950;line-height:1.05;text-transform:uppercase}
+      .mff-auction-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .mff-auction-metric{min-width:0;padding:10px;border-radius:10px 3px 10px 3px;background:var(--mff-soft)}
+      .mff-auction-metric span{display:block;color:var(--mff-muted);font-size:9px;font-weight:950;text-transform:uppercase}
+      .mff-auction-metric strong{display:block;margin-top:4px;font-size:18px;font-weight:950;line-height:1;white-space:nowrap}
+      .mff-auction-viewer{margin:0;color:var(--mff-muted);font-size:11px;font-weight:900}
+      .mff-auction-card .mff-button{width:100%;min-height:42px;padding-inline:12px}
+      .mff-empty{display:grid;gap:10px;justify-items:start;min-height:150px;align-content:center;padding:20px;border-radius:18px 6px 18px 6px;background:var(--mff-soft)}
+      .mff-empty strong{font-size:22px;font-weight:950;line-height:1;text-transform:uppercase}
+      .mff-empty span{max-width:52ch;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.4}
+      .mff-ticket-list,.mff-loyalty-transactions{display:grid;gap:8px}
+      .mff-ticket,.mff-loyalty-transaction{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;border-radius:12px 4px 12px 4px;background:var(--mff-soft)}
+      .mff-ticket strong,.mff-loyalty-transaction strong{display:block;font-size:13px;font-weight:950}
+      .mff-ticket span,.mff-loyalty-transaction span{display:block;margin-top:3px;color:var(--mff-muted);font-size:10px;font-weight:850}
+      .mff-ticket b,.mff-loyalty-transaction b{color:var(--mff-ink);font-size:13px;font-weight:950;text-align:right}
+      .mff-loyalty-summary{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(190px,.85fr);gap:14px}
+      .mff-loyalty-balance{display:grid;align-content:space-between;min-height:180px;padding:20px;border:2px solid #000;border-radius:18px 6px 18px 6px;background:var(--mff-gold);box-shadow:5px 5px 0 #000}
+      .mff-loyalty-balance span{font-size:10px;font-weight:950;text-transform:uppercase}
+      .mff-loyalty-balance strong{display:block;margin-top:8px;font-size:clamp(48px,7vw,82px);font-weight:950;line-height:.82}
+      .mff-loyalty-balance small{display:block;margin-top:8px;font-size:12px;font-weight:900}
+      .mff-loyalty-progress{padding:18px;border-radius:18px 6px 18px 6px;background:var(--mff-soft)}
+      .mff-loyalty-progress strong{display:block;font-size:20px;font-weight:950;line-height:1.05;text-transform:uppercase}
+      .mff-loyalty-progress p{margin:8px 0 0;color:var(--mff-muted);font-size:12px;font-weight:850;line-height:1.35}
+      .mff-loyalty-progress .mff-progress{background:var(--mff-paper)}
+      .mff-loyalty-redeem{display:grid;gap:9px;margin-top:15px}
+      .mff-loyalty-redeem .mff-button{width:100%}
+      .mff-loyalty-redeem .mff-button[disabled]{opacity:.48;cursor:not-allowed;transform:none;box-shadow:3px 3px 0 #000}
+      .mff-loyalty-result{display:none;padding:12px 13px;border:2px solid #000;border-radius:12px 4px 12px 4px;background:var(--mff-paper);font-size:11px;font-weight:900;line-height:1.4}
+      .mff-loyalty-result.is-visible{display:block}
+      .mff-loyalty-result strong{display:block;margin-bottom:4px;font-size:15px;line-height:1.05;text-transform:uppercase}
+      .mff-loyalty-result code{font:inherit;font-weight:950}
+      .mff-loyalty-transactions{margin-top:16px}
+      .mff-login-state{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.7fr);gap:clamp(22px,5vw,64px);align-items:center}
+      .mff-login-card{padding:20px;border:2px solid #000;border-radius:18px 6px 18px 6px;background:var(--mff-gold);box-shadow:6px 6px 0 #000}
+      .mff-login-card strong{display:block;font-size:24px;font-weight:950;line-height:1;text-transform:uppercase}
+      .mff-login-card p{margin:9px 0 18px;font-size:13px;font-weight:850;line-height:1.4}
+      .mff-login-card .mff-button{width:100%;background:var(--mff-paper)}
       .mff-winners-carousel{position:relative;--mff-marquee-height:154px;min-height:var(--mff-marquee-height);max-width:100%;overflow:hidden;margin-top:clamp(20px,3vw,34px)}
       .mff-winners-carousel--compact{--mff-marquee-height:104px;margin-top:18px}
       .mff-winners-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(520px,calc(100% - 18px));gap:clamp(14px,2.5vw,24px);max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;padding:2px 4px 10px 2px;scrollbar-width:none}
@@ -1186,6 +1262,23 @@ function widgetRuntime() {
         .mff-hero{grid-template-columns:1fr;gap:14px}
         .mff-title{font-size:clamp(34px,9.4vw,48px);line-height:.92}
         .mff-card-grid{grid-template-columns:1fr}
+        .mff-account-head{grid-template-columns:1fr;align-items:start}
+        .mff-account-total{min-width:0;text-align:left}
+        .mff-tabs{margin-top:18px}
+        .mff-tab-list{margin-inline:-2px;padding-bottom:9px}
+        .mff-tab{min-height:40px;padding-inline:11px;font-size:9px}
+        .mff-tab-panel{padding-top:12px}
+        .mff-tab-heading{align-items:start;margin-bottom:12px}
+        .mff-tab-heading h3{font-size:23px}
+        .mff-tab-heading span{font-size:10px}
+        .mff-auction-grid{display:flex;gap:12px;max-width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:1px;padding:1px 5px 9px 1px;scrollbar-width:none}
+        .mff-auction-grid::-webkit-scrollbar{display:none}
+        .mff-auction-card{flex:0 0 min(82vw,300px);scroll-snap-align:start;box-shadow:4px 4px 0 #000}
+        .mff-auction-title{font-size:17px}
+        .mff-loyalty-summary{grid-template-columns:1fr}
+        .mff-loyalty-balance{min-height:150px}
+        .mff-login-state{grid-template-columns:1fr}
+        .mff-login-card{box-shadow:5px 5px 0 #000}
         .mff-winners-track{grid-auto-columns:100%;gap:18px}
         .mff-winners-track--marquee{display:flex;gap:0}
         .mff-winners-track--marquee .mff-winner{flex-basis:min(330px,calc(100vw - 58px))}
@@ -1772,41 +1865,183 @@ function widgetRuntime() {
     setupWinnerPhotos(el);
   }
 
+  function auctionHref(auction) {
+    return storeHref(auction?.productHandle ? `/products/${encodeURIComponent(auction.productHandle)}` : "/collections/veilingen");
+  }
+
+  function auctionStatus(auction, mode) {
+    if (mode === "won") return { label: "Gewonnen", dark: true };
+    if (mode === "active") {
+      return auction?.viewer?.isWinning
+        ? { label: "Hoogste bod", dark: false }
+        : { label: "Overboden", dark: true };
+    }
+    return { label: auction?.status === "LIVE" ? "Live" : "Afgelopen", dark: auction?.status !== "LIVE" };
+  }
+
+  function auctionCard(auction, mode = "live") {
+    const status = auctionStatus(auction, mode);
+    const image = appAssetHref(auction?.productImageUrl || "");
+    const currentBid = auction?.currentBidLabel || auction?.startPriceLabel || "Nog geen bod";
+    const viewerLine = mode === "active" && auction?.viewer?.hasBid
+      ? `Jouw bod: ${auction.viewer.amountLabel || "-"}`
+      : mode === "won"
+        ? `Winnend bod: ${auction?.viewer?.amountLabel || currentBid}`
+        : `${Number(auction?.bidCount || 0)} ${Number(auction?.bidCount || 0) === 1 ? "bod" : "biedingen"}`;
+    const endTime = Date.parse(auction?.endsAt || "");
+    return `<article class="mff-auction-card">
+      <div class="mff-auction-media${image ? "" : " mff-auction-media--empty"}">
+        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(auction?.productTitle || auction?.title || "Veiling")}" loading="lazy">` : "Afbeelding volgt"}
+        <span class="mff-auction-status${status.dark ? " mff-auction-status--dark" : ""}">${escapeHtml(status.label)}</span>
+      </div>
+      <div class="mff-auction-body">
+        <h4 class="mff-auction-title">${escapeHtml(auction?.title || auction?.productTitle || "Veiling")}</h4>
+        <div class="mff-auction-metrics">
+          <div class="mff-auction-metric"><span>Huidig bod</span><strong>${escapeHtml(currentBid)}</strong></div>
+          <div class="mff-auction-metric"><span>${mode === "won" ? "Status" : "Resterende tijd"}</span><strong${mode === "won" ? "" : ` data-mff-auction-countdown="${escapeHtml(Number.isFinite(endTime) ? endTime : 0)}"`}>${mode === "won" ? "Gewonnen" : "--:--:--"}</strong></div>
+        </div>
+        <p class="mff-auction-viewer">${escapeHtml(viewerLine)}</p>
+        <a class="mff-button" href="${escapeHtml(auctionHref(auction))}" target="_top">${mode === "won" ? "Bekijk veiling" : "Bied mee"}</a>
+      </div>
+    </article>`;
+  }
+
+  function auctionGrid(items, mode, emptyTitle, emptyBody) {
+    if (!items.length) {
+      return `<div class="mff-empty"><strong>${escapeHtml(emptyTitle)}</strong><span>${escapeHtml(emptyBody)}</span>${mode !== "won" ? `<a class="mff-button" href="${escapeHtml(storeHref("/collections/veilingen"))}" target="_top">Ontdek live veilingen</a>` : ""}</div>`;
+    }
+    return `<div class="mff-auction-grid">${items.map((auction) => auctionCard(auction, mode)).join("")}</div>`;
+  }
+
+  function initAuctionCountdowns(root) {
+    const counters = [...root.querySelectorAll("[data-mff-auction-countdown]")];
+    if (!counters.length) return;
+    const pad = (value) => String(value).padStart(2, "0");
+    const render = () => counters.forEach((counter) => {
+      const target = Number(counter.dataset.mffAuctionCountdown || 0);
+      const diff = Math.max(0, target - Date.now());
+      if (!target || diff <= 0) {
+        counter.textContent = "Afgelopen";
+        return;
+      }
+      const days = Math.floor(diff / 86400000);
+      const hours = Math.floor((diff % 86400000) / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      counter.textContent = days > 0 ? `${days}d ${pad(hours)}u` : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    });
+    render();
+    window.setInterval(render, 1000);
+  }
+
+  function setupDashboardTabs(root) {
+    const tabs = [...root.querySelectorAll('[role="tab"]')];
+    const panels = [...root.querySelectorAll('[role="tabpanel"]')];
+    const activate = (tab, focus = false) => {
+      tabs.forEach((item) => {
+        const selected = item === tab;
+        item.setAttribute("aria-selected", String(selected));
+        item.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.id !== tab.getAttribute("aria-controls");
+      });
+      if (focus) tab.focus();
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => activate(tab));
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const targetIndex = event.key === "Home" ? 0
+          : event.key === "End" ? tabs.length - 1
+            : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        activate(tabs[targetIndex], true);
+      });
+    });
+  }
+
   function renderCustomerDashboard(el, payload) {
     const copy = widgetCopy(payload, "customer");
-    const wallet = Array.isArray(payload.ticketWallet) ? payload.ticketWallet.slice(0, 6) : [];
-    const winners = Array.isArray(payload.winnerHistory) ? payload.winnerHistory.slice(0, 3) : [];
+    const wallet = Array.isArray(payload.ticketWallet) ? payload.ticketWallet : [];
     const summary = payload.summary || {};
     const draw = payload.activeDraw;
-    const nextAction = payload.nextAction || {};
+    const auctions = payload.auctions || {};
+    const liveAuctions = Array.isArray(auctions.live) ? auctions.live : [];
+    const activeBids = Array.isArray(auctions.activeBids) ? auctions.activeBids : [];
+    const wonAuctions = Array.isArray(auctions.won) ? auctions.won : [];
+    const loyalty = payload.loyalty || {};
+    const transactions = Array.isArray(loyalty.transactions) ? loyalty.transactions : [];
+    const customerName = summary.customerName || "MFF-lid";
+    const canRedeem = Number(loyalty.availableRewards || 0) > 0;
     el.innerHTML = `<section ${visualAttrs(copy)}>
-      <div class="mff-hero">
+      <div class="mff-account-head">
         <div>
-          <p class="mff-kicker">${escapeHtml(copy.kicker || "Mijn MFF")}</p>
-          <h2 class="mff-title">${escapeHtml(copy.heading || "Je loten. Je trekkingen.")}</h2>
-          <p class="mff-copy">${escapeHtml(nextAction.label || copy.loggedInFallback || "Bestel, spaar loten en volg elke trekking transparant.")}</p>
-          <div class="mff-progress" aria-label="Voortgang naar volgend lot" style="--progress:${Number(nextAction.progress || 0)}%"><i></i></div>
+          <h2 class="mff-title mff-title--ink">Mijn MFF.</h2>
+          <p class="mff-copy">Welkom ${escapeHtml(customerName)}. Volg je biedingen, gewonnen veilingen, loten en loyalty points op één plek.</p>
         </div>
-        ${visualImage(copy)}
-        <div class="mff-panel">
-          <span class="mff-badge">${escapeHtml(draw?.status || copy.panelBadge || "Dashboard")}</span>
-          <div class="mff-list">
-            <div class="mff-row"><span>Actieve loten</span><b>${escapeHtml(summary.activeEntries ?? 0)}</b></div>
-            <div class="mff-row"><span>Live trekking</span><b>${escapeHtml(summary.liveDrawEntries ?? 0)}</b></div>
-            <div class="mff-row"><span>Gewonnen</span><b>${escapeHtml(summary.winningEntries ?? 0)}</b></div>
+        <div class="mff-account-total"><strong>${escapeHtml(loyalty.balance ?? 0)}</strong><span>Loyalty points</span></div>
+      </div>
+      <div class="mff-tabs">
+        <div class="mff-tab-list" role="tablist" aria-label="Mijn MFF dashboard">
+          <button class="mff-tab" id="mff-tab-live" role="tab" aria-selected="true" aria-controls="mff-panel-live">Live veilingen</button>
+          <button class="mff-tab" id="mff-tab-bids" role="tab" aria-selected="false" aria-controls="mff-panel-bids" tabindex="-1">Mijn actieve biedingen</button>
+          <button class="mff-tab" id="mff-tab-won" role="tab" aria-selected="false" aria-controls="mff-panel-won" tabindex="-1">Gewonnen veilingen</button>
+          <button class="mff-tab" id="mff-tab-tickets" role="tab" aria-selected="false" aria-controls="mff-panel-tickets" tabindex="-1">Mijn loten</button>
+          <button class="mff-tab" id="mff-tab-loyalty" role="tab" aria-selected="false" aria-controls="mff-panel-loyalty" tabindex="-1">Loyalty points</button>
+        </div>
+        <div class="mff-tab-panel" id="mff-panel-live" role="tabpanel" aria-labelledby="mff-tab-live">
+          <div class="mff-tab-heading"><h3>Nu live</h3><span>${escapeHtml(liveAuctions.length)} veilingen</span></div>
+          ${auctionGrid(liveAuctions, "live", "Geen live veilingen", "Zodra een veiling opent, verschijnt die hier met het actuele bod en de resterende tijd.")}
+        </div>
+        <div class="mff-tab-panel" id="mff-panel-bids" role="tabpanel" aria-labelledby="mff-tab-bids" hidden>
+          <div class="mff-tab-heading"><h3>Actieve biedingen</h3><span>${escapeHtml(activeBids.length)} actief</span></div>
+          ${auctionGrid(activeBids, "active", "Nog geen actieve biedingen", "Bied mee op een live veiling. Daarna volg je hier direct of je nog het hoogste bod hebt.")}
+        </div>
+        <div class="mff-tab-panel" id="mff-panel-won" role="tabpanel" aria-labelledby="mff-tab-won" hidden>
+          <div class="mff-tab-heading"><h3>Gewonnen</h3><span>${escapeHtml(wonAuctions.length)} veilingen</span></div>
+          ${auctionGrid(wonAuctions, "won", "Nog geen gewonnen veilingen", "Je gewonnen veilingen verschijnen hier pas nadat de winnaar definitief is toegewezen.")}
+        </div>
+        <div class="mff-tab-panel" id="mff-panel-tickets" role="tabpanel" aria-labelledby="mff-tab-tickets" hidden>
+          <div class="mff-tab-heading"><h3>Mijn loten</h3><span>${escapeHtml(wallet.length)} actief</span></div>
+          ${wallet.length ? `<div class="mff-ticket-list">${wallet.map((entry) => `<div class="mff-ticket"><div><strong>${escapeHtml(entry.entryNumber)}</strong><span>${escapeHtml(entry.drawTitle || draw?.title || "Actieve trekking")} · ${escapeHtml(entry.sourceLabel || sourceLabel(entry.source))}</span></div><b>Actief</b></div>`).join("")}</div>` : `<div class="mff-empty"><strong>Nog geen actieve loten</strong><span>Het lotensysteem blijft apart van loyalty points. Een geldige bestelling vanaf de lotgrens levert automatisch een lot op.</span><a class="mff-button" href="${escapeHtml(storeHref("/collections/all"))}" target="_top">Shop vlees</a></div>`}
+        </div>
+        <div class="mff-tab-panel" id="mff-panel-loyalty" role="tabpanel" aria-labelledby="mff-tab-loyalty" hidden>
+          <div class="mff-tab-heading"><h3>Loyalty points</h3><span>1 betaalde euro = 1 punt</span></div>
+          <div class="mff-loyalty-summary">
+            <div class="mff-loyalty-balance"><span>Huidig saldo</span><div><strong>${escapeHtml(loyalty.balance ?? 0)}</strong><small>${escapeHtml(loyalty.availableDiscountLabel || "€ 0,00")} korting beschikbaar</small></div></div>
+            <div class="mff-loyalty-progress"><strong>${canRedeem ? "€10 korting beschikbaar" : `Nog ${escapeHtml(loyalty.pointsToNextReward ?? 300)} punten`}</strong><p>Iedere 300 punten kun je inwisselen voor €10 korting. Punten en loten blijven twee aparte voordelen.</p><div class="mff-progress" aria-label="Voortgang naar volgende beloning" style="--progress:${Number(loyalty.progressPercent || 0)}%"><i></i></div><div class="mff-loyalty-redeem"><button class="mff-button" type="button" data-mff-loyalty-redeem${canRedeem ? "" : " disabled"}>${canRedeem ? "Wissel 300 punten in" : "Nog niet beschikbaar"}</button><div class="mff-loyalty-result" data-mff-loyalty-result role="status" aria-live="polite"></div></div></div>
           </div>
+          ${transactions.length ? `<div class="mff-loyalty-transactions">${transactions.map((transaction) => `<div class="mff-loyalty-transaction"><div><strong>${escapeHtml(transaction.description || "Puntentransactie")}</strong><span>${escapeHtml(transaction.orderName || "Meat For Free")}</span></div><b>${Number(transaction.points || 0) > 0 ? "+" : ""}${escapeHtml(transaction.points || 0)}</b></div>`).join("")}</div>` : `<div class="mff-empty"><strong>Nog geen puntentransacties</strong><span>Punten verschijnen hier alleen na een daadwerkelijk betaalde Shopify-bestelling.</span></div>`}
         </div>
-      </div>
-      <div class="mff-card-grid">
-        <div class="mff-mini"><strong>${escapeHtml(draw?.prizeName || "Hoofdprijs")}</strong><span>${escapeHtml(draw?.title || "Actieve winactie")}</span></div>
-        <div class="mff-mini"><strong>${escapeHtml(summary.totalEntries ?? 0)}</strong><span>Totaal loten</span></div>
-        <div class="mff-mini"><strong>${escapeHtml(wallet.length)}</strong><span>In wallet</span></div>
-      </div>
-      <div class="mff-list">
-        ${wallet.length ? wallet.map((entry) => `<div class="mff-row"><span>${escapeHtml(entry.entryNumber)}</span><b>${escapeHtml(sourceLabel(entry.source))}</b></div>`).join("") : `<div class="mff-row"><span>Nog geen actieve loten</span><b>Shop</b></div>`}
-        ${winners.length ? winners.map((entry) => `<div class="mff-row"><span>${escapeHtml(entry.entryNumber)}</span><b>Gewonnen</b></div>`).join("") : ""}
       </div>
     </section>`;
+    setupDashboardTabs(el);
+    initAuctionCountdowns(el);
+    const redeemButton = el.querySelector("[data-mff-loyalty-redeem]");
+    const redeemResult = el.querySelector("[data-mff-loyalty-result]");
+    if (redeemButton && !redeemButton.disabled && payload.customerId && payload.customerToken) {
+      redeemButton.addEventListener("click", async () => {
+        redeemButton.disabled = true;
+        redeemButton.textContent = "Kortingscode maken...";
+        try {
+          const response = await fetchJson(`/api/customers/${encodeURIComponent(payload.customerId)}/loyalty/redeem`, {
+            method: "POST",
+            headers: { "x-dvl-customer-token": payload.customerToken }
+          });
+          const reward = response.reward || {};
+          const discountPath = `/discount/${encodeURIComponent(reward.code || "")}?redirect=/checkout`;
+          redeemResult.classList.add("is-visible");
+          redeemResult.innerHTML = `<strong>${escapeHtml(reward.discountLabel || "€ 10,00")} korting klaar</strong><span><code>${escapeHtml(reward.code || "")}</code> · 300 punten gebruikt · ${escapeHtml(reward.balance ?? 0)} punten over.</span><a class="mff-button" href="${escapeHtml(storeHref(discountPath))}" target="_top">Gebruik bij checkout</a>`;
+          redeemButton.textContent = "Ingewisseld";
+        } catch (error) {
+          redeemButton.disabled = false;
+          redeemButton.textContent = "Wissel 300 punten in";
+          redeemResult.classList.add("is-visible");
+          redeemResult.innerHTML = `<strong>Niet gelukt</strong><span>${escapeHtml(error.message)}</span>`;
+        }
+      });
+    }
   }
 
   function customerWidget(el, data) {
@@ -1816,36 +2051,25 @@ function widgetRuntime() {
     if (customerId && token) {
       el.innerHTML = `<section class="mff-widget mff-shell"><p class="mff-kicker">Mijn MFF</p><h2 class="mff-title mff-title--ink">Dashboard laden.</h2></section>`;
       fetchJson(`/api/customers/${encodeURIComponent(customerId)}/entries`, { headers: { "x-dvl-customer-token": token } })
-        .then((payload) => renderCustomerDashboard(el, { ...payload, widgets: data.widgets }))
+        .then((payload) => renderCustomerDashboard(el, { ...payload, widgets: data.widgets, customerId, customerToken: token }))
         .catch((error) => {
           el.innerHTML = `<section class="mff-widget mff-shell"><p class="mff-kicker">Mijn MFF</p><h2 class="mff-title mff-title--ink">Log opnieuw in.</h2><p class="mff-copy">${escapeHtml(error.message)}</p></section>`;
         });
       return;
     }
-    const draw = data.liveDraw;
     el.innerHTML = `<section ${visualAttrs(copy)}>
-      <div class="mff-hero">
+      <div class="mff-login-state">
         <div>
-          <p class="mff-kicker">${escapeHtml(copy.kicker || "Mijn MFF")}</p>
-          <h2 class="mff-title">${escapeHtml(copy.heading || "Je loten. Je trekkingen.")}</h2>
-          <p class="mff-copy">${escapeHtml(copy.body || "Een rustig dashboard voor actieve loten, gekoppelde orders en winacties.")}</p>
+          <h2 class="mff-title mff-title--ink">Alles van jou. Eén overzicht.</h2>
+          <p class="mff-copy">Log in voor je live biedingen, gewonnen veilingen, actieve loten en loyalty points.</p>
           <div class="mff-actions">
-            <a class="mff-button" href="${escapeHtml(storeHref(copy.buttonUrl || "/pages/mijn-mff-dashboard"))}" target="_top">${escapeHtml(copy.buttonLabel || "Open dashboard")}</a>
+            <a class="mff-button" href="${escapeHtml(storeHref("/account/login?return_url=%2Fpages%2Fmijn-mff-dashboard"))}" target="_top">Log in bij Mijn MFF</a>
+            <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref("/collections/veilingen"))}" target="_top">Bekijk live veilingen</a>
           </div>
         </div>
-        ${visualImage(copy)}
-        <div class="mff-panel">
-          <span class="mff-badge">${escapeHtml(copy.panelBadge || "Dashboard")}</span>
-          <div class="mff-list">
-            <div class="mff-row"><span>Loten in live trekking</span><b>${escapeHtml(draw?.entryCount ?? 0)}</b></div>
-            <div class="mff-row"><span>Hoofdprijs</span><b>${escapeHtml(draw?.prizeName || "Prijs")}</b></div>
-            <div class="mff-row"><span>${escapeHtml(copy.personalLabel || "Persoonlijke loten")}</span><b>${escapeHtml(copy.personalValue || "Na login")}</b></div>
-          </div>
-        </div>
+        <div class="mff-login-card"><strong>Persoonlijke data blijft persoonlijk.</strong><p>Je dashboard gebruikt alleen je echte account-, order-, veiling- en loterijgegevens.</p><a class="mff-button" href="${escapeHtml(storeHref("/account/login?return_url=%2Fpages%2Fmijn-mff-dashboard"))}" target="_top">Inloggen</a></div>
       </div>
-      ${compactWinnersMarkup(data)}
     </section>`;
-    setupWinnerPhotos(el);
   }
 
   function pdpWidget(el, data) {
@@ -2357,6 +2581,29 @@ embedRouter.get("/frame", (req, res) => {
         const sectionId = ${JSON.stringify(sectionId)};
         const widget = ${JSON.stringify(widget)};
         const root = document.querySelector('[data-dvl-lottery="${widget}"]');
+        const scriptSrc = ${JSON.stringify(scriptSrc)};
+        let widgetScriptLoaded = false;
+        const loadWidgetScript = () => {
+          if (widgetScriptLoaded) return;
+          widgetScriptLoaded = true;
+          const script = document.createElement('script');
+          script.src = scriptSrc;
+          document.body.appendChild(script);
+        };
+
+        if (widget === "customer") {
+          window.addEventListener("message", (event) => {
+            const data = event.data || {};
+            if (event.source !== window.parent || data.type !== "dvl:customer-context" || data.sectionId !== sectionId) return;
+            root.dataset.shopifyCustomerId = String(data.customerId || "");
+            root.dataset.customerToken = String(data.customerToken || "");
+            loadWidgetScript();
+          });
+          window.parent.postMessage({ type: "dvl:customer-context-ready", sectionId }, "*");
+          window.setTimeout(loadWidgetScript, 2000);
+        } else {
+          loadWidgetScript();
+        }
         const hasRenderedContent = () => {
           if (!root || !root.firstElementChild) return false;
           if (widget !== "winners") return true;
@@ -2377,7 +2624,6 @@ embedRouter.get("/frame", (req, res) => {
         window.setInterval(sendFrameState, 1200);
       })();
     </script>
-    <script src="${scriptSrc}"></script>
   </body>
 </html>`);
 });

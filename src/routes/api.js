@@ -3,14 +3,16 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { db } from "../db.js";
 import { createDraw, createFreeEntry } from "../services/lottery.js";
-import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields } from "../services/customer-dashboard.js";
+import { buildCustomerDashboardPayload, syncAllCustomerDashboardMetafields, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
+import { reconcileLoyaltyOrders } from "../services/reconcile-loyalty.js";
 import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../services/settings.js";
 import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { clientIp, recordSecurityEvent } from "../services/security-events.js";
 import { recordAnalyticsEvent } from "../services/analytics.js";
 import { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken, verifyCustomerToken } from "../auth.js";
 import { createAuction, getAuctionByProduct, listAuctions, placeAuctionBid, publicAuction, publicAuctionWithBids } from "../services/auctions.js";
+import { redeemLoyaltyReward } from "../services/loyalty.js";
 
 export const apiRouter = express.Router();
 
@@ -75,6 +77,20 @@ const bidLimiter = rateLimit({
       message: "Veiling bieding rate limit geraakt."
     });
     res.status(429).json({ error: "Te veel biedingen in korte tijd. Probeer het zo opnieuw." });
+  }
+});
+const loyaltyRedeemLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (req, res) => {
+    recordSecurityEvent({
+      eventType: "LOYALTY_REDEEM_RATE_LIMIT",
+      req,
+      message: "Loyalty inwisseling rate limit geraakt."
+    });
+    res.status(429).json({ error: "Te veel inwisselpogingen. Probeer het over 15 minuten opnieuw." });
   }
 });
 const analyticsEventSchema = z.object({
@@ -202,7 +218,8 @@ apiRouter.get("/site/summary", async (_req, res) => {
         ? []
         : productCardsForEmbed({ limit: syncedProductLimit, statusTag: productStatusFilter }),
       sync: productSyncStatus()
-    }
+    },
+    auctions: listAuctions({ status: "LIVE", publicOnly: true, limit: 12 }).map(publicAuction)
   });
 });
 
@@ -289,10 +306,39 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
       liveDrawEntries: 0
     },
     activeDraw: null,
+    auctions: { live: listAuctions({ status: "LIVE", publicOnly: true, limit: 40 }).map(publicAuction), activeBids: [], won: [] },
+    loyalty: { balance: 0, availableDiscountCents: 0, availableDiscountLabel: "€ 0,00", rewardPoints: 300, rewardDiscountCents: 1000, rewardDiscountLabel: "€ 10,00", availableRewards: 0, progressPoints: 0, pointsToNextReward: 300, progressPercent: 0, transactions: [] },
     orders: [],
     entries: []
   });
   res.json(buildCustomerDashboardPayload(customer));
+});
+
+apiRouter.post("/customers/:shopifyCustomerId/loyalty/redeem", loyaltyRedeemLimiter, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const suppliedToken = req.get("x-dvl-customer-token") || "";
+  if (!verifyCustomerToken(req.params.shopifyCustomerId, suppliedToken)) {
+    recordSecurityEvent({
+      eventType: "LOYALTY_REDEEM_UNAUTHORIZED",
+      req,
+      message: "Ongeldige klanttoken bij punteninwisseling."
+    });
+    return res.status(401).json({ error: "Log opnieuw in om punten in te wisselen." });
+  }
+  const customer = db.prepare("SELECT * FROM customers WHERE shopify_customer_id = ?").get(req.params.shopifyCustomerId);
+  if (!customer) return res.status(404).json({ error: "Klantaccount niet gevonden." });
+  try {
+    const reward = await redeemLoyaltyReward(customer);
+    await syncCustomerDashboardMetafields(customer).catch((error) => {
+      console.warn("Could not sync customer dashboard after loyalty redemption", error);
+    });
+    return res.status(201).json({ ok: true, reward });
+  } catch (error) {
+    const insufficient = String(error.message || "").includes("punten nodig");
+    return res.status(insufficient ? 409 : 502).json({
+      error: insufficient ? error.message : "De kortingscode kon niet worden aangemaakt. Je punten zijn niet afgeschreven."
+    });
+  }
 });
 
 apiRouter.get("/auctions", async (req, res) => {
@@ -387,8 +433,11 @@ apiRouter.post("/reconcile/orders", adminWriteLimiter, async (req, res) => {
   if (!isValidWriteSecret(suppliedSecret)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const result = await reconcileActiveOrderEntries();
-  return res.json({ ok: true, ...result });
+  const [lottery, loyalty] = await Promise.all([
+    reconcileActiveOrderEntries(),
+    reconcileLoyaltyOrders()
+  ]);
+  return res.json({ ok: true, lottery, loyalty });
 });
 
 apiRouter.post("/sync/customer-dashboards", adminWriteLimiter, async (req, res) => {

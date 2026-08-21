@@ -17,6 +17,7 @@
     "register:webhooks": "node scripts/register-webhooks.js",
     "proof:commerce-loop": "node scripts/proof-commerce-loop.js",
     "reconcile:orders": "node scripts/reconcile-orders.js",
+    "reconcile:loyalty": "node scripts/reconcile-loyalty.js",
     "test": "node --test --test-concurrency=1"
   },
   "dependencies": {

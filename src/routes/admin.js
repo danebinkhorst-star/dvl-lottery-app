@@ -3,6 +3,7 @@ import { db, id, nowIso } from "../db.js";
 import { createDraw, drawWinner, getOrCreateCustomer, syncStoredOrderLineItems } from "../services/lottery.js";
 import { syncAllCustomerDashboardMetafields, syncAllShopifyCustomerAuctionTokens, syncCustomerDashboardMetafields } from "../services/customer-dashboard.js";
 import { reconcileActiveOrderEntries } from "../services/reconcile.js";
+import { reconcileLoyaltyOrders } from "../services/reconcile-loyalty.js";
 import { getLotteryRule, getSiteStructure, updateLotteryRule, updateSiteStructure, getWidgetSettings, updateWidgetSettings, widgetDefinitions, widgetVisualDefaults } from "../services/settings.js";
 import { listSyncedProducts, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { recentSecurityEvents, securityEventSummary } from "../services/security-events.js";
@@ -4434,12 +4435,16 @@ adminRouter.post("/loten/:id/activate", urlencoded, async (req, res) => {
 });
 
 adminRouter.post("/reconcile", async (_req, res) => {
-  const result = await reconcileActiveOrderEntries();
+  const [lottery, loyalty] = await Promise.all([
+    reconcileActiveOrderEntries(),
+    reconcileLoyaltyOrders()
+  ]);
+  const result = { lottery, loyalty };
   writeAuditLog({
     actor: "admin",
     action: "ORDERS_GESYNCHRONISEERD",
     targetType: "orders",
-    message: `${result.checked || 0} actieve orders gecontroleerd`,
+    message: `${lottery.checked || 0} lotenorders en ${loyalty.checked || 0} loyaltyorders gecontroleerd`,
     metadata: result
   });
   res.redirect("/admin/sync");

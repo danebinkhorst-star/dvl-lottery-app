@@ -34,11 +34,46 @@ export function initDb() {
       email TEXT,
       currency TEXT NOT NULL DEFAULT 'EUR',
       total_cents INTEGER NOT NULL,
+      refunded_cents INTEGER NOT NULL DEFAULT 0,
+      loyalty_eligible_cents INTEGER NOT NULL DEFAULT 0,
       financial_status TEXT,
       source TEXT NOT NULL DEFAULT 'shopify_order',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_transactions (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      order_id TEXT,
+      type TEXT NOT NULL,
+      points INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      reference TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_rewards (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      points_cost INTEGER NOT NULL DEFAULT 300,
+      discount_cents INTEGER NOT NULL DEFAULT 1000,
+      discount_code TEXT NOT NULL UNIQUE,
+      shopify_discount_id TEXT,
+      status TEXT NOT NULL DEFAULT 'ISSUED',
+      created_at TEXT NOT NULL,
+      used_at TEXT,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id TEXT PRIMARY KEY,
+      topic TEXT NOT NULL,
+      resource_id TEXT,
+      processed_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS order_items (
@@ -344,6 +379,10 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_entries_customer ON lottery_entries(customer_id);
     CREATE INDEX IF NOT EXISTS idx_entries_order ON lottery_entries(order_id);
     CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_loyalty_customer_created ON loyalty_transactions(customer_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_loyalty_order ON loyalty_transactions(order_id);
+    CREATE INDEX IF NOT EXISTS idx_loyalty_rewards_customer ON loyalty_rewards(customer_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_processed ON webhook_events(processed_at);
     CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(shopify_product_id);
     CREATE INDEX IF NOT EXISTS idx_order_items_variant ON order_items(shopify_variant_id);
@@ -382,6 +421,8 @@ export function initDb() {
   ensureColumn("lottery_draws", "winner_consent_reference", "TEXT");
   ensureColumn("lottery_draws", "winner_internal_note", "TEXT");
   ensureColumn("customers", "auction_token", "TEXT");
+  ensureColumn("orders", "refunded_cents", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("orders", "loyalty_eligible_cents", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("admin_users", "team_id", "TEXT");
   ensureColumn("admin_users", "title", "TEXT");
   ensureColumn("admin_users", "avatar_url", "TEXT");

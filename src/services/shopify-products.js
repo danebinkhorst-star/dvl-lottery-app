@@ -240,6 +240,7 @@ export function productCardsForEmbed({ limit = 8, statusTag = "" } = {}) {
     url: product.product_url || `/products/${product.handle}`,
     variantId: product.variant_id || "",
     priceCents: Number(product.price_cents || 0),
+    loyaltyPoints: Math.floor(Number(product.price_cents || 0) / 100),
     compareAtCents: Number(product.compare_at_cents || 0),
     available: Boolean(product.available)
   }));
