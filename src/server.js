@@ -15,6 +15,7 @@ import { webhookRouter } from "./routes/webhooks.js";
 import { getOrCreateLiveDraw, syncStoredOrderLineItems } from "./services/lottery.js";
 import { reconcileLoyaltyOrders } from "./services/reconcile-loyalty.js";
 import { syncShopifyProducts } from "./services/shopify-products.js";
+import { ensureSixLaunchAuctions } from "./services/launch-auctions.js";
 import { brandMarkSvg, brandPalette } from "./services/admin-brand.js";
 import { writeAuditLog } from "./services/audit.js";
 import { safeEqual } from "./auth.js";
@@ -191,6 +192,17 @@ function startProductSyncScheduler() {
       console.log(`Shopify product sync complete: ${result.synced || 0}/${result.fetched || 0}`);
     } catch (error) {
       console.warn(`Shopify product sync skipped: ${error.message}`);
+    }
+    if (config.NODE_ENV === "production") {
+      try {
+        const auctions = await ensureSixLaunchAuctions();
+        console.log(`Launch auction seed: ${auctions.created} created, ${auctions.total}/6 ready`);
+        for (const error of auctions.errors || []) {
+          console.warn(`Launch auction skipped for product ${error.productId}: ${error.message}`);
+        }
+      } catch (error) {
+        console.warn(`Launch auction seed skipped: ${error.message}`);
+      }
     }
   };
   const bootTimer = setTimeout(run, 2500);
