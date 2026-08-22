@@ -16,7 +16,7 @@ const crypto = await import("node:crypto");
 const { rmSync } = await import("node:fs");
 const { db } = await import("../src/db.js");
 const { createApp } = await import("../src/server.js");
-const { isValidWriteSecret, signCustomerToken, verifyCustomerToken } = await import("../src/auth.js");
+const { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken, verifyCustomerToken } = await import("../src/auth.js");
 const { verifyShopifyWebhook } = await import("../src/utils.js");
 const { assignEntriesForOrder, createDraw, drawWinner } = await import("../src/services/lottery.js");
 const { createAdminUser } = await import("../src/services/admin-accounts.js");
@@ -86,6 +86,37 @@ test("customer tokens are scoped to a customer and expire", () => {
   assert.equal(verifyCustomerToken("111", valid), true);
   assert.equal(verifyCustomerToken("222", valid), false);
   assert.equal(verifyCustomerToken("111", expired), false);
+});
+
+test("persistent Shopify customer tokens are scoped and accepted by customer APIs", async () => {
+  resetDb();
+  await assignEntriesForOrder({
+    id: 790,
+    name: "#1004",
+    total_price: "70.00",
+    currency: "EUR",
+    financial_status: "paid",
+    email: "persistent@example.com",
+    customer: { id: 111, email: "persistent@example.com", first_name: "Persistent" }
+  });
+  db.prepare("UPDATE customers SET auction_token = ? WHERE shopify_customer_id = ?").run("persistent-shopify-token", "111");
+
+  assert.equal(verifyCustomerAccessToken("111", "persistent-shopify-token"), true);
+  assert.equal(verifyCustomerAccessToken("222", "persistent-shopify-token"), false);
+
+  const app = createApp();
+  await request(app)
+    .get("/api/customers/111/entries")
+    .set("x-dvl-customer-token", "persistent-shopify-token")
+    .expect(200);
+  await request(app)
+    .get("/api/customers/222/entries")
+    .set("x-dvl-customer-token", "persistent-shopify-token")
+    .expect(401);
+  await request(app)
+    .post("/api/customers/111/loyalty/redeem")
+    .set("x-dvl-customer-token", "persistent-shopify-token")
+    .expect(409);
 });
 
 test("customer entries endpoint rejects query-string tokens", async () => {

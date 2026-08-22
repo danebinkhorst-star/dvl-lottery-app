@@ -1479,7 +1479,11 @@ function widgetRuntime() {
   async function fetchJson(path, options) {
     const response = await fetch(API + path, options);
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Kon data niet laden.");
+    if (!response.ok) {
+      const error = new Error(data.error || "Kon data niet laden.");
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
 
@@ -2053,7 +2057,25 @@ function widgetRuntime() {
       fetchJson(`/api/customers/${encodeURIComponent(customerId)}/entries`, { headers: { "x-dvl-customer-token": token } })
         .then((payload) => renderCustomerDashboard(el, { ...payload, widgets: data.widgets, customerId, customerToken: token }))
         .catch((error) => {
-          el.innerHTML = `<section class="mff-widget mff-shell"><p class="mff-kicker">Mijn MFF</p><h2 class="mff-title mff-title--ink">Log opnieuw in.</h2><p class="mff-copy">${escapeHtml(error.message)}</p></section>`;
+          const isUnauthorized = Number(error.status) === 401;
+          const heading = isUnauthorized ? "Je accountkoppeling moet worden vernieuwd." : "Je dashboard kon niet laden.";
+          const message = isUnauthorized
+            ? "Je Shopify-account is herkend, maar de beveiligde koppeling met Mijn MFF is niet meer geldig. Log eenmalig opnieuw in."
+            : "Je gegevens blijven veilig bewaard. Probeer de pagina opnieuw te laden; als de storing aanhoudt kun je opnieuw inloggen.";
+          el.innerHTML = `<section class="mff-widget mff-shell">
+            <div class="mff-login-state">
+              <div>
+                <p class="mff-kicker">Mijn MFF</p>
+                <h2 class="mff-title mff-title--ink">${escapeHtml(heading)}</h2>
+                <p class="mff-copy">${escapeHtml(message)}</p>
+                <div class="mff-actions">
+                  <button class="mff-button" type="button" data-dashboard-reload>Probeer opnieuw</button>
+                  <a class="mff-button mff-button--paper" href="${escapeHtml(storeHref("/account/logout?return_url=%2Fpages%2Finloggen"))}" target="_top">Opnieuw inloggen</a>
+                </div>
+              </div>
+            </div>
+          </section>`;
+          el.querySelector("[data-dashboard-reload]")?.addEventListener("click", () => window.location.reload());
         });
       return;
     }

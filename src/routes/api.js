@@ -10,7 +10,7 @@ import { getAllWidgetSettings, getLotteryRule, getSiteStructure } from "../servi
 import { productCardsForEmbed, productSyncStatus, syncShopifyProducts } from "../services/shopify-products.js";
 import { clientIp, recordSecurityEvent } from "../services/security-events.js";
 import { recordAnalyticsEvent } from "../services/analytics.js";
-import { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken, verifyCustomerToken } from "../auth.js";
+import { isValidWriteSecret, signCustomerToken, verifyCustomerAccessToken } from "../auth.js";
 import { createAuction, getAuctionByProduct, listAuctions, placeAuctionBid, publicAuction, publicAuctionWithBids } from "../services/auctions.js";
 import { redeemLoyaltyReward } from "../services/loyalty.js";
 
@@ -293,7 +293,7 @@ apiRouter.post("/free-entry", freeEntryLimiter, async (req, res) => {
 
 apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
   const suppliedToken = req.get("x-dvl-customer-token") || "";
-  if (!verifyCustomerToken(req.params.shopifyCustomerId, suppliedToken)) {
+  if (!verifyCustomerAccessToken(req.params.shopifyCustomerId, suppliedToken)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -317,7 +317,7 @@ apiRouter.get("/customers/:shopifyCustomerId/entries", async (req, res) => {
 apiRouter.post("/customers/:shopifyCustomerId/loyalty/redeem", loyaltyRedeemLimiter, async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const suppliedToken = req.get("x-dvl-customer-token") || "";
-  if (!verifyCustomerToken(req.params.shopifyCustomerId, suppliedToken)) {
+  if (!verifyCustomerAccessToken(req.params.shopifyCustomerId, suppliedToken)) {
     recordSecurityEvent({
       eventType: "LOYALTY_REDEEM_UNAUTHORIZED",
       req,

@@ -38,7 +38,7 @@ Klantdashboard voorbereiding:
 <div
   data-dvl-lottery="customer"
   data-shopify-customer-id="{{ customer.id }}"
-  data-customer-token="{{ customer.metafields.mff.dashboard_token }}"
+  data-customer-token="{{ customer.metafields.dvl_lottery.auction_token.value }}"
 ></div>
 ```
 

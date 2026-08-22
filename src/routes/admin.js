@@ -4313,7 +4313,7 @@ adminRouter.get("/embed", (_req, res) => {
   ];
   const widgetSnippet = (type) => {
     if (type === "pdp") return '<div data-dvl-lottery="pdp" data-product-price-cents="{{ product.price }}" data-product-title="{{ product.title | escape }}" data-product-image="{{ product.featured_image | image_url: width: 180 }}" data-product-url="{{ product.url }}"></div>';
-    if (type === "customer") return '<div data-dvl-lottery="customer" data-shopify-customer-id="{{ customer.id }}" data-customer-token="{{ customer.metafields.mff.dashboard_token }}"></div>';
+    if (type === "customer") return '<div data-dvl-lottery="customer" data-shopify-customer-id="{{ customer.id }}" data-customer-token="{{ customer.metafields.dvl_lottery.auction_token.value }}"></div>';
     return `<div data-dvl-lottery="${type}"></div>`;
   };
   const scriptUrl = "https://dvl-lottery-app.onrender.com/embed/dvl-lottery.js";
