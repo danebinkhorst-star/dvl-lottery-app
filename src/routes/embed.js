@@ -438,21 +438,30 @@ function widgetRuntime() {
       .mff-tab-heading{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:14px}
       .mff-tab-heading h3{margin:0;font-size:clamp(22px,3vw,34px);font-weight:950;line-height:.92;text-transform:uppercase}
       .mff-tab-heading span{color:var(--mff-muted);font-size:11px;font-weight:900;text-align:right}
+      .mff-auction-rail{position:relative;min-width:0}
       .mff-auction-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-      .mff-auction-card{min-width:0;overflow:hidden;border:2px solid var(--mff-line);border-radius:18px 6px 18px 6px;background:var(--mff-paper);box-shadow:5px 5px 0 #000}
-      .mff-auction-media{position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--mff-soft)}
+      .mff-auction-card{min-width:0;overflow:hidden;border:1px solid rgba(33,23,18,.35);border-radius:5px;background:var(--mff-paper)}
+      .mff-auction-media{position:relative;aspect-ratio:16/10;overflow:hidden;background:var(--mff-soft)}
       .mff-auction-media img{width:100%;height:100%;display:block;object-fit:cover}
       .mff-auction-media--empty{display:grid;place-items:center;padding:18px;color:var(--mff-muted);font-size:11px;font-weight:950;text-align:center;text-transform:uppercase}
-      .mff-auction-status{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;min-height:28px;border:2px solid #000;border-radius:11px 4px 11px 4px;background:var(--mff-gold);box-shadow:2px 2px 0 #000;padding:0 9px;color:var(--mff-ink);font-size:9px;font-weight:950;text-transform:uppercase}
+      .mff-auction-status{position:absolute;top:9px;right:9px;display:inline-flex;align-items:center;min-height:27px;border:1px solid rgba(33,23,18,.2);border-radius:999px;background:var(--mff-paper);padding:0 10px;color:var(--mff-ink);font-size:9px;font-weight:950;text-transform:uppercase}
+      .mff-auction-status:before{width:6px;height:6px;border-radius:50%;background:var(--mff-red);content:"";margin-right:6px}
       .mff-auction-status--dark{background:var(--mff-ink);color:var(--mff-paper)}
-      .mff-auction-body{display:grid;gap:12px;padding:14px}
-      .mff-auction-title{margin:0;min-height:2.2em;font-size:18px;font-weight:950;line-height:1.05;text-transform:uppercase}
-      .mff-auction-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-      .mff-auction-metric{min-width:0;padding:10px;border-radius:10px 3px 10px 3px;background:var(--mff-soft)}
-      .mff-auction-metric span{display:block;color:var(--mff-muted);font-size:9px;font-weight:950;text-transform:uppercase}
-      .mff-auction-metric strong{display:block;margin-top:4px;font-size:18px;font-weight:950;line-height:1;white-space:nowrap}
-      .mff-auction-viewer{margin:0;color:var(--mff-muted);font-size:11px;font-weight:900}
-      .mff-auction-card .mff-button{width:100%;min-height:42px;padding-inline:12px}
+      .mff-auction-status--dark:before{background:var(--mff-gold)}
+      .mff-auction-closes{position:absolute;bottom:8px;left:8px;display:inline-flex;align-items:center;min-height:25px;border-radius:4px;background:var(--mff-paper);padding:0 8px;color:var(--mff-red);font-size:9px;font-weight:950}
+      .mff-auction-closes:before{width:8px;height:8px;border:1px solid currentColor;border-radius:50%;content:"";margin-right:5px}
+      .mff-auction-body{display:grid;gap:8px;padding:11px}
+      .mff-auction-reference{margin:0;color:var(--mff-muted);font-size:9px;font-weight:850;text-transform:uppercase}
+      .mff-auction-title{margin:0;min-height:2.2em;font-size:15px;font-weight:950;line-height:1.08;text-transform:none}
+      .mff-auction-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mff-muted);font-size:10px;font-weight:850}
+      .mff-auction-meta span:last-child{text-align:right}
+      .mff-auction-bid{display:flex;align-items:end;justify-content:space-between;gap:8px;padding-top:2px}
+      .mff-auction-bid span{display:block;color:var(--mff-muted);font-size:8px;font-weight:950;text-transform:uppercase}
+      .mff-auction-bid strong{display:block;margin-top:2px;font-size:17px;font-weight:950;line-height:1}
+      .mff-auction-viewer{margin:0;color:var(--mff-ink);font-size:10px;font-weight:900;text-align:right}
+      .mff-auction-card .mff-button{width:100%;min-height:36px;padding-inline:10px;border-radius:7px;font-size:9px;box-shadow:3px 3px 0 #000}
+      .mff-auction-swipe-cue{display:none;transition:opacity 160ms ease}
+      .mff-auction-swipe-cue.is-hidden{opacity:0}
       .mff-empty{display:grid;gap:10px;justify-items:start;min-height:150px;align-content:center;padding:20px;border-radius:18px 6px 18px 6px;background:var(--mff-soft)}
       .mff-empty strong{font-size:22px;font-weight:950;line-height:1;text-transform:uppercase}
       .mff-empty span{max-width:52ch;color:var(--mff-muted);font-size:13px;font-weight:850;line-height:1.4}
@@ -1265,16 +1274,20 @@ function widgetRuntime() {
         .mff-account-head{grid-template-columns:1fr;align-items:start}
         .mff-account-total{min-width:0;text-align:left}
         .mff-tabs{margin-top:18px}
-        .mff-tab-list{margin-inline:-2px;padding-bottom:9px}
-        .mff-tab{min-height:40px;padding-inline:11px;font-size:9px}
+        .mff-tab-list{display:grid;grid-template-columns:1fr;gap:7px;margin-inline:0;padding:2px 3px 5px;overflow:visible}
+        .mff-tab{width:100%;min-height:38px;padding-inline:12px;font-size:9px;text-align:left}
+        .mff-tab[aria-selected="true"]{transform:translate(2px,2px)}
         .mff-tab-panel{padding-top:12px}
         .mff-tab-heading{align-items:start;margin-bottom:12px}
         .mff-tab-heading h3{font-size:23px}
         .mff-tab-heading span{font-size:10px}
-        .mff-auction-grid{display:flex;gap:12px;max-width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:1px;padding:1px 5px 9px 1px;scrollbar-width:none}
+        .mff-auction-rail{margin-right:-14px}
+        .mff-auction-grid{display:flex;gap:10px;max-width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:1px;padding:1px 54px 10px 1px;scrollbar-width:none}
         .mff-auction-grid::-webkit-scrollbar{display:none}
-        .mff-auction-card{flex:0 0 min(82vw,300px);scroll-snap-align:start;box-shadow:4px 4px 0 #000}
-        .mff-auction-title{font-size:17px}
+        .mff-auction-card{flex:0 0 min(72vw,248px);scroll-snap-align:start}
+        .mff-auction-media{aspect-ratio:16/10}
+        .mff-auction-title{font-size:14px}
+        .mff-auction-swipe-cue{position:absolute;right:8px;top:78px;z-index:2;display:grid;width:34px;height:34px;place-items:center;border:2px solid #000;border-radius:50%;background:var(--mff-gold);box-shadow:2px 2px 0 #000;font-size:19px;font-weight:950;line-height:1;pointer-events:none;transform:translateY(-50%)}
         .mff-loyalty-summary{grid-template-columns:1fr}
         .mff-loyalty-balance{min-height:150px}
         .mff-login-state{grid-template-columns:1fr}
@@ -1887,24 +1900,31 @@ function widgetRuntime() {
     const status = auctionStatus(auction, mode);
     const image = appAssetHref(auction?.productImageUrl || "");
     const currentBid = auction?.currentBidLabel || auction?.startPriceLabel || "Nog geen bod";
+    const bidTotal = Number(auction?.bidCount || 0);
     const viewerLine = mode === "active" && auction?.viewer?.hasBid
       ? `Jouw bod: ${auction.viewer.amountLabel || "-"}`
       : mode === "won"
         ? `Winnend bod: ${auction?.viewer?.amountLabel || currentBid}`
-        : `${Number(auction?.bidCount || 0)} ${Number(auction?.bidCount || 0) === 1 ? "bod" : "biedingen"}`;
+        : "";
     const endTime = Date.parse(auction?.endsAt || "");
+    const reference = `MFF-${String(auction?.id || "veiling").replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase()}`;
     return `<article class="mff-auction-card">
       <div class="mff-auction-media${image ? "" : " mff-auction-media--empty"}">
         ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(auction?.productTitle || auction?.title || "Veiling")}" loading="lazy">` : "Afbeelding volgt"}
         <span class="mff-auction-status${status.dark ? " mff-auction-status--dark" : ""}">${escapeHtml(status.label)}</span>
+        ${mode === "won" ? "" : `<span class="mff-auction-closes">Sluit over&nbsp;<b data-mff-auction-countdown="${escapeHtml(Number.isFinite(endTime) ? endTime : 0)}">--:--:--</b></span>`}
       </div>
       <div class="mff-auction-body">
-        <h4 class="mff-auction-title">${escapeHtml(auction?.title || auction?.productTitle || "Veiling")}</h4>
-        <div class="mff-auction-metrics">
-          <div class="mff-auction-metric"><span>Huidig bod</span><strong>${escapeHtml(currentBid)}</strong></div>
-          <div class="mff-auction-metric"><span>${mode === "won" ? "Status" : "Resterende tijd"}</span><strong${mode === "won" ? "" : ` data-mff-auction-countdown="${escapeHtml(Number.isFinite(endTime) ? endTime : 0)}"`}>${mode === "won" ? "Gewonnen" : "--:--:--"}</strong></div>
+        <p class="mff-auction-reference">${escapeHtml(reference)}</p>
+        <h4 class="mff-auction-title">${escapeHtml(auction?.productTitle || auction?.title || "Veiling")}</h4>
+        <div class="mff-auction-meta">
+          <span>Online veiling</span>
+          <span>${escapeHtml(bidTotal)} ${bidTotal === 1 ? "bieding" : "biedingen"}</span>
         </div>
-        <p class="mff-auction-viewer">${escapeHtml(viewerLine)}</p>
+        <div class="mff-auction-bid">
+          <div><span>${mode === "won" ? "Winnend bod" : "Huidig bod"}</span><strong>${escapeHtml(currentBid)}</strong></div>
+          ${viewerLine ? `<p class="mff-auction-viewer">${escapeHtml(viewerLine)}</p>` : ""}
+        </div>
         <a class="mff-button" href="${escapeHtml(auctionHref(auction))}" target="_top">${mode === "won" ? "Bekijk veiling" : "Bied mee"}</a>
       </div>
     </article>`;
@@ -1914,7 +1934,7 @@ function widgetRuntime() {
     if (!items.length) {
       return `<div class="mff-empty"><strong>${escapeHtml(emptyTitle)}</strong><span>${escapeHtml(emptyBody)}</span>${mode !== "won" ? `<a class="mff-button" href="${escapeHtml(storeHref("/collections/veilingen"))}" target="_top">Ontdek live veilingen</a>` : ""}</div>`;
     }
-    return `<div class="mff-auction-grid">${items.map((auction) => auctionCard(auction, mode)).join("")}</div>`;
+    return `<div class="mff-auction-rail"><div class="mff-auction-grid">${items.map((auction) => auctionCard(auction, mode)).join("")}</div><span class="mff-auction-swipe-cue" aria-hidden="true">→</span></div>`;
   }
 
   function initAuctionCountdowns(root) {
@@ -1938,6 +1958,21 @@ function widgetRuntime() {
     window.setInterval(render, 1000);
   }
 
+  function setupAuctionRails(root) {
+    root.querySelectorAll(".mff-auction-rail").forEach((rail) => {
+      const track = rail.querySelector(".mff-auction-grid");
+      const cue = rail.querySelector(".mff-auction-swipe-cue");
+      if (!track || !cue) return;
+      const update = () => {
+        const hasMore = track.scrollLeft + track.clientWidth < track.scrollWidth - 4;
+        cue.classList.toggle("is-hidden", !hasMore);
+      };
+      track.addEventListener("scroll", update, { passive: true });
+      window.addEventListener("resize", update, { passive: true });
+      update();
+    });
+  }
+
   function setupDashboardTabs(root) {
     const tabs = [...root.querySelectorAll('[role="tab"]')];
     const panels = [...root.querySelectorAll('[role="tabpanel"]')];
@@ -1955,11 +1990,11 @@ function widgetRuntime() {
     tabs.forEach((tab, index) => {
       tab.addEventListener("click", () => activate(tab));
       tab.addEventListener("keydown", (event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
         event.preventDefault();
         const targetIndex = event.key === "Home" ? 0
           : event.key === "End" ? tabs.length - 1
-            : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+            : (index + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1) + tabs.length) % tabs.length;
         activate(tabs[targetIndex], true);
       });
     });
@@ -2022,6 +2057,7 @@ function widgetRuntime() {
     </section>`;
     setupDashboardTabs(el);
     initAuctionCountdowns(el);
+    setupAuctionRails(el);
     const redeemButton = el.querySelector("[data-mff-loyalty-redeem]");
     const redeemResult = el.querySelector("[data-mff-loyalty-result]");
     if (redeemButton && !redeemButton.disabled && payload.customerId && payload.customerToken) {
